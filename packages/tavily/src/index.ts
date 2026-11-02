@@ -4,6 +4,7 @@ import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
 import {compareEvidence,normalizeSource} from './comparison';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
+import {freshnessScore} from './freshness';
 export {SearchBudget} from './budget';
 const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
@@ -39,7 +40,7 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {
  const request=VerifyRequest.parse(input);const now=new Date().toISOString();const claims=request.claims??extractClaims(request.text).map(text=>({text,asOf:undefined}));const mode=options.mode??process.env.TAVILY_MODE??'mock';
- if(mode==='mock')return VerificationReport.parse({version:'1',id:randomUUID(),mode:'mock',createdAt:now,text:request.text,claims:claims.map(({text,asOf})=>mockVerification(text,asOf,now))});
+ if(mode==='mock')return VerificationReport.parse({version:'1',id:randomUUID(),mode:'mock',createdAt:now,text:request.text,claims:claims.map(({text,asOf})=>({...mockVerification(text,asOf,now),freshnessScore:null}))});
  if(mode!=='live')throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  if((options.allowPaidRequests??process.env.ALLOW_PAID_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. Set ALLOW_PAID_REQUESTS=true only after approving a request budget.');
  const apiKey=options.apiKey??process.env.TAVILY_API_KEY;if(!apiKey)throw new TavilyConfigurationError('TAVILY_API_KEY is required in live mode.');
@@ -64,5 +65,5 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
   }
   cache.set(cacheKey,result);verified.push(result);
  }
- return VerificationReport.parse({version:'1',id:randomUUID(),mode:'live',createdAt:now,text:request.text,claims:verified});
+ return VerificationReport.parse({version:'1',id:randomUUID(),mode:'live',createdAt:now,text:request.text,claims:verified.map(claim=>({...claim,freshnessScore:freshnessScore(claim,'live')}))});
 }

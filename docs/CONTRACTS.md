@@ -2,6 +2,8 @@
 
 Canonical runtime schemas and inferred TypeScript types: `packages/contracts/src/index.ts`. Version is literal string `"1"`; incompatible versions are rejected. Payload examples live under `docs/examples/` and `packages/contracts/src/examples.ts`. `npm run test:contracts` validates examples and ambiguity rules. A breaking change requires a new version plus Farhan/Aryan coordination.
 
+Verification claims add optional `freshnessScore: integer (0–100) | null`. New verifier responses always include it; legacy reports may omit it. Current rules emit 100 for corroborated live supported/current claims, 0 for corroborated live contradicted/stale claims, and null for unassessed claims and offline fixtures. This is a coarse validity indicator, not confidence or a calibrated probability. Recency and agreement gate eligibility; intermediate scores are reserved until calibrated. Coordinate this additive shared-contract change with Farhan/Aryan before merge.
+
 | Schema | Purpose |
 | --- | --- |
 | TaskSpec | Stable task ID, prompt, acceptance requirements, optional fixture |
