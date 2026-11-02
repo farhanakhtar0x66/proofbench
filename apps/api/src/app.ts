@@ -8,6 +8,8 @@ import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
+ const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
+ if(!['mock','live'].includes(tavilyMode))throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const tavilyBudget=new SearchBudget();
  const app=Fastify({logger:false,bodyLimit:128*1024});
@@ -19,13 +21,13 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return reply.code(500).send({version:'1',error:'internal_error'});
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
- app.get('/api/capabilities',async()=>Capabilities.parse({version:'1',implementation:adapter.descriptor.implementation,agent:adapter.descriptor,capabilities:adapter.capabilities,limitations:['Tavily is offline fixture mode; arbitrary claims are inconclusive.','Native execution is not integrated.',...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:['Selected Bifrost implementation is not integrated.'])]}));
+ app.get('/api/capabilities',async()=>Capabilities.parse({version:'1',implementation:adapter.descriptor.implementation,agent:adapter.descriptor,capabilities:adapter.capabilities,limitations:[tavilyMode==='mock'?'Tavily is offline fixture mode; arbitrary claims are inconclusive.':'Tavily live mode is selected; search still requires explicit spending consent, a key and remaining server budget. Only narrow English templates are evaluated; source authority is not established.','Native execution is not integrated.',...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:['Selected Bifrost implementation is not integrated.'])]}));
  app.get('/api/benchmarks',async()=>{
   if(!adapter.capabilities.benchmarks)throw new UnsupportedCapability('Benchmark catalog not integrated for selected adapter');
   return {version:'1',tasks:[task]};
  });
  app.post('/api/verify',async(request,reply)=>{
-  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:options.tavilyMode,budget:tavilyBudget});await store.put('verify',result.id,result);return reply.code(201).send(result);
+  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget});await store.put('verify',result.id,result);return reply.code(201).send(result);
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

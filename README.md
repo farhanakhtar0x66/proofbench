@@ -26,7 +26,7 @@ npm run test:ui            # starts local API + web; desktop and mobile
 cargo test --manifest-path crates/neuromesh-bridge/Cargo.toml --locked
 ```
 
-No command makes paid model or Tavily requests. ChatGPT Plus does not supply API credits. `TAVILY_MODE=live` fails closed until Mohit's metered integration is reviewed. Keys belong only in the server environment.
+Default mock development and automated checks make no paid Tavily requests. Live search requires `TAVILY_MODE=live`, `ALLOW_PAID_REQUESTS=true`, a server-only key and a positive `TAVILY_MAX_REQUESTS` cap. The cap covers one running API instance and resets on restart. Search results are cached for five minutes. ChatGPT Plus does not supply API credits. See [Tavily handoff](docs/TAVILY-HANDOFF.md) before enabling live mode.
 
 ## Team boundaries
 
@@ -41,4 +41,4 @@ See [architecture](docs/ARCHITECTURE.md), [contracts](docs/CONTRACTS.md), [integ
 
 ## Honest limits
 
-The verifier is an exact fixture lookup with sentence splitting, not completed Tavily retrieval/semantic verification. Fixture regressions measure plumbing, not verification accuracy. Persistent JSON storage is local prototype storage, not a multi-user production database. Bifrost `01` and `02` return unsupported (HTTP 501). The Rust executable is a capability probe only. Default server binding is loopback; deployment remains a team-reviewed step. November 15 is our internal prototype target; exact organizer cutoff and reuse eligibility require confirmation.
+Mock verification uses exact fixtures with heuristic claim extraction. Live retrieval is integrated with a server-lifetime request cap and cache; comparison handles only narrow English pricing, version and CEO templates. Many real-world claims remain inconclusive. Numeric freshness is a coarse 0/100/null indicator, not calibrated confidence. Source authority and independence are not established. Fixture regressions measure plumbing, not verification accuracy. Persistent JSON storage is local prototype storage, not a multi-user production database. Bifrost `01` and `02` return unsupported (HTTP 501). The Rust executable is a capability probe only. Default server binding is loopback; deployment remains a team-reviewed step. November 15 is our internal prototype target; exact organizer cutoff and reuse eligibility require confirmation.

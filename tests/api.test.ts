@@ -1,4 +1,4 @@
-import {it,expect} from 'vitest';
+import {it,expect,vi} from 'vitest';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -17,6 +17,19 @@ it.each(['01','02'] as const)('%s rejects unavailable execution instead of simul
  await expect(adapter.run({version:'1',task,agentId:adapter.descriptor.id,seed:0})).rejects.toThrow('not integrated');
 });
 it('rejects invalid configuration',()=>expect(()=>selectAdapter('oops')).toThrow());
+it('rejects unknown Tavily modes at startup',async()=>{
+ await expect(createApp({implementation:'mock',tavilyMode:'typo'})).rejects.toThrow('TAVILY_MODE');
+});
+it('reports live selection truthfully and blocks unapproved search through the API',async()=>{
+ vi.stubEnv('ALLOW_PAID_REQUESTS','false');
+ const app=await createApp({implementation:'mock',tavilyMode:'live'});
+ try{
+  const capabilities=(await app.inject('/api/capabilities')).json();
+  expect(capabilities.limitations[0]).toContain('live mode is selected');
+  const response=await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:'Acme latest version is 2.'}});
+  expect(response.statusCode).toBe(400);expect(response.json().message).toContain('ALLOW_PAID_REQUESTS');
+ }finally{await app.close();vi.unstubAllEnvs();}
+},20000);
 it('serves health, validates input, persists verification and links runs, reports, traces',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'proofbench-test-'));
  const app=await createApp({dataDir:dir,implementation:'mock'});

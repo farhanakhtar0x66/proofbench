@@ -1,4 +1,5 @@
 import {randomUUID} from 'node:crypto';
+import {z} from 'zod';
 import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
@@ -9,7 +10,7 @@ export {SearchBudget} from './budget';
 const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
 type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string};
-type TavilyResponse={results?:TavilyResult[]};
+const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
 type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
@@ -23,7 +24,8 @@ const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string)=>res
 async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
  if(!response.ok)throw new Error(`Tavily search failed with HTTP ${response.status}.`);
- const data=await response.json() as TavilyResponse;return Array.isArray(data.results)?data.results:[];
+ const data=TavilyResponse.parse(await response.json());
+ return data.results.map(result=>({...result,title:result.title??undefined,content:result.content??undefined,published_date:result.published_date??undefined}));
 }
 function mockVerification(text:string,asOf:string|undefined,now:string){
  const fixture=asOf?undefined:cases.find(candidate=>candidate.statement===text.trim());
