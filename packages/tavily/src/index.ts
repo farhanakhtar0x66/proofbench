@@ -1,6 +1,7 @@
 import {randomUUID} from 'node:crypto';
 import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
+import {classifyClaim,extractClaims} from './claims';
 
 type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string};
 type TavilyResponse={results?:TavilyResult[]};
@@ -9,7 +10,6 @@ export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
 const wordTokens=(text:string)=>text.toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
-const extractClaims=(text:string)=>text.split(/(?<=[.!?])\s+|\n+/u).map(value=>value.trim()).filter(Boolean).slice(0,50);
 const requestLimit=(value:string|number|undefined)=>{
  const parsed=typeof value==='number'?value:Number(value);
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
@@ -50,7 +50,8 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
   const cached=cache.get(cacheKey);
   if(cached){verified.push({...cached,id:randomUUID(),text:claim.text});continue;}
   if(claim.asOf){verified.push(liveVerification(claim.text,claim.asOf,now,[]));continue;}
-  if(!timeSensitivePattern.test(claim.text)){verified.push(ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'unknown',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:'Claim was not identified as time-sensitive, so live retrieval was skipped to conserve the request budget.',evidence:[]}));continue;}
+  const classification=classifyClaim(claim.text);
+  if(classification.ambiguous||classification.timeSensitive==='unknown'){verified.push(ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:classification.timeSensitive,outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:classification.ambiguous?'Claim needs an explicit entity or product before retrieval. No search was made.':'Claim was not identified as time-sensitive, so live retrieval was skipped to conserve the request budget.',evidence:[]}));continue;}
   if(requestsUsed>=budget){verified.push(ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:'Live request budget exhausted before this claim could be checked.',evidence:[]}));continue;}
   requestsUsed++;
   let result:ClaimVerification;
