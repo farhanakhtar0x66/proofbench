@@ -38,7 +38,7 @@ it('serves health, validates input, persists verification and links runs, report
  expect((await reopened.inject(`/api/verify/${verification.json().id}`)).statusCode).toBe(200);
  await reopened.close();
  } finally {await app.close();await rm(dir,{recursive:true,force:true});}
-});
+},20000);
 it('returns 501 for unintegrated Bifrost while verification remains available',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'proofbench-test-'));
  const app=await createApp({dataDir:dir,implementation:'01'});

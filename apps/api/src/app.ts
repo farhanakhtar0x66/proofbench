@@ -3,12 +3,13 @@ import {z,ZodError} from 'zod';
 import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
-import {TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
+import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
+ const tavilyBudget=new SearchBudget();
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
@@ -24,7 +25,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return {version:'1',tasks:[task]};
  });
  app.post('/api/verify',async(request,reply)=>{
-  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:options.tavilyMode});await store.put('verify',result.id,result);return reply.code(201).send(result);
+  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:options.tavilyMode,budget:tavilyBudget});await store.put('verify',result.id,result);return reply.code(201).send(result);
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

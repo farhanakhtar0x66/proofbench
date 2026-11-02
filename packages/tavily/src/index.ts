@@ -3,10 +3,13 @@ import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contract
 import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
 import {compareEvidence,normalizeSource} from './comparison';
+import {RequestBudgetExhausted,SearchBudget} from './budget';
+export {SearchBudget} from './budget';
+const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
 type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string};
 type TavilyResponse={results?:TavilyResult[]};
-type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch};
+type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
@@ -25,9 +28,9 @@ function mockVerification(text:string,asOf:string|undefined,now:string){
  const fixture=asOf?undefined:cases.find(candidate=>candidate.statement===text.trim());
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:fixture?.timeSensitive??(timeSensitivePattern.test(text)?'yes':'unknown'),outcome:fixture?.expectedOutcome??'inconclusive',freshness:fixture?.expectedFreshness??'unknown',asOf:asOf??now,uncertainty:fixture?`Offline fixture, not live Tavily evidence. ${fixture.uncertainty}`:asOf?'Explicit date scope requires temporal evidence; mock cannot verify this date.':'No exact offline fixture. Claim extraction is heuristic; current truth has not been established.',evidence:fixture&&fixture.expectedOutcome!=='inconclusive'?[{url:fixture.source,title:`Offline reference: ${fixture.id}`,retrievedAt:null,recordedAt:'2026-11-02T00:00:00.000Z',excerpt:fixture.reference,relation:fixture.expectedOutcome==='supported'?'supports':'contradicts',retrieval:'fixture'}]:[]});
 }
-function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[]){
+function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[],retrievedAt=now){
  if(asOf)return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome:'inconclusive',freshness:'unknown',asOf,uncertainty:'Historical verification needs date-scoped retrieval and is not available in the live v1 verifier.',evidence:[]});
- const evidence=liveEvidence(text,results,now);
+ const evidence=liveEvidence(text,results,now).map(item=>({...item,retrievedAt}));
  const domains=(relation:string)=>new Set(evidence.filter(item=>item.relation===relation).map(item=>new URL(item.url).hostname.replace(/^www\./u,''))).size;
  const supports=domains('supports');const contradicts=domains('contradicts');
  const outcome=contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
@@ -40,7 +43,9 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
  if(mode!=='live')throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  if((options.allowPaidRequests??process.env.ALLOW_PAID_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. Set ALLOW_PAID_REQUESTS=true only after approving a request budget.');
  const apiKey=options.apiKey??process.env.TAVILY_API_KEY;if(!apiKey)throw new TavilyConfigurationError('TAVILY_API_KEY is required in live mode.');
- const budget=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);const fetcher=options.fetch??fetch;let requestsUsed=0;const verified=[] as ClaimVerification[];
+ const budget=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);const fetcher=options.fetch??fetch;const verified=[] as ClaimVerification[];
+ let shared=options.budget??sharedBudgets.get(fetcher);
+ if(!shared){shared=new SearchBudget();sharedBudgets.set(fetcher,shared);}
  const cache=new Map<string,ClaimVerification>();
  for(const claim of claims){
   const cacheKey=JSON.stringify([claim.text.trim().toLowerCase().replace(/\s+/gu,' '),claim.asOf??null]);
@@ -49,14 +54,13 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
   if(claim.asOf){verified.push(liveVerification(claim.text,claim.asOf,now,[]));continue;}
   const classification=classifyClaim(claim.text);
   if(classification.ambiguous||classification.timeSensitive==='unknown'){verified.push(ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:classification.timeSensitive,outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:classification.ambiguous?'Claim needs an explicit entity or product before retrieval. No search was made.':'Claim was not identified as time-sensitive, so live retrieval was skipped to conserve the request budget.',evidence:[]}));continue;}
-  if(requestsUsed>=budget){verified.push(ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:'Live request budget exhausted before this claim could be checked.',evidence:[]}));continue;}
-  requestsUsed++;
   let result:ClaimVerification;
   try {
-   const results=await searchTavily(`${claim.text} official current`,apiKey,fetcher);
-   result=liveVerification(claim.text,undefined,new Date().toISOString(),results);
-  } catch {
-   result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:'Tavily retrieval failed, timed out, or returned invalid evidence. No retry was made; the attempted request counts toward the budget.',evidence:[]});
+   const query=`${claim.text.trim().toLowerCase().replace(/\s+/gu,' ')} official current`;
+   const search=await shared.search(query,apiKey,budget,()=>searchTavily(query,apiKey,fetcher));
+   result=liveVerification(claim.text,undefined,new Date().toISOString(),search.value,search.retrievedAt);
+  } catch(error) {
+   result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:error instanceof RequestBudgetExhausted?'Live request budget exhausted for this server lifetime. No search was made.':'Tavily retrieval failed, timed out, or returned invalid evidence. No retry was made; the attempted request counts toward the budget.',evidence:[]});
   }
   cache.set(cacheKey,result);verified.push(result);
  }
