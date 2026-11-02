@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
-import {analyzeEvidence,compareEvidence,normalizeSource} from './comparison';
+import {analyzeEvidence,claimFormatLimitation,compareEvidence,normalizeSource} from './comparison';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
 import {freshnessScore} from './freshness';
 export {SearchBudget} from './budget';
@@ -38,7 +38,21 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
  const supports=domains('supports');const contradicts=domains('contradicts');
  const internalConflict=results.map(normalizeSource).filter(source=>!!source).some(source=>analyzeEvidence(text,source,now).conflicting);
  const outcome=internalConflict?'inconclusive':contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
- const uncertainty=internalConflict?'A source contains both supporting and contradicting statements for the same claim. Review this conflicting evidence before drawing a conclusion.':outcome==='inconclusive'?'Requires a supported claim template and agreeing evidence dated within 30 days from two distinct hostnames, with no conflicting evidence. Search relevance alone is insufficient.':'Two distinct source hostnames provide recent matching entity and scope statements. This is a rule-based assessment; source independence and authority are not established. Review the evidence.';
+ const dated=evidence.filter(item=>{
+  if(!item.publishedAt)return false;
+  const age=Date.parse(now)-Date.parse(item.publishedAt);
+  return age>=0&&age<=30*86400000;
+ });
+ let uncertainty='Two distinct source hostnames provide recent matching entity and scope statements. This is a rule-based assessment; source independence and authority are not established. Review the evidence.';
+ if(outcome==='inconclusive'){
+  uncertainty=claimFormatLimitation(text)??(
+   internalConflict?'A source contains both supporting and contradicting statements for the same claim. Review this conflicting evidence before drawing a conclusion.':
+   supports>0&&contradicts>0?'Recent sources disagree about this claim. The verifier cannot choose between conflicting statements.':
+   evidence.length===0?'No usable source evidence was returned. The claim has not been verified.':
+   dated.length===0?'Sources have no valid publication dates within the last 30 days. Retrieval today does not establish that their information is current.':
+   supports+contradicts===0?'Recent evidence does not provide a comparable statement with the same entity and scope. It may concern another product, plan, currency, billing period or unsupported wording.':
+   'Fewer than two distinct source hostnames provide agreeing, recent statements. Another qualifying source is needed; repeated pages from one hostname do not count twice.');
+ }
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome,freshness,asOf:now,uncertainty,evidence});
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {

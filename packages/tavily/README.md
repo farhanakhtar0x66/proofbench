@@ -22,6 +22,8 @@ A source must contain a matching statement and a publication date within the pre
 
 Internal conflicts also block a verdict: if one recent source both supports and contradicts the same entity and scope, the whole claim stays inconclusive even when two other sources agree. The explanation identifies that conflict and the score remains null.
 
+Inconclusive explanations distinguish unsupported claim wording or ambiguous currency, missing usable sources, missing recent dates, conflicting sources, mismatched scope and insufficient corroboration. These messages do not trigger extra searches or change the scoring rules.
+
 TAVILY_MAX_REQUESTS caps total search attempts for the lifetime of one Fastify application instance. Requests reserve budget synchronously, so concurrent calls cannot overspend. A failed attempt still consumes budget and is never retried automatically. Changing credentials or increasing configuration does not refill an existing budget.
 
 Identical queries and credentials reuse search results for five minutes, retaining their original retrieval timestamp. Simultaneous identical searches share one in-flight request. Up to 100 completed searches are cached in memory; the cache does not store raw credentials. Expiry and eviction do not refund budget. Network requests time out after ten seconds.

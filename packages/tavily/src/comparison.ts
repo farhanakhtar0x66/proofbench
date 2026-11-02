@@ -38,6 +38,12 @@ export function compareEvidence(claim:string,source:SearchEvidence,now:string):'
  return analyzeEvidence(claim,source,now).relation;
 }
 
+export function claimFormatLimitation(text:string):string|null{
+ if(parseFact(text))return null;
+ if(text.includes('$'))return 'The dollar symbol does not identify a currency. Specify a code such as USD, CAD or AUD; this prototype currently compares USD, INR, EUR and GBP pricing.';
+ return 'This claim does not match a supported English pricing, CEO or latest-version pattern. Try a complete statement with an explicit product or company, value and billing unit when applicable. No verdict can be inferred from related search results.';
+}
+
 export function normalizeSource(source:SearchEvidence):SearchEvidence|undefined{
  try{
   const url=new URL(source.url??'');
