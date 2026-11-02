@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
+import {compareEvidence,normalizeSource} from './comparison';
 
 type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string};
 type TavilyResponse={results?:TavilyResult[]};
@@ -9,18 +10,12 @@ type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|n
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
-const wordTokens=(text:string)=>text.toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
 const requestLimit=(value:string|number|undefined)=>{
  const parsed=typeof value==='number'?value:Number(value);
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
  return parsed;
 };
-const relationFor=(_claim:string,_result:TavilyResult):'supports'|'contradicts'|'context'=>{
- // Search relevance and word overlap cannot establish truth, contradiction, or freshness.
- // Keep retrieved text as context until a scoped evidence evaluator is available.
- return 'context';
-};
-const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string)=>results.filter((result):result is TavilyResult&{url:string}=>typeof result.url==='string').slice(0,3).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:result.content?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:relationFor(claim,result),retrieval:'tavily' as const}));
+const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string)=>results.map(normalizeSource).filter((result):result is TavilyResult&{url:string}=>!!result?.url).slice(0,3).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:result.content?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:compareEvidence(claim,result,retrievedAt),retrieval:'tavily' as const}));
 async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
  if(!response.ok)throw new Error(`Tavily search failed with HTTP ${response.status}.`);
@@ -32,9 +27,11 @@ function mockVerification(text:string,asOf:string|undefined,now:string){
 }
 function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[]){
  if(asOf)return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome:'inconclusive',freshness:'unknown',asOf,uncertainty:'Historical verification needs date-scoped retrieval and is not available in the live v1 verifier.',evidence:[]});
- const evidence=liveEvidence(text,results,now);const supports=evidence.filter(item=>item.relation==='supports').length;const contradicts=evidence.filter(item=>item.relation==='contradicts').length;
- const outcome=contradicts>0&&supports===0?'contradicted':supports>0&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
- const uncertainty=outcome==='inconclusive'?'Live sources did not provide enough direct, unambiguous evidence for a verdict.':outcome==='supported'?'Current Tavily evidence directly overlaps the submitted claim.':'Current Tavily evidence contains a conflicting explicit value; review the cited sources.';
+ const evidence=liveEvidence(text,results,now);
+ const domains=(relation:string)=>new Set(evidence.filter(item=>item.relation===relation).map(item=>new URL(item.url).hostname.replace(/^www\./u,''))).size;
+ const supports=domains('supports');const contradicts=domains('contradicts');
+ const outcome=contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
+ const uncertainty=outcome==='inconclusive'?'Requires a supported claim template and agreeing evidence dated within 30 days from two distinct hostnames, with no conflicting evidence. Search relevance alone is insufficient.':'Two distinct source hostnames provide recent matching entity and scope statements. This is a rule-based assessment; source independence and authority are not established. Review the evidence.';
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome,freshness,asOf:now,uncertainty,evidence});
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {
@@ -46,7 +43,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
  const budget=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);const fetcher=options.fetch??fetch;let requestsUsed=0;const verified=[] as ClaimVerification[];
  const cache=new Map<string,ClaimVerification>();
  for(const claim of claims){
-  const cacheKey=JSON.stringify([wordTokens(claim.text).join(' '),claim.asOf??null]);
+  const cacheKey=JSON.stringify([claim.text.trim().toLowerCase().replace(/\s+/gu,' '),claim.asOf??null]);
   const cached=cache.get(cacheKey);
   if(cached){verified.push({...cached,id:randomUUID(),text:claim.text});continue;}
   if(claim.asOf){verified.push(liveVerification(claim.text,claim.asOf,now,[]));continue;}
