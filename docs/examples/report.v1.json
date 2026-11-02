@@ -1,0 +1,46 @@
+{
+  "version": "1",
+  "id": "demo-report",
+  "runId": "demo-run",
+  "createdAt": "2026-11-02T00:00:00.000Z",
+  "summary": "Offline fixture smoke result",
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "Output exactly 6",
+        "passed": true,
+        "evidence": "Fixture output equals expected string 6"
+      }
+    ],
+    "method": "Offline exact-output fixture; not agent performance"
+  },
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "missing",
+      "reason": "No model was called"
+    },
+    "outputTokens": {
+      "status": "missing",
+      "reason": "No model was called"
+    },
+    "duration": {
+      "status": "known",
+      "value": 1,
+      "unit": "ms",
+      "source": "fixture",
+      "scope": "simulated fixture only"
+    },
+    "cost": {
+      "status": "missing",
+      "reason": "No paid request; cost telemetry not collected"
+    }
+  },
+  "verification": null,
+  "limitations": [
+    "Simulated data is not a measured Bifrost result.",
+    "Missing token telemetry is never zero."
+  ]
+}

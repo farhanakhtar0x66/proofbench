@@ -1,0 +1,18 @@
+{
+  "version": "1",
+  "runId": "demo-run",
+  "events": [
+    {
+      "sequence": 0,
+      "at": "2026-11-02T00:00:00.000Z",
+      "type": "start",
+      "message": "Offline fixture selected; no agent or model invoked."
+    },
+    {
+      "sequence": 1,
+      "at": "2026-11-02T00:00:00.000Z",
+      "type": "check",
+      "message": "Exact fixture comparison passed."
+    }
+  ]
+}

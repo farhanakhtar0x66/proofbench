@@ -1,0 +1,10 @@
+{
+  "version": "1",
+  "id": "sum-fixture",
+  "title": "Sum the integers",
+  "prompt": "Return the sum of 1, 2 and 3 as a decimal integer.",
+  "acceptance": [
+    "Output exactly 6"
+  ],
+  "fixtureId": "sum-v1"
+}

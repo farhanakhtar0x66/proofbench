@@ -1,0 +1,30 @@
+{
+  "version": "1",
+  "id": "24ba5efd-1431-4e22-a221-c5b00b3950a6",
+  "mode": "mock",
+  "createdAt": "2026-11-02T02:50:38.841Z",
+  "text": "Python 2 is currently supported.",
+  "claims": [
+    {
+      "version": "1",
+      "id": "e516a91b-6435-4d88-bc26-79d0177cf534",
+      "text": "Python 2 is currently supported.",
+      "timeSensitive": "yes",
+      "outcome": "contradicted",
+      "freshness": "stale",
+      "asOf": "2026-11-02T02:50:38.841Z",
+      "uncertainty": "Offline fixture, not live Tavily evidence. Offline reference annotation; must recheck source before judging.",
+      "evidence": [
+        {
+          "url": "https://www.python.org/doc/sunset-python-2/",
+          "title": "Offline reference: python2-eol",
+          "retrievedAt": null,
+          "recordedAt": "2026-11-02T00:00:00.000Z",
+          "excerpt": "Python 2 support ended January 1, 2020.",
+          "relation": "contradicts",
+          "retrieval": "fixture"
+        }
+      ]
+    }
+  ]
+}

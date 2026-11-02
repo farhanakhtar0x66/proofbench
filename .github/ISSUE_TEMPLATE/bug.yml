@@ -1,0 +1,16 @@
+name: Bug report
+description: Reproducible failure with expected behavior
+title: '[Bug] '
+labels: [bug]
+body:
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps, expected result and actual result
+    validations:
+      required: true
+  - type: textarea
+    id: evidence
+    attributes:
+      label: Redacted evidence and environment
+      description: Never paste keys, sessions or private logs.

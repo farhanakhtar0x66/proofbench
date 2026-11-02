@@ -1,0 +1,23 @@
+name: Work item
+description: A bounded implementation, evaluation or documentation task
+title: '[Workstream] '
+body:
+  - type: textarea
+    id: objective
+    attributes:
+      label: Objective and named owner
+    validations:
+      required: true
+  - type: textarea
+    id: deliverables
+    attributes:
+      label: Deliverables and acceptance criteria
+      description: Include tests and evidence that show the task is done.
+    validations:
+      required: true
+  - type: textarea
+    id: dependencies
+    attributes:
+      label: Dependencies, priority and milestone
+    validations:
+      required: true

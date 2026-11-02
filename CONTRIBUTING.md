@@ -1,0 +1,9 @@
+# Working together
+
+Aryan Vishwakarma is team leader and product/frontend lead. Farhan is founding architect and AI systems/integration lead. Mohit owns verification semantics; Khushi owns evaluation, research and demo evidence. Aryan can decide frontend architecture and components within stable API boundaries without approval for each component.
+
+Start from main, use short-lived branches: `feat/ui-dashboard`, `feat/tavily-verifier`, `feat/freshness-fixtures`, `feat/agent-adapter`, `feat/benchmark-engine`, `docs/judging-demo`. Open focused PRs with issue links, reproducible validation and limitations. No direct main pushes during normal collaboration, no force pushes, no history replacement. Bootstrap initial main is the only setup exception. At least one teammate should review when possible; relevant checks must pass before merge.
+
+Review ownership: contracts require Farhan + Aryan coordination; execution/safety requires Farhan; verification semantics requires Mohit's review + Khushi's evaluation evidence; frontend presentation belongs to Aryan; fixtures and accuracy rubric belong to Khushi. Missing GitHub handles are tracked in TEAM.md; use named owners in issues until assignees are available. Don't block frontend, evaluation or Tavily on Farhan's live experiments; use offline fixtures and the stable interface.
+
+Run `npm run check`, `npm run test:contracts`, `npm run test:ui`; run cargo checks for native changes. CI never needs paid API access. A GitHub plan may not enforce protections on a private personal repository. CODEOWNERS documents intent but unaccepted invitees cannot be effective code owners. Verify actual repository settings in docs/REPOSITORY-STATUS.md; if enforcement is unavailable, use this documented PR procedure, manual teammate sign-off and CI evidence. Repository ownership does not change hackathon team leadership.

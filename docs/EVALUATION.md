@@ -1,0 +1,11 @@
+# Evaluation ownership: Khushi + Mohit
+
+`fixtures/freshness-cases/v1.json` defines statement, relevantDate, expectedOutcome, expectedFreshness, source, reference, explanation, uncertainty, domain and timeSensitive. The initial six annotations cover historical/version-qualified facts, stale software support, underspecified pricing, API scope and ambiguous release claims. References are candidate authoritative sources; no live retrieval has occurred in the mock.
+
+`npm run evaluate` produces `.local/evaluation/report.json`, including per-case expected/actual results, domain and failures. The mock uses this same fixture set, so this command is only an offline plumbing regression. **It cannot estimate semantic verification accuracy.** Khushi must create a separately labeled holdout dataset not consulted by the verifier, with dated archived/extracted evidence and independent reviewer agreement.
+
+Proposed acceptance rubric for team approval: every definitive decision has an attributable authoritative source and temporal scope; unknown/ambiguous cases remain inconclusive; no missing evidence becomes supported. On the independent holdout, target >=90% precision for definitive decisions and report coverage/abstention alongside precision. This target is proposed, not measured. Report per-domain confusion counts, stale false positives, contradiction false positives, unsupported source attribution, ambiguity, retrieval failures and annotation disagreements. Never score every inconclusive as correct without reporting coverage.
+
+Adversarial additions: historical prices phrased with explicit dates, similarly named products, future announcements vs shipped releases, rolling docs vs pinned version docs, conflicting sources, regional pricing, taxes, input vs cached/output prices, undated scraped pages and sources that quote the same wrong answer. Expected inconclusive cases are first-class tests.
+
+Demo plan: (1) fixture run with trace/acceptance/unknown tokens; (2) stale support claim vs historical statement; (3) ambiguous price safely abstains; (4) real selected Bifrost execution once integrated. Clearly label fixture vs live evidence. Khushi owns evaluation and failure analysis, not just slides.

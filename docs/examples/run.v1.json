@@ -1,0 +1,68 @@
+{
+  "version": "1",
+  "id": "demo-run",
+  "task": {
+    "version": "1",
+    "id": "sum-fixture",
+    "title": "Sum the integers",
+    "prompt": "Return the sum of 1, 2 and 3 as a decimal integer.",
+    "acceptance": [
+      "Output exactly 6"
+    ],
+    "fixtureId": "sum-v1"
+  },
+  "agent": {
+    "version": "1",
+    "id": "mock-local",
+    "name": "Offline fixture adapter",
+    "implementation": "mock",
+    "runtime": "mock",
+    "revision": "mock-v1",
+    "model": null
+  },
+  "status": "completed",
+  "output": "6",
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "missing",
+      "reason": "No model was called"
+    },
+    "outputTokens": {
+      "status": "missing",
+      "reason": "No model was called"
+    },
+    "duration": {
+      "status": "known",
+      "value": 1,
+      "unit": "ms",
+      "source": "fixture",
+      "scope": "simulated fixture only"
+    },
+    "cost": {
+      "status": "missing",
+      "reason": "No paid request; cost telemetry not collected"
+    }
+  },
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "Output exactly 6",
+        "passed": true,
+        "evidence": "Fixture output equals expected string 6"
+      }
+    ],
+    "method": "Offline exact-output fixture; not agent performance"
+  },
+  "createdAt": "2026-11-02T00:00:00.000Z",
+  "reportId": "demo-report",
+  "reproducibility": {
+    "seed": 0,
+    "adapterRevision": "mock-v1",
+    "fixtureRevision": "sum-v1",
+    "environment": "offline fixture",
+    "simulated": true
+  }
+}
