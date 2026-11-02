@@ -67,5 +67,23 @@ it('uses mocked Tavily evidence only within the explicit request budget',async()
  let calls=0;
  const fetcher=async()=>{calls++;return new Response(JSON.stringify({results:[{url:'https://example.com/leadership',title:'Leadership',content:'The current CEO of Example Corp is Ada Lovelace.'}]}),{status:200,headers:{'Content-Type':'application/json'}});};
  const result=await verifyAnswer({version:'1',text:'The current CEO of Example Corp is Ada Lovelace. The current API version is 2.'},{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
- expect(calls).toBe(1);expect(result.mode).toBe('live');expect(result.claims[0].outcome).toBe('supported');expect(result.claims[1].outcome).toBe('inconclusive');expect(result.claims[1].uncertainty).toContain('budget exhausted');
+ expect(calls).toBe(1);expect(result.mode).toBe('live');expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].evidence[0].relation).toBe('context');expect(result.claims[1].outcome).toBe('inconclusive');expect(result.claims[1].uncertainty).toContain('budget exhausted');
+});
+it('reuses duplicate claims within a report without spending another request',async()=>{
+ let calls=0;
+ const fetcher:typeof fetch=async(_url,init)=>{calls++;expect(init?.signal).toBeInstanceOf(AbortSignal);return Response.json({results:[]});};
+ const text='The current API version is 2.';
+ const result=await verifyAnswer({version:'1',text,claims:[{text},{text}]},{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(calls).toBe(1);expect(result.claims).toHaveLength(2);expect(result.claims[0].id).not.toBe(result.claims[1].id);
+});
+it('abstains on retrieval errors without retrying or disclosing upstream details',async()=>{
+ let calls=0;
+ const fetcher:typeof fetch=async()=>{calls++;throw new Error('secret upstream detail');};
+ const result=await verifyAnswer({version:'1',text:'The current API version is 2.'},{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(calls).toBe(1);expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].evidence).toEqual([]);expect(JSON.stringify(result)).not.toContain('secret upstream detail');
+});
+it('never treats negated or changed numeric evidence as proof from word overlap',async()=>{
+ const fetcher:typeof fetch=async()=>Response.json({results:[{url:'https://example.com/pricing',content:'The current API price is not 5 dollars. The current API price is 9 dollars.'}]});
+ const result=await verifyAnswer({version:'1',text:'The current API price is 5 dollars.'},{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].freshness).toBe('unknown');
 });
