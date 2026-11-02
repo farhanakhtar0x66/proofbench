@@ -44,6 +44,10 @@ export function claimFormatLimitation(text:string):string|null{
  return 'This claim does not match a supported English pricing, CEO or latest-version pattern. Try a complete statement with an explicit product or company, value and billing unit when applicable. No verdict can be inferred from related search results.';
 }
 
+export function claimEntity(text:string):string|undefined{
+ return parseFact(text)?.entity;
+}
+
 export function normalizeSource(source:SearchEvidence):SearchEvidence|undefined{
  try{
   const url=new URL(source.url??'');

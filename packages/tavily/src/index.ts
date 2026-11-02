@@ -3,7 +3,8 @@ import {z} from 'zod';
 import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
-import {analyzeEvidence,claimFormatLimitation,compareEvidence,normalizeSource} from './comparison';
+import {analyzeEvidence,claimFormatLimitation,normalizeSource} from './comparison';
+import {rankSources,type SourcePolicy} from './sources';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
 import {freshnessScore} from './freshness';
 export {SearchBudget} from './budget';
@@ -11,7 +12,7 @@ const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
 type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string};
 const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
-type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget};
+type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
@@ -20,7 +21,7 @@ const requestLimit=(value:string|number|undefined)=>{
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
  return parsed;
 };
-const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string)=>results.map(normalizeSource).filter((result):result is TavilyResult&{url:string}=>!!result?.url).slice(0,3).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:result.content?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:compareEvidence(claim,result,retrievedAt),retrieval:'tavily' as const}));
+const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:result.content?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group}));
 async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
  if(!response.ok)throw new Error(`Tavily search failed with HTTP ${response.status}.`);
@@ -31,10 +32,10 @@ function mockVerification(text:string,asOf:string|undefined,now:string){
  const fixture=asOf?undefined:cases.find(candidate=>candidate.statement===text.trim());
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:fixture?.timeSensitive??(timeSensitivePattern.test(text)?'yes':'unknown'),outcome:fixture?.expectedOutcome??'inconclusive',freshness:fixture?.expectedFreshness??'unknown',asOf:asOf??now,uncertainty:fixture?`Offline fixture, not live Tavily evidence. ${fixture.uncertainty}`:asOf?'Explicit date scope requires temporal evidence; mock cannot verify this date.':'No exact offline fixture. Claim extraction is heuristic; current truth has not been established.',evidence:fixture&&fixture.expectedOutcome!=='inconclusive'?[{url:fixture.source,title:`Offline reference: ${fixture.id}`,retrievedAt:null,recordedAt:'2026-11-02T00:00:00.000Z',excerpt:fixture.reference,relation:fixture.expectedOutcome==='supported'?'supports':'contradicts',retrieval:'fixture'}]:[]});
 }
-function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[],retrievedAt=now){
+function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[],retrievedAt=now,policy?:SourcePolicy){
  if(asOf)return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome:'inconclusive',freshness:'unknown',asOf,uncertainty:'Historical verification needs date-scoped retrieval and is not available in the live v1 verifier.',evidence:[]});
- const evidence=liveEvidence(text,results,now).map(item=>({...item,retrievedAt}));
- const domains=(relation:string)=>new Set(evidence.filter(item=>item.relation===relation).map(item=>new URL(item.url).hostname.replace(/^www\./u,''))).size;
+ const evidence=liveEvidence(text,results,now,policy).map(item=>({...item,retrievedAt}));
+ const domains=(relation:string)=>new Set(evidence.filter(item=>item.relation===relation&&!item.duplicateOf).map(item=>item.corroborationGroup)).size;
  const supports=domains('supports');const contradicts=domains('contradicts');
  const internalConflict=results.map(normalizeSource).filter(source=>!!source).some(source=>analyzeEvidence(text,source,now).conflicting);
  const outcome=internalConflict?'inconclusive':contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
@@ -43,7 +44,7 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
   const age=Date.parse(now)-Date.parse(item.publishedAt);
   return age>=0&&age<=30*86400000;
  });
- let uncertainty='Two distinct source hostnames provide recent matching entity and scope statements. This is a rule-based assessment; source independence and authority are not established. Review the evidence.';
+ let uncertainty='Two distinct source groups provide recent matching entity and scope statements after duplicate checks. This is a rule-based assessment; different groups do not prove independence. Review the evidence.';
  if(outcome==='inconclusive'){
   uncertainty=claimFormatLimitation(text)??(
    internalConflict?'A source contains both supporting and contradicting statements for the same claim. Review this conflicting evidence before drawing a conclusion.':
@@ -53,6 +54,8 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
    supports+contradicts===0?'Recent evidence does not provide a comparable statement with the same entity and scope. It may concern another product, plan, currency, billing period or unsupported wording.':
    'Fewer than two distinct source hostnames provide agreeing, recent statements. Another qualifying source is needed; repeated pages from one hostname do not count twice.');
  }
+ const reviewed=evidence.filter(item=>item.sourceTier!=='unreviewed').length;
+ uncertainty+=` Source ranking: ${reviewed} reviewed, ${evidence.length-reviewed} unreviewed. Unreviewed agreement does not establish authority; exact-copy detection cannot prove independence.`;
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome,freshness,asOf:now,uncertainty,evidence});
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {
@@ -76,7 +79,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
   try {
    const query=`${claim.text.trim().toLowerCase().replace(/\s+/gu,' ')} official current`;
    const search=await shared.search(query,apiKey,budget,()=>searchTavily(query,apiKey,fetcher));
-   result=liveVerification(claim.text,undefined,new Date().toISOString(),search.value,search.retrievedAt);
+   result=liveVerification(claim.text,undefined,new Date().toISOString(),search.value,search.retrievedAt,options.sourcePolicy);
   } catch(error) {
    result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:error instanceof RequestBudgetExhausted?'Live request budget exhausted for this server lifetime. No search was made.':'Tavily retrieval failed, timed out, or returned invalid evidence. No retry was made; the attempted request counts toward the budget.',evidence:[]});
   }

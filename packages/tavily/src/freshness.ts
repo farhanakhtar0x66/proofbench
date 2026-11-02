@@ -9,10 +9,10 @@ export function freshnessScore(claim:ClaimVerification,mode:'mock'|'live'):numbe
  const at=Date.parse(claim.asOf);
  const sources=new Set<string>();
  for(const evidence of claim.evidence){
-  if(evidence.retrieval!=='tavily'||evidence.relation!==relation||!evidence.retrievedAt||!evidence.publishedAt)continue;
+  if(evidence.retrieval!=='tavily'||evidence.relation!==relation||!evidence.retrievedAt||!evidence.publishedAt||evidence.duplicateOf)continue;
   const age=at-Date.parse(evidence.publishedAt);
   if(!Number.isFinite(age)||age<0||age>30*86400000)continue;
-  try{sources.add(new URL(evidence.url).hostname.replace(/^www\./u,''));}catch{continue;}
+  try{sources.add(evidence.corroborationGroup??new URL(evidence.url).hostname.replace(/^www\./u,''));}catch{continue;}
  }
  if(sources.size<2||claim.evidence.some(item=>item.relation===(relation==='supports'?'contradicts':'supports')))return null;
  if(claim.outcome==='supported'&&claim.freshness==='current')return 100;

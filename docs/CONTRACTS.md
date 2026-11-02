@@ -4,6 +4,8 @@ Canonical runtime schemas and inferred TypeScript types: `packages/contracts/src
 
 Verification claims add optional `freshnessScore: integer (0–100) | null`. New verifier responses always include it; legacy reports may omit it. Current rules emit 100 for corroborated live supported/current claims, 0 for corroborated live contradicted/stale claims, and null for unassessed claims and offline fixtures. This is a coarse validity indicator, not confidence or a calibrated probability. Recency and agreement gate eligibility; intermediate scores are reserved until calibrated. Coordinate this additive shared-contract change with Farhan/Aryan before merge.
 
+Live source entries also add optional `sourceTier` (official_direct/reviewed_secondary/unreviewed), `sourceReason`, `duplicateOf` (URL) and `corroborationGroup` (string). They describe reviewed entity/domain mappings, ranking and duplicate handling; omission in older reports remains valid. Review these additive fields with Farhan/Aryan. A tier is not a numerical trust score and does not itself establish truth or source independence.
+
 | Schema | Purpose |
 | --- | --- |
 | TaskSpec | Stable task ID, prompt, acceptance requirements, optional fixture |

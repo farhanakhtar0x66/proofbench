@@ -24,6 +24,16 @@ Internal conflicts also block a verdict: if one recent source both supports and 
 
 Inconclusive explanations distinguish unsupported claim wording or ambiguous currency, missing usable sources, missing recent dates, conflicting sources, mismatched scope and insufficient corroboration. These messages do not trigger extra searches or change the scoring rules.
 
+## Source ranking
+
+`src/sources.ts` contains a reviewed `sourcePolicy`, initially empty. The team must review entity/domain/page mappings before adding entries. Tests use synthetic domains; there is no automatic domain guessing. For example, a rule can list an exact product/plan name, official hostname, allowed page prefixes and whether subdomains are included. Code callers can inject a separate policy through verifyAnswer options for testing. Public API callers cannot supply trusted domains.
+
+Evidence is ordered as `official_direct`, `reviewed_secondary`, then `unreviewed`. Official-direct requires HTTPS, a reviewed entity and page match, and a recent directly comparable statement. Secondary status is a reviewed mapping, not proof of the statement. Relevance scores do not establish authority. Unknown entities, missing dates, HTTP pages, misleading hostname suffixes and unrelated pages cannot earn official-direct status.
+
+Evidence includes optional sourceTier, sourceReason, duplicateOf and corroborationGroup fields. Repeated URLs ignoring fragments and common tracking parameters count once; meaningful query parameters remain distinct. Identical excerpts of at least 120 characters and 20 words count once. Short matching facts are not automatically considered plagiarism. Subdomains are grouped when a reviewed rule explicitly allows them. All conflicting evidence remains visible and can block a verdict regardless of rank.
+
+Ranking prioritizes evidence but does not make official status a new prerequisite for the existing coarse verdicts. Agreement from unreviewed sources is explicitly labeled; it does not establish authority or independence. Paraphrased copies and unknown organizational relationships remain limitations. No extra searches are made, and the credit cap is unchanged.
+
 TAVILY_MAX_REQUESTS caps total search attempts for the lifetime of one Fastify application instance. Requests reserve budget synchronously, so concurrent calls cannot overspend. A failed attempt still consumes budget and is never retried automatically. Changing credentials or increasing configuration does not refill an existing budget.
 
 Identical queries and credentials reuse search results for five minutes, retaining their original retrieval timestamp. Simultaneous identical searches share one in-flight request. Up to 100 completed searches are cached in memory; the cache does not store raw credentials. Expiry and eviction do not refund budget. Network requests time out after ten seconds.
