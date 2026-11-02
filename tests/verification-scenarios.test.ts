@@ -13,9 +13,17 @@ const scenarios=[
  {name:'changed dotted version',claim:'Orbit latest API version is v3.2.1.',evidence:'Orbit latest API version is 3.3.0.',outcome:'contradicted'},
  {name:'equivalent version prefix',claim:'Orbit latest API version is v3.2.1.',evidence:'Orbit latest API version is 3.2.1.',outcome:'supported'},
  {name:'unrelated product release',claim:'Orbit latest version is 3.2.1.',evidence:'Orbit Studio latest version is 4.0.',outcome:'inconclusive'},
- {name:'ordinary dollar shorthand remains a known coverage gap',claim:'Nimbus Pro costs $20/month.',evidence:'Nimbus Pro costs $25/month.',outcome:'inconclusive'},
- {name:'ordinary reversed CEO wording remains a known coverage gap',claim:'Maya Chen is the CEO of Cedar Labs.',evidence:'Arjun Rao is the CEO of Cedar Labs.',outcome:'inconclusive'},
- {name:'possessive version wording remains a known coverage gap',claim:"Orbit’s latest API version is v3.",evidence:"Orbit’s latest API version is v4.",outcome:'inconclusive'},
+ {name:'bare dollars require currency clarification',claim:'Nimbus Pro costs $20/month.',evidence:'Nimbus Pro costs $25/month.',outcome:'inconclusive'},
+ {name:'ordinary reversed CEO wording',claim:'Maya Chen is the CEO of Cedar Labs.',evidence:'Arjun Rao is the CEO of Cedar Labs.',outcome:'contradicted'},
+ {name:'possessive version wording',claim:"Orbit’s latest API version is v3.",evidence:"Orbit’s latest API version is v4.",outcome:'contradicted'},
+ {name:'monthly shorthand with explicit currency',claim:'Nimbus Pro costs USD 20/month.',evidence:'The monthly price of Nimbus Pro is USD 25.',outcome:'contradicted'},
+ {name:'rupee shorthand agrees across wordings',claim:'Nimbus Pro costs ₹499/month.',evidence:'Nimbus Pro currently costs INR 499 per month.',outcome:'supported'},
+ {name:'equivalent CEO word order',claim:'Maya Chen is the CEO of Cedar Labs.',evidence:'The current CEO of Cedar Labs is Maya Chen.',outcome:'supported'},
+ {name:'equivalent possessive versions',claim:"Orbit's latest API version is v3.2.",evidence:'Orbit latest API version is 3.2.',outcome:'supported'},
+ {name:'annual versus monthly still differs',claim:'Nimbus Pro costs EUR 20/month.',evidence:'The annual price of Nimbus Pro is EUR 20.',outcome:'inconclusive'},
+ {name:'ambiguous dollar versus explicit USD',claim:'Nimbus Pro costs $20/month.',evidence:'Nimbus Pro costs USD 20/month.',outcome:'inconclusive'},
+ {name:'approximate amounts abstain',claim:'Nimbus Pro costs USD 20/month.',evidence:'Nimbus Pro costs about USD 20/month.',outcome:'inconclusive'},
+ {name:'future pricing abstains',claim:'Nimbus Pro costs USD 20/month.',evidence:'Nimbus Pro costs USD 25/month starting tomorrow.',outcome:'inconclusive'},
 ] as const;
 
 it.each(scenarios)('$name',async({claim,evidence,outcome})=>{

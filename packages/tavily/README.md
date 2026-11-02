@@ -8,6 +8,8 @@ Live comparison currently recognizes only these English statement shapes:
 - `Acme latest API version is 2.3.` (API is optional)
 - `Acme Pro currently costs USD 5 per month.`
 
+Equivalent common wording is also supported: `Alice is the CEO of Acme.`, `Acme's latest API version is v2.3.`, `Acme Pro costs USD 5/month.`, and `The monthly price of Acme Pro is USD 5.` Curly apostrophes and version prefixes normalize consistently. Currency symbols ₹, €, and £ normalize to INR, EUR, and GBP. A bare $ remains ambiguous between dollar currencies and is not assumed to mean USD; use an explicit currency code. Product/plan names and billing units must still match; approximate, future and negated statements abstain.
+
 Pricing requires an explicit currency (USD, INR, EUR or GBP) and unit (month, year, million input tokens or million output tokens). Entity, category and unit must match exactly after case and whitespace normalization. Negated, historical and speculative statements abstain.
 
 A source must contain a matching statement and a publication date within the previous 30 days. Missing dates never imply freshness from retrieval time. A verdict requires agreement from two distinct hostnames and no opposite relation. Hostnames do not establish independence or authority; these remain prototype limitations. Unsupported statements, mixed evidence and historical asOf requests remain inconclusive.
