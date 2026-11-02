@@ -3,16 +3,16 @@ import {z,ZodError} from 'zod';
 import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
-import {verifyAnswer} from '../../../packages/tavily/src/index';
+import {TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
- if((options.tavilyMode??process.env.TAVILY_MODE??'mock')!=='mock')throw new Error('Live Tavily is not integrated; use TAVILY_MODE=mock. No paid request was sent.');
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
+  if(error instanceof TavilyConfigurationError)return reply.code(error.statusCode).send({version:'1',error:'invalid_request',message:error.message});
   if(error instanceof UnsupportedCapability)return reply.code(501).send({version:'1',error:'unsupported_capability',message:error.message});
   if(error instanceof Error && 'statusCode' in error && typeof error.statusCode==='number' && error.statusCode<500)return reply.code(error.statusCode).send({version:'1',error:'invalid_request'});
   return reply.code(500).send({version:'1',error:'internal_error'});
@@ -24,7 +24,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return {version:'1',tasks:[task]};
  });
  app.post('/api/verify',async(request,reply)=>{
-  const result=await verifyAnswer(VerifyRequest.parse(request.body));await store.put('verify',result.id,result);return reply.code(201).send(result);
+  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:options.tavilyMode});await store.put('verify',result.id,result);return reply.code(201).send(result);
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

@@ -57,3 +57,15 @@ it('never invents a retrieval timestamp for offline annotations',async()=>{
  const result=await verifyAnswer({version:'1',text:'Python 2 is currently supported.'});
  expect(result.claims[0].evidence[0].retrievedAt).toBeNull();
 });
+it('does not call Tavily unless live mode, approval, a key, and a positive cap are all supplied',async()=>{
+ const request={version:'1' as const,text:'The current CEO of Example Corp is Ada Lovelace.'};
+ const fetcher=async()=>{throw new Error('network call should be blocked');};
+ await expect(verifyAnswer(request,{mode:'live',apiKey:'test-key',maxRequests:1,fetch:fetcher})).rejects.toThrow('ALLOW_PAID_REQUESTS=true');
+ await expect(verifyAnswer(request,{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:0,fetch:fetcher})).rejects.toThrow('TAVILY_MAX_REQUESTS');
+});
+it('uses mocked Tavily evidence only within the explicit request budget',async()=>{
+ let calls=0;
+ const fetcher=async()=>{calls++;return new Response(JSON.stringify({results:[{url:'https://example.com/leadership',title:'Leadership',content:'The current CEO of Example Corp is Ada Lovelace.'}]}),{status:200,headers:{'Content-Type':'application/json'}});};
+ const result=await verifyAnswer({version:'1',text:'The current CEO of Example Corp is Ada Lovelace. The current API version is 2.'},{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(calls).toBe(1);expect(result.mode).toBe('live');expect(result.claims[0].outcome).toBe('supported');expect(result.claims[1].outcome).toBe('inconclusive');expect(result.claims[1].uncertainty).toContain('budget exhausted');
+});
