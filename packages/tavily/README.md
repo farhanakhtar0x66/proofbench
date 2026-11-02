@@ -1,5 +1,11 @@
 # Verification rules
 
+## Offline practice
+
+Run `npm run practice` from the repository root, then type one claim and two sample source statements. Try claim `Acme Pro costs USD 20/month.` with evidence `Acme Pro costs USD 25/month.` and `The monthly price of Acme Pro is USD 25.` The simulated result should be contradicted/stale with score 0. `npm run practice -- --example` runs this example without prompts.
+
+The practice tool runs the real comparison pipeline with an injected fake search response. It does not load .env, use your key, make network requests or persist reports. Publication dates and source hostnames are fabricated for the simulation; results are labeled practice only and do not establish real-world truth. Type your own English claims and evidence; unsupported wording remains inconclusive. Blank source statements provide no evidence.
+
 Mock mode uses the existing offline fixtures. Tests inject fake search responses and require no API credits.
 
 Live comparison currently recognizes only these English statement shapes:

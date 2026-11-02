@@ -12,6 +12,7 @@
     "node": ">=22.12"
   },
   "scripts": {
+    "practice": "node --import tsx scripts/practice.ts",
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node --env-file-if-exists=.env --import tsx apps/api/src/server.ts",
     "dev:web": "vite --config apps/web/vite.config.ts",
