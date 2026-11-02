@@ -3,7 +3,7 @@ import {z} from 'zod';
 import {ClaimVerification,VerifyRequest,VerificationReport} from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
 import {classifyClaim,extractClaims} from './claims';
-import {compareEvidence,normalizeSource} from './comparison';
+import {analyzeEvidence,compareEvidence,normalizeSource} from './comparison';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
 import {freshnessScore} from './freshness';
 export {SearchBudget} from './budget';
@@ -36,8 +36,9 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
  const evidence=liveEvidence(text,results,now).map(item=>({...item,retrievedAt}));
  const domains=(relation:string)=>new Set(evidence.filter(item=>item.relation===relation).map(item=>new URL(item.url).hostname.replace(/^www\./u,''))).size;
  const supports=domains('supports');const contradicts=domains('contradicts');
- const outcome=contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
- const uncertainty=outcome==='inconclusive'?'Requires a supported claim template and agreeing evidence dated within 30 days from two distinct hostnames, with no conflicting evidence. Search relevance alone is insufficient.':'Two distinct source hostnames provide recent matching entity and scope statements. This is a rule-based assessment; source independence and authority are not established. Review the evidence.';
+ const internalConflict=results.map(normalizeSource).filter(source=>!!source).some(source=>analyzeEvidence(text,source,now).conflicting);
+ const outcome=internalConflict?'inconclusive':contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
+ const uncertainty=internalConflict?'A source contains both supporting and contradicting statements for the same claim. Review this conflicting evidence before drawing a conclusion.':outcome==='inconclusive'?'Requires a supported claim template and agreeing evidence dated within 30 days from two distinct hostnames, with no conflicting evidence. Search relevance alone is insufficient.':'Two distinct source hostnames provide recent matching entity and scope statements. This is a rule-based assessment; source independence and authority are not established. Review the evidence.';
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome,freshness,asOf:now,uncertainty,evidence});
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {

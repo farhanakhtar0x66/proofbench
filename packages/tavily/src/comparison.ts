@@ -21,17 +21,21 @@ function parseFact(text:string):Fact|undefined{
  if(match)return {entity:normalize(match[1]),kind:'price',value:String(Number(match[3])),scope:`${normalize(match[2])}/${normalize(match[4])}`};
 }
 
-export function compareEvidence(claim:string,source:SearchEvidence,now:string):'supports'|'contradicts'|'context'{
+export function analyzeEvidence(claim:string,source:SearchEvidence,now:string):{relation:'supports'|'contradicts'|'context';conflicting:boolean}{
  const original=parseFact(claim);
- if(!original||!source.content||!source.published_date)return 'context';
+ if(!original||!source.content||!source.published_date)return {relation:'context',conflicting:false};
  const published=Date.parse(source.published_date);const age=Date.parse(now)-published;
- if(!Number.isFinite(age)||age<0||age>30*24*60*60*1000)return 'context';
+ if(!Number.isFinite(age)||age<0||age>30*24*60*60*1000)return {relation:'context',conflicting:false};
  const relations=new Set<string>();
  for(const {segment} of new Intl.Segmenter('en',{granularity:'sentence'}).segment(source.content)){
   const fact=parseFact(segment);
   if(fact&&fact.entity===original.entity&&fact.kind===original.kind&&fact.scope===original.scope)relations.add(fact.value===original.value?'supports':'contradicts');
  }
- return relations.size===1?(relations.has('supports')?'supports':'contradicts'):'context';
+ return {relation:relations.size===1?(relations.has('supports')?'supports':'contradicts'):'context',conflicting:relations.size>1};
+}
+
+export function compareEvidence(claim:string,source:SearchEvidence,now:string):'supports'|'contradicts'|'context'{
+ return analyzeEvidence(claim,source,now).relation;
 }
 
 export function normalizeSource(source:SearchEvidence):SearchEvidence|undefined{
