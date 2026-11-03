@@ -1,3 +1,5 @@
+import {assessSourceDates} from './dates';
+
 export type SearchEvidence={title?:string;url?:string;content?:string;published_date?:string;originalContent?:string};
 type Fact={entity:string;kind:string;value:string;scope:string};
 const normalize=(value:string)=>value.trim().toLowerCase().replace(/\s+/gu,' ');
@@ -31,8 +33,7 @@ export function splitComparableClauses(text:string):string[]{
 export function analyzeEvidence(claim:string,source:SearchEvidence,now:string):{relation:'supports'|'contradicts'|'context';conflicting:boolean}{
  const original=parseFact(claim);
  if(!original||!source.content||!source.published_date)return {relation:'context',conflicting:false};
- const published=Date.parse(source.published_date);const age=Date.parse(now)-published;
- if(!Number.isFinite(age)||age<0||age>30*24*60*60*1000)return {relation:'context',conflicting:false};
+ if(!assessSourceDates(source,now).eligible)return {relation:'context',conflicting:false};
  const relations=new Set<string>();
  for(const {segment} of new Intl.Segmenter('en',{granularity:'sentence'}).segment(source.content)){
   for(const clause of splitComparableClauses(segment.trim())){
@@ -61,7 +62,6 @@ export function normalizeSource(source:SearchEvidence):SearchEvidence|undefined{
  try{
   const url=new URL(source.url??'');
   if(!['https:','http:'].includes(url.protocol)||url.username||url.password)return;
-  const published=source.published_date?Date.parse(source.published_date):NaN;
-  return {...source,url:url.href,published_date:Number.isFinite(published)?new Date(published).toISOString():undefined};
+  return {...source,url:url.href};
  }catch{return;}
 }

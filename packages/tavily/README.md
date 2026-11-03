@@ -1,5 +1,11 @@
 # Verification rules
 
+## Source dates
+
+Publication date, actual retrieval time, explicit update date and effective date have separate meanings. Live evidence adds optional updatedAt, effectiveAt and dateReason fields. Update/effective dates are extracted only from explicit ISO YYYY-MM-DD markers in the original snippet, not inferred from retrieval time, URL or model output. The upstream publication date must be an ISO calendar date or timestamp; invalid calendar dates and ambiguous locale formats abstain.
+
+A recent update does not replace a missing/old publication date. Future effective dates, conflicting updates, multiple date scopes and historical as-of statements block current comparison. Unparseable effective/as-of markers also abstain. An old effective date alone does not prove a still-valid term is stale. Date checks are deliberately source-wide because this prototype cannot reliably assign multiple dates to individual facts. Optional model normalization retains original-source date checks. No extra retrieval is performed. This does not implement general natural-language date reasoning or historical verification; missing dates remain unknown.
+
 ## Offline practice
 
 Run `npm run practice` from the repository root, then type one claim and two sample source statements. Try claim `Acme Pro costs USD 20/month.` with evidence `Acme Pro costs USD 25/month.` and `The monthly price of Acme Pro is USD 25.` The simulated result should be contradicted/stale with score 0. `npm run practice -- --example` runs this example without prompts.

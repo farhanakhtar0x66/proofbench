@@ -7,6 +7,7 @@ import {analyzeEvidence,claimFormatLimitation,normalizeSource} from './compariso
 import {rankSources,type SourcePolicy} from './sources';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
 import {freshnessScore} from './freshness';
+import {assessSourceDates} from './dates';
 import {TavilyRetrievalError,retrievalFailureMessage} from './retrieval-errors';
 import {interpretationSession,type LanguageInterpreter,type InterpretationStats} from './interpretation';
 export {SearchBudget} from './budget';
@@ -23,7 +24,10 @@ const requestLimit=(value:string|number|undefined)=>{
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
  return parsed;
 };
-const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group}));
+const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>{
+ const dates=assessSourceDates(result,retrievedAt);
+ return {url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group};
+});
 async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
  if(!response.ok){
@@ -60,6 +64,7 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
    supports>0&&contradicts>0?'Recent sources disagree about this claim. The verifier cannot choose between conflicting statements.':
    evidence.length===0?'No usable source evidence was returned. The claim has not been verified.':
    dated.length===0?'Sources have no valid publication dates within the last 30 days. Retrieval today does not establish that their information is current.':
+   results.length>0&&results.every(source=>!assessSourceDates(source,now).eligible)?`Source dates do not establish current evidence: ${assessSourceDates(results[0],now).reason}`:
    supports+contradicts===0?'Recent evidence does not provide a comparable statement with the same entity and scope. It may concern another product, plan, currency, billing period or unsupported wording.':
    'Fewer than two distinct source hostnames provide agreeing, recent statements. Another qualifying source is needed; repeated pages from one hostname do not count twice.');
  }
@@ -93,8 +98,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
    const search=await shared.search(query,apiKey,budget,()=>searchTavily(query,apiKey,fetcher));
    const interpreted:TavilyResult[]=[];
    for(const source of search.value){
-    const age=Date.now()-Date.parse(source.published_date??'');
-    const content=source.content&&age>=0&&age<=30*86400000?await language.normalize(source.content):source.content;
+    const content=source.content&&assessSourceDates(source,new Date().toISOString()).eligible?await language.normalize(source.content):source.content;
     interpreted.push({...source,content,originalContent:source.content});
    }
    result=liveVerification(claim.text,undefined,new Date().toISOString(),interpreted,search.retrievedAt,options.sourcePolicy,comparisonText);

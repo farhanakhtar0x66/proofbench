@@ -4,6 +4,8 @@ Canonical runtime schemas and inferred TypeScript types: `packages/contracts/src
 
 Verification claims add optional `freshnessScore: integer (0–100) | null`. New verifier responses always include it; legacy reports may omit it. Current rules emit 100 for corroborated live supported/current claims, 0 for corroborated live contradicted/stale claims, and null for unassessed claims and offline fixtures. This is a coarse validity indicator, not confidence or a calibrated probability. Recency and agreement gate eligibility; intermediate scores are reserved until calibrated. Coordinate this additive shared-contract change with Farhan/Aryan before merge.
 
+Evidence may additionally include updatedAt, effectiveAt (ISO timestamps extracted from explicit source-text markers), and dateReason. They are optional for compatibility with older reports. Publication, retrieval, update and effective times are never interchangeable. The date policy remains conservative and source-wide; these fields do not establish provenance or historical truth. Coordinate additive evidence fields with Farhan/Aryan before merge.
+
 Live source entries also add optional `sourceTier` (official_direct/reviewed_secondary/likely_official/unreviewed), `sourceReason`, `duplicateOf` (URL) and `corroborationGroup` (string). They describe reviewed entity/domain mappings, ranking and duplicate handling; omission in older reports remains valid. Review these additive fields with Farhan/Aryan. `likely_official` is an automatically inferred, unverified identity candidate from existing search-result signals, below both reviewed tiers. A tier is not a numerical trust score and does not itself establish truth, ownership or source independence.
 
 | Schema | Purpose |
