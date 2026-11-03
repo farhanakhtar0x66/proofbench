@@ -44,8 +44,9 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  app.post('/api/claims/compare',async(request)=>{
   const input=EvidenceRetrievalRequest.parse(request.body);
   const available=comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
-  const evidence=await retrieveClaimEvidence(input,{mode:available?tavilyMode:'mock',budget:tavilyBudget});
-  return compareClaimEvidence(evidence,{mode:available?'llm':'rules',interpreter});
+  const reason=comparisonMode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made.':!interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':!available?interpreter.unavailableReason?.()??'The model is temporarily unavailable. No model request was made.':undefined;
+  const evidence=await retrieveClaimEvidence(input,{mode:tavilyMode,budget:tavilyBudget,cacheOnly:!available});
+  return compareClaimEvidence(evidence,{mode:available?'llm':'rules',interpreter,unavailableReason:reason});
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

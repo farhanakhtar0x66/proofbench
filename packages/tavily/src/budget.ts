@@ -1,6 +1,7 @@
 import {createHash} from 'node:crypto';
 
 export class RequestBudgetExhausted extends Error {}
+export class CachedEvidenceUnavailable extends Error {}
 
 // One instance per server process. Restarting the process resets this budget.
 export class SearchBudget {
@@ -10,7 +11,7 @@ export class SearchBudget {
  private pending=new Map<string,Promise<{value:unknown;retrievedAt:string}>>();
  constructor(private clock:()=>number=Date.now){}
 
- async search<T>(query:string,key:string,limit:number,load:()=>Promise<T>):Promise<{value:T;retrievedAt:string}>{
+ async search<T>(query:string,key:string,limit:number,load:()=>Promise<T>,cacheOnly=false):Promise<{value:T;retrievedAt:string}>{
   this.ceiling=Math.min(this.ceiling,limit);
   const id=createHash('sha256').update(JSON.stringify([key,query])).digest('hex');
   const now=this.clock();
@@ -19,6 +20,7 @@ export class SearchBudget {
   if(cached)return {value:cached.value as T,retrievedAt:cached.retrievedAt};
   const pending=this.pending.get(id);
   if(pending)return pending as Promise<{value:T;retrievedAt:string}>;
+  if(cacheOnly)throw new CachedEvidenceUnavailable();
   if(this.used>=this.ceiling)throw new RequestBudgetExhausted();
   // Reserve synchronously before any asynchronous work, including concurrent calls.
   this.used++;
