@@ -1,9 +1,11 @@
 import {captainClaimScope} from './captain-scope';
 import {supportClaimSubject} from './support-scope';
+import {datedEndOfLifeClaim} from './historical-support';
 
 export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_stated',now=new Date()){
  const literal=claim.replace(/\s+/gu,' ');
  if(scope==='as_stated')return {query:literal,dateWindow:undefined};
+ if(datedEndOfLifeClaim(literal))return {query:`${literal} official documentation`,dateWindow:undefined};
  const supportSubject=supportClaimSubject(literal);
  // Support lifecycles may be documented in older announcements. Retrieve those
  // without declaring them current; comparison's date rules still apply.

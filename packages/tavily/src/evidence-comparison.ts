@@ -9,6 +9,7 @@ import {captainClaimScope,captainEvidenceHint} from './captain-scope';
 import {evidenceOverlapTracker} from './evidence-overlap';
 import {sourceRelevanceReason} from './evidence-relevance';
 import {excerptQualityReason} from './excerpts';
+import {historicalSupportAssessment} from './historical-support';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
@@ -50,9 +51,10 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   // Conservative grouping, not a public-suffix or ownership verification service.
   const group=hostname.split('.').slice(-2).join('.');
   const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},assessedAt);
-  const scopeReason=sourceScopeReason(data.claim,source.excerpt)??sourceRelevanceReason(data.claim,source.excerpt)??source.excerptSelection?.warning??excerptQualityReason(data.claim,source.excerpt);
+  const history=source.dateReason&&source.dateReason!==dates.reason?undefined:historicalSupportAssessment(data.claim,source.excerpt,source.publishedAt,assessedAt);
+  const scopeReason=sourceScopeReason(data.claim,source.excerpt)??sourceRelevanceReason(data.claim,source.excerpt)??source.excerptSelection?.warning??excerptQualityReason(data.claim,source.excerpt)??(history&&!history.eligible?history.reason:undefined);
   const metadataConflict=!!source.updatedAt&&(Date.parse(source.updatedAt)>Date.parse(assessedAt)||!!source.publishedAt&&Date.parse(source.updatedAt)<Date.parse(source.publishedAt))||!!source.effectiveAt&&Date.parse(source.effectiveAt)>Date.parse(assessedAt);
-  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,eligible:dates.eligible&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL, long repeated excerpt or substantial shared sentence does not count as separate corroboration; source independence is not established.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':dates.reason};
+  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,historical:history?.eligible===true,eligible:(dates.eligible||history?.eligible===true)&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL, long repeated excerpt or substantial shared sentence does not count as separate corroboration; source independence is not established.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':history?.eligible?history.reason:dates.reason};
  });
  let sources:ReturnType<typeof prepareSources>;
  try{sources=prepareSources();}catch{return fallback('Source URLs, excerpts or retrieval metadata are invalid. No model request was made.');}
@@ -87,8 +89,8 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
    if(new Set(supporting).size<2)throw new Error('Correction needs distinct corroborating groups');
    if(outcome==='contradicted')correction=proposed;
   }
-  const explanation=conflict?'Source assessments conflict; no decisive verdict or correction is justified.':outcome==='inconclusive'?'Fewer than two distinct, nonduplicate source groups have agreeing assessments and qualifying recent publication dates. Review the cited excerpts and date warnings.':`At least two distinct source groups have qualifying recent dates and were assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is a model-assisted evidence assessment, not independent proof of truth.`;
-  return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness:outcome==='supported'?'current':'unknown',freshnessScore:null,assessedAt,explanation,citations,correction,limitations});
+  const explanation=conflict?'Source assessments conflict; no decisive verdict or correction is justified.':outcome==='inconclusive'?'Fewer than two distinct, nonduplicate source groups have agreeing assessments, eligible dates and matching claim scope. Review the cited excerpts and date warnings.':`At least two distinct source groups pass the applicable date and scope policy and were assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is a model-assisted evidence assessment, not independent proof of truth.`;
+  return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness:outcome==='supported'&&!sources.some(source=>source.historical)?'current':'unknown',freshnessScore:null,assessedAt,explanation,citations,correction,limitations});
  }catch(error){
   const reasons:Record<string,string>={
    'Every source must be assessed':'The model omitted or added source assessments.',
