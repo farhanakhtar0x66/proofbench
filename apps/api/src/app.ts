@@ -1,12 +1,13 @@
 import Fastify from 'fastify';
 import {z,ZodError} from 'zod';
-import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability} from '../../../packages/contracts/src/index';
+import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,ClaimExtractionRequest} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
+import {extractFactualClaims} from '../../../packages/tavily/src/claim-extraction';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
@@ -14,6 +15,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const tavilyBudget=new SearchBudget();
  const interpreter=createLanguageInterpreter();
+ const extractionMode=z.enum(['rules','llm']).parse(process.env.CLAIM_EXTRACTION_MODE??'rules');
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',message:'Request validation failed. Use version "1", a nonempty text field of at most 20,000 characters, and at most 50 optional claims.',details:error.issues.map(i=>({path:i.path,message:i.message}))});
@@ -30,6 +32,10 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  });
  app.post('/api/verify',async(request,reply)=>{
   const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget,interpreter});await store.put('verify',result.id,result);return reply.code(201).send(result);
+ });
+ app.post('/api/claims/extract',async(request)=>{
+  const input=ClaimExtractionRequest.parse(request.body);
+  return extractFactualClaims(input.text,{mode:extractionMode,interpreter});
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

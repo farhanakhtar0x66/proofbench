@@ -43,7 +43,9 @@ See [architecture](docs/ARCHITECTURE.md), [contracts](docs/CONTRACTS.md), [integ
 
 ## Honest limits
 
-Mohit's B05 implementation selects optional **Bifrost → Gemini** interpretation, with **Groq selectable explicitly**, alongside TypeScript/Fastify, Tavily evidence and deterministic verdicts. Rules-only remains the default; Ollama/llama.cpp setup is deferred. See [provider setup, cost controls and benchmarks](docs/B05-MODEL-PROVIDERS.md). Account-specific model selection and real gateway/schema benchmarks remain pending; offline simulations are not model results. Routing through Bifrost alone does not solve its challenge. The Bifrost contribution and A04 Contract Guard remain separate research.
+Mohit's B05 implementation selects optional **Bifrost → Gemini** interpretation, with **Groq selectable explicitly**, alongside TypeScript/Fastify, Tavily evidence and deterministic verdicts. Rules-only remains the default; Ollama/llama.cpp setup is deferred. See [provider setup, cost controls and benchmarks](docs/B05-MODEL-PROVIDERS.md). The original interpretation schema has passed a real Gemini gateway smoke check and an eight-case development benchmark, with validation rejections explicitly recorded; these do not establish general accuracy. The new general extraction schema has only been tested offline. Routing through Bifrost alone does not solve its challenge. The Bifrost contribution and A04 Contract Guard remain separate research.
+
+The new [general claim-extraction endpoint](docs/GENERAL-CLAIM-EXTRACTION.md) can identify source-preserving statements across topics, with optional Bifrost assistance and rules fallback. It does not verify truth or change the existing website verification flow; broader evidence comparison remains a later step.
 
 Optional local language interpretation is documented in [Language interpretation](docs/LANGUAGE-INTERPRETATION.md). It is disabled by default, requires no model download for normal use/tests, and preserves rules-only behavior. Run `npm run benchmark:language` for recorded offline paired comparisons; real Ollama quality is not established by that simulation.
 
