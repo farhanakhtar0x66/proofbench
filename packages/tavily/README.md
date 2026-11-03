@@ -8,6 +8,8 @@ The practice tool runs the real comparison pipeline with an injected fake search
 
 Mock mode uses the existing offline fixtures. Tests inject fake search responses and require no API credits.
 
+Answer extraction can split complete supported factual clauses joined by and, but or semicolons. Each clause must identify its own entity and match an existing comparison format. Conditions, quotes and incomplete shared-subject clauses remain intact; the extractor never invents missing subjects. Company names containing conjunctions remain intact when splitting would produce invalid clauses. The total limit stays 50 claims, and explicit caller-provided claims are preserved. More extracted claims can require more searches, but the shared request cap still bounds all attempts.
+
 Live comparison currently recognizes only these English statement shapes:
 
 - `The current CEO of Acme is Alice.`
