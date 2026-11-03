@@ -54,8 +54,9 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
    supports+contradicts===0?'Recent evidence does not provide a comparable statement with the same entity and scope. It may concern another product, plan, currency, billing period or unsupported wording.':
    'Fewer than two distinct source hostnames provide agreeing, recent statements. Another qualifying source is needed; repeated pages from one hostname do not count twice.');
  }
- const reviewed=evidence.filter(item=>item.sourceTier!=='unreviewed').length;
- uncertainty+=` Source ranking: ${reviewed} reviewed, ${evidence.length-reviewed} unreviewed. Unreviewed agreement does not establish authority; exact-copy detection cannot prove independence.`;
+ const reviewed=evidence.filter(item=>item.sourceTier==='official_direct'||item.sourceTier==='reviewed_secondary').length;
+ const likely=evidence.filter(item=>item.sourceTier==='likely_official').length;
+ uncertainty+=` Source ranking: ${reviewed} reviewed, ${likely} likely official (unverified), ${evidence.length-reviewed-likely} unreviewed. Heuristic identity and unreviewed agreement do not establish authority; exact-copy detection cannot prove independence.`;
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome,freshness,asOf:now,uncertainty,evidence});
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {

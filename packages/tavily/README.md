@@ -34,6 +34,12 @@ Evidence includes optional sourceTier, sourceReason, duplicateOf and corroborati
 
 Ranking prioritizes evidence but does not make official status a new prerequisite for the existing coarse verdicts. Agreement from unreviewed sources is explicitly labeled; it does not establish authority or independence. Paraphrased copies and unknown organizational relationships remain limitations. No extra searches are made, and the credit cap is unchanged.
 
+## Automatic official candidates
+
+Without a reviewed mapping, `likely_official` can be assigned using only the existing result URL, title and dated snippet: an exact compact entity/brand-domain match, HTTPS, an entity-specific title, a relevant pricing/leadership/documentation path, and recent direct comparable content are all required. Plan suffixes Pro/Basic/Enterprise/API can be removed for brand matching. Reviewed official and reviewed secondary sources both outrank automatic candidates.
+
+This is an identity heuristic, not ownership verification. A lookalike operator can mimic title and content. Unsupported domain suffixes, deeper/custom subdomains, multi-part public suffixes and internationalized hostnames abstain rather than guessing. The result explains its signals and limitations; candidates are never counted as manually reviewed. Missing dates or unsupported claim wording also prevent automatic candidacy. No discovery requests, crawls or additional credits are used, and likely status alone cannot produce a verdict.
+
 TAVILY_MAX_REQUESTS caps total search attempts for the lifetime of one Fastify application instance. Requests reserve budget synchronously, so concurrent calls cannot overspend. A failed attempt still consumes budget and is never retried automatically. Changing credentials or increasing configuration does not refill an existing budget.
 
 Identical queries and credentials reuse search results for five minutes, retaining their original retrieval timestamp. Simultaneous identical searches share one in-flight request. Up to 100 completed searches are cached in memory; the cache does not store raw credentials. Expiry and eviction do not refund budget. Network requests time out after ten seconds.
