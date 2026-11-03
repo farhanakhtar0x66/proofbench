@@ -36,3 +36,5 @@ This cannot guarantee that one search finds two suitable sources. A strict recen
 On November 3, 2026, the full check passed 385 tests, including 15 new appointment-retrieval tests, lint, TypeScript, six fixture regressions and build. Tests cover common affirmative/negative/possessive forms, qualifiers, historical/modal/event claims, one-game nominations, source ordering/text preservation, cache reuse, unchanged basic-search parameters and safe abstention. Upstream responses are mocked. `.env` remains unchanged, and the website still uses the older offline flow.
 
 Next is a separately capped live retrieval check for this new query strategy. A successful fetch alone will not validate a factual verdict; scope and semantic evidence review still apply before website integration.
+
+General comparison also applies a conservative [repeated-passage check](EVIDENCE-OVERLAP.md), so articles with different introductions but a substantial shared sentence do not count as separate corroboration. This does not establish complete source independence.

@@ -6,6 +6,7 @@ import {canonicalUrl} from './sources';
 import {assessSourceDates} from './dates';
 import {candidateStatements} from './claim-extraction';
 import {captainClaimScope,captainEvidenceHint} from './captain-scope';
+import {evidenceOverlapTracker} from './evidence-overlap';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
@@ -38,19 +39,19 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  if(!options.interpreter?.compareEvidence)return fallback('No general evidence-comparison adapter is available.');
  if(data.mode!=='live'||data.status!=='retrieved'||!data.evidence.length)return fallback('Usable live-retrieval evidence is unavailable. No model request was made.');
  if(suspicious.test(data.claim)||data.evidence.some(source=>suspicious.test(source.excerpt)))return fallback('Instruction-like text in claim or source data requires review. No model request was made.');
- const seen=new Set<string>();const copies=new Set<string>();
+ const seen=new Set<string>();const overlaps=evidenceOverlapTracker();
  const prepareSources=()=>data.evidence.map((source,index)=>{
   const safe=normalizeSource({url:source.url,content:source.excerpt});
   if(!safe?.url||!source.excerpt.trim()||source.excerpt.length>1200||source.retrieval!=='tavily'||!source.retrievedAt||Date.parse(source.retrievedAt)>Date.parse(assessedAt))throw new Error('Invalid comparison source');
-  const url=canonicalUrl(source.url);const copy=source.excerpt.trim().toLowerCase().replace(/\s+/gu,' ');
-  const duplicate=!!source.duplicateOf||seen.has(url)||(copy.length>=120&&copies.has(copy));seen.add(url);copies.add(copy);
+  const url=canonicalUrl(source.url);const repeatedPassage=overlaps(source.excerpt);
+  const duplicate=!!source.duplicateOf||seen.has(url)||repeatedPassage;seen.add(url);
   const hostname=new URL(source.url).hostname.toLowerCase().replace(/^www\./u,'');
   // Conservative grouping, not a public-suffix or ownership verification service.
   const group=hostname.split('.').slice(-2).join('.');
   const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},assessedAt);
   const scopeReason=sourceScopeReason(data.claim,source.excerpt);
   const metadataConflict=!!source.updatedAt&&(Date.parse(source.updatedAt)>Date.parse(assessedAt)||!!source.publishedAt&&Date.parse(source.updatedAt)<Date.parse(source.publishedAt))||!!source.effectiveAt&&Date.parse(source.effectiveAt)>Date.parse(assessedAt);
-  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,eligible:dates.eligible&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL or long copied excerpt does not corroborate another source.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':dates.reason};
+  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,eligible:dates.eligible&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL, long repeated excerpt or substantial shared sentence does not count as separate corroboration; source independence is not established.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':dates.reason};
  });
  let sources:ReturnType<typeof prepareSources>;
  try{sources=prepareSources();}catch{return fallback('Source URLs, excerpts or retrieval metadata are invalid. No model request was made.');}
