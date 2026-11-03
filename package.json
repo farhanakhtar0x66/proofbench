@@ -28,6 +28,13 @@
     "evaluate": "node --import tsx scripts/evaluate.ts",
     "evaluate:verifier": "node --import tsx scripts/evaluate-verifier.ts",
     "benchmark:language": "node --import tsx scripts/benchmark-language.ts",
+    "benchmark:bifrost": "node --env-file-if-exists=.env --import tsx scripts/benchmark-language.ts --bifrost",
+    "benchmark:bifrost:offline": "node --import tsx scripts/benchmark-language.ts --bifrost-fixture",
+    "bifrost:check": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost.ts",
+    "bifrost:prepare": "node --env-file-if-exists=.env --import tsx scripts/prepare-bifrost.ts",
+    "bifrost:start": "node --env-file-if-exists=.env --import tsx scripts/start-bifrost.ts",
+    "bifrost:models": "node --env-file-if-exists=.env --import tsx scripts/provider-models.ts",
+    "bifrost:schema": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-schema.ts",
     "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
   },
   "dependencies": {

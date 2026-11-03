@@ -6,14 +6,14 @@ import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
-import {createOllamaInterpreter} from '../../../packages/tavily/src/interpretation';
+import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
  if(!['mock','live'].includes(tavilyMode))throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const tavilyBudget=new SearchBudget();
- const interpreter=createOllamaInterpreter();
+ const interpreter=createLanguageInterpreter();
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',message:'Request validation failed. Use version "1", a nonempty text field of at most 20,000 characters, and at most 50 optional claims.',details:error.issues.map(i=>({path:i.path,message:i.message}))});

@@ -1,0 +1,12 @@
+{
+  "config_store": { "enabled": false },
+  "client": { "enable_logging": true, "disable_content_logging": true },
+  "providers": {
+    "ollama": {
+      "keys": [{ "name": "b05-local", "value": "", "models": ["qwen2.5:3b"], "weight": 1, "ollama_key_config": { "url": "http://127.0.0.1:11434" } }],
+      "network_config": { "allow_private_network": true, "max_retries": 0, "default_request_timeout_in_seconds": 9 },
+      "concurrency_and_buffer_size": { "concurrency": 1, "buffer_size": 4 }
+    }
+  },
+  "plugins": [{ "name": "logging", "enabled": true, "config": { "disable_content_logging": true, "logging_headers": ["x-bf-eh-correlation-id"] } }]
+}

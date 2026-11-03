@@ -102,7 +102,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
     interpreted.push({...source,content,originalContent:source.content});
    }
    result=liveVerification(claim.text,undefined,new Date().toISOString(),interpreted,search.retrievedAt,options.sourcePolicy,comparisonText);
-   if(language.stats.calls>0)result.uncertainty+=' Optional language interpretation was attempted; only validated text-grounded fields were used. It does not establish truth and can still misinterpret text.';
+   if(language.stats.calls>0)result.uncertainty+=` Optional language interpretation was attempted${options.interpreter?.description?` via ${options.interpreter.description}`:''}; only validated text-grounded fields were used. It does not establish truth and can still misinterpret text.`;
   } catch(error) {
    result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:error instanceof RequestBudgetExhausted?'Live request budget exhausted for this server lifetime. No search was made. Cached queries can still be served; ask the backend owner before restarting or granting a new budget.':retrievalFailureMessage(error),evidence:[]});
   }

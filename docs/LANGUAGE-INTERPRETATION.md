@@ -1,5 +1,7 @@
 # Optional language interpretation
 
+Architecture update: B05's selected hybrid path is LANGUAGE_MODE=bifrost, routing the optional interpreter through Bifrost to Gemini (primary) or explicitly selected Groq. LANGUAGE_MODE=rules remains default. Ollama/llama.cpp setup is deferred; direct Ollama mode below is legacy compatibility only. Follow [B05 provider setup](B05-MODEL-PROVIDERS.md) for cost controls, model selection, schema checks and benchmarks. This decision applies only to Mohit's B05 implementation and does not finalize the team project, A04 Contract Guard, or the separately researched Bifrost challenge contribution.
+
 B05 is a modular research direction, not an assertion of the team's final submission choice. Rules, retrieval, ranking, scoring and API contracts are retained. Unknown wording currently fails strict comparison templates; that is different from missing, stale or conflicting evidence.
 
 The new provider-independent LanguageInterpreter accepts text and returns untrusted structured fields. The Ollama implementation uses local POST /api/chat with JSON mode, bounded tokens/context, no tools, no redirects and Zod validation. See [Ollama API](https://github.com/ollama/ollama/blob/main/docs/api.md). Nothing is installed or downloaded automatically.
