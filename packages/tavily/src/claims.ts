@@ -1,4 +1,4 @@
-import {claimEntity} from './comparison';
+import {splitComparableClauses} from './comparison';
 
 export type ClaimCategory='pricing'|'version'|'leadership'|'law'|'policy'|'statistics'|'general';
 
@@ -31,11 +31,7 @@ export function extractClaims(answer:string):string[]{
   for(const {segment} of segmenter.segment(line)){
    const text=segment.trim();
    if(!text||text.endsWith('?')||/^(?:I (?:think|believe|prefer)|please|try|consider)\b/iu.test(text))continue;
-   // Split only complete independently comparable clauses. Never invent a
-   // missing subject or strip a condition, quote or qualification from a fact.
-   const guarded=/["“”`()[\]]|\b(if|unless|when|provided|according|allegedly|reportedly|either|neither)\b/iu.test(text);
-   const clauses=guarded?[text]:text.split(/\s+(?:and|but)\s+|;\s*/iu).map(clause=>clause.trim());
-   const candidates=clauses.length>1&&clauses.every(clause=>!!claimEntity(clause))?clauses:[text];
+   const candidates=splitComparableClauses(text);
    for(const candidate of candidates){
     claims.push(candidate);
     if(claims.length===50)return claims;

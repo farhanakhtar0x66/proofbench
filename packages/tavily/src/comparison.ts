@@ -21,6 +21,13 @@ function parseFact(text:string):Fact|undefined{
  if(match)return {entity:normalize(match[1]),kind:'price',value:String(Number(match[3])),scope:`${normalize(match[2])}/${normalize(match[4])}`};
 }
 
+export function splitComparableClauses(text:string):string[]{
+ // Preserve context rather than guessing missing subjects or qualifications.
+ if(/["“”`()[\]]|\b(if|unless|when|provided|according|allegedly|reportedly|either|neither)\b/iu.test(text))return [text];
+ const clauses=text.split(/\s+(?:and|but)\s+|;\s*/iu).map(clause=>clause.trim());
+ return clauses.length>1&&clauses.every(clause=>!!parseFact(clause))?clauses:[text];
+}
+
 export function analyzeEvidence(claim:string,source:SearchEvidence,now:string):{relation:'supports'|'contradicts'|'context';conflicting:boolean}{
  const original=parseFact(claim);
  if(!original||!source.content||!source.published_date)return {relation:'context',conflicting:false};
@@ -28,8 +35,10 @@ export function analyzeEvidence(claim:string,source:SearchEvidence,now:string):{
  if(!Number.isFinite(age)||age<0||age>30*24*60*60*1000)return {relation:'context',conflicting:false};
  const relations=new Set<string>();
  for(const {segment} of new Intl.Segmenter('en',{granularity:'sentence'}).segment(source.content)){
-  const fact=parseFact(segment);
-  if(fact&&fact.entity===original.entity&&fact.kind===original.kind&&fact.scope===original.scope)relations.add(fact.value===original.value?'supports':'contradicts');
+  for(const clause of splitComparableClauses(segment.trim())){
+   const fact=parseFact(clause);
+   if(fact&&fact.entity===original.entity&&fact.kind===original.kind&&fact.scope===original.scope)relations.add(fact.value===original.value?'supports':'contradicts');
+  }
  }
  return {relation:relations.size===1?(relations.has('supports')?'supports':'contradicts'):'context',conflicting:relations.size>1};
 }
