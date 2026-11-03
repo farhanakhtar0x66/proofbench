@@ -5,6 +5,7 @@ import {normalizeSource} from './comparison';
 import {canonicalUrl} from './sources';
 import {assessSourceDates} from './dates';
 import {candidateStatements} from './claim-extraction';
+import {captainClaimScope,captainEvidenceHint} from './captain-scope';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
@@ -25,10 +26,7 @@ const suspicious=/\b(?:ignore|disregard)\b.{0,80}\b(?:instructions?|prompts?)\b|
 type Input=z.infer<typeof EvidenceRetrievalReport>;
 
 export function sourceScopeReason(claim:string,excerpt:string):string|undefined{
- const unqualifiedCaptain=/\bcaptain\b/iu.test(claim)&&!/\b(?:match|game|against)\b/iu.test(claim);
- const temporary=/\b(?:started|starting|served|serving|stand-in|temporary|acting)\s+(?:as\s+)?captain\b|\bend of (?:the|a) (?:match|game)\b|\bcaptain(?:ed)?.{0,80}\bagainst\b/isu.test(excerpt);
- const ongoing=/\b(?:club|permanent|first[- ]team|first|team)\s+captain\b|\bappointed.{0,60}\bcaptain\b/isu.test(excerpt);
- if(unqualifiedCaptain&&temporary&&!ongoing)return 'Match-specific or temporary captaincy does not establish an unqualified ongoing captain appointment. More directly scoped evidence is required.';
+ if(captainClaimScope(claim)==='appointment'&&captainEvidenceHint(excerpt)==='match_only')return 'Match-specific or temporary captaincy does not establish an unqualified ongoing captain appointment. More directly scoped evidence is required.';
 }
 
 export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'llm';interpreter?:LanguageInterpreter}={}){

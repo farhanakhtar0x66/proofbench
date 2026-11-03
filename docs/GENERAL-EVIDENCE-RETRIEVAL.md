@@ -18,6 +18,8 @@ Response fields are `version`, `claim`, `query`, `mode`, `status`, `createdAt`, 
 
 Optional `scope: current` explicitly selects recent dated evidence; absent scope defaults to `as_stated` and retains the behavior above. Reports now also carry `searchScope` and optional `searchWindow`. See [scope, date-estimate limitations and budget behavior](FLOW-RELIABILITY.md). Current scope does not automatically make another search or grant another request allowance.
 
+For ongoing captain-role claims, current scope also applies [appointment-oriented queries and ordering](APPOINTMENT-RETRIEVAL.md). Source `scopeHint` values are heuristic relevance metadata only; source relations remain context and authority remains unreviewed. Match-only coverage is retained, and the comparison guard independently checks whether its scope is appropriate.
+
 ## Live readiness and shared budget
 
 Live mode requires all three existing controls: `TAVILY_MODE=live`, an ignored local `TAVILY_API_KEY`, and `ALLOW_PAID_REQUESTS=true` with an explicitly approved positive `TAVILY_MAX_REQUESTS` between 1 and 50. The oddly named consent flag permits API requests; it does not inspect billing, purchase credits, or prove that the account is free. Keep it false until a specific experiment is authorized and free-credit/account settings are checked. The API client cannot override any of these through its JSON body. Empty, oversized or unexpected fields are rejected. One call accepts only one claim of at most 2,000 characters, so extraction of a long answer does not automatically trigger a batch of searches.
