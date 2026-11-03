@@ -37,6 +37,7 @@
     "bifrost:schema": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-schema.ts",
     "bifrost:check:claims": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-claims.ts",
     "bifrost:check:comparison": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-comparison.ts",
+    "verify:check:live": "node --env-file-if-exists=.env --import tsx scripts/check-general-flow.ts",
     "tavily:check:retrieval": "node --env-file-if-exists=.env --import tsx scripts/check-tavily-retrieval.ts",
     "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
   },

@@ -1,6 +1,16 @@
 export type DatedSource={published_date?:string;content?:string;originalContent?:string};
 
 export function sourceDate(value:string|undefined):string|undefined{
+ // Tavily can return RFC-style GMT publication dates. Validate every component
+ // and weekday, rather than accepting Date.parse's permissive rollover behavior.
+ const rfc=value?.match(/^(Mon|Tue|Wed|Thu|Fri|Sat|Sun), (\d{2}) (Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) (\d{4}) (\d{2}):(\d{2}):(\d{2}) GMT$/u);
+ if(rfc){
+  const [,weekday,day,month,year,hour,minute,second]=rfc;
+  const monthIndex=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].indexOf(month);
+  const parsed=new Date(Date.UTC(Number(year),monthIndex,Number(day),Number(hour),Number(minute),Number(second)));
+  if(parsed.getUTCFullYear()!==Number(year)||parsed.getUTCMonth()!==monthIndex||parsed.getUTCDate()!==Number(day)||parsed.getUTCHours()!==Number(hour)||parsed.getUTCMinutes()!==Number(minute)||parsed.getUTCSeconds()!==Number(second)||parsed.toUTCString().slice(0,3)!==weekday)return;
+  value=parsed.toISOString();
+ }
  if(!value||!/^\d{4}-\d{2}-\d{2}(?:T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2}))?$/u.test(value))return;
  const day=value.slice(0,10);const calendar=new Date(`${day}T00:00:00Z`);
  if(!Number.isFinite(calendar.getTime())||calendar.toISOString().slice(0,10)!==day)return;
