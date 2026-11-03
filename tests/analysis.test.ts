@@ -13,6 +13,7 @@ it('supports offline analysis, exact source spans, claim bounds, deduplication a
  const fetcher=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Network forbidden'));
  const dir=await mkdtemp(join(tmpdir(),'b05-analysis-'));const app=await createApp({implementation:'mock',tavilyMode:'mock',dataDir:dir});
  try{
+  const status=await app.inject('/api/analysis/status');expect(status.statusCode).toBe(200);expect(status.json()).toEqual({version:'1',mode:'mock',extractionMode:'rules',comparisonMode:'rules',modelReady:false,modelDescription:null});
   const text='  Acme costs USD 20/month.\nBeta costs USD 30/month.\nAcme costs USD 20/month.\nGamma costs USD 40/month.\nDelta costs USD 50/month.';
   const response=await app.inject(post(text));expect(response.statusCode).toBe(201);
   const report=AnalysisReport.parse(response.json());expect(report.status).toBe('partial');expect(report.results).toHaveLength(3);expect(report.omittedClaims).toBe(1);expect(report.text).toBe(text);

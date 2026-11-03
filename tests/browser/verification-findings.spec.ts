@@ -13,6 +13,7 @@ test.beforeEach(async({page})=>{
  });
  await page.goto('/');
  await page.getByRole('button',{name:/Freshness verifier/}).click();
+ await page.getByLabel('Verification flow').selectOption('fixture');
 });
 
 test('explains why a question produces zero extracted claims instead of a blank panel',async({page})=>{

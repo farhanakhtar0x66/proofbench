@@ -7,6 +7,7 @@ test('runs an offline fixture, inspects evidence, verifies stale answer',async({
  await page.getByRole('button',{name:'Compare runs'}).click();
  await expect(page.getByRole('heading',{name:'Comparison',exact:true})).toBeVisible();
  await page.getByRole('button',{name:/Freshness verifier/}).click();
+ await page.getByLabel('Verification flow').selectOption('fixture');
  await page.getByRole('button',{name:'Verify answer →'}).click();
  await expect(page.getByText('contradicted',{exact:true})).toBeVisible();
  await expect(page.getByRole('link',{name:/Offline reference: python2-eol/})).toHaveAttribute('href','https://www.python.org/doc/sunset-python-2/');
