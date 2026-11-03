@@ -4,7 +4,7 @@ import {Interpretation,INTERPRETATION_PROMPT,type LanguageInterpreter} from './i
 import {ExtractionOutput,EXTRACTION_PROMPT,EXTRACTION_SCHEMA} from './claim-extraction';
 import {ComparisonOutput,COMPARISON_PROMPT,comparisonSchemaFor} from './evidence-comparison';
 
-export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+)?$/u).refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(10000).default(8000),virtualKey:z.string().optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
+export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+)?$/u).refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(30000).default(20000),virtualKey:z.string().optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
 export function bifrostSettings(env:NodeJS.ProcessEnv=process.env){
  const settings=BifrostSettings.parse({endpoint:env.BIFROST_LLM_ENDPOINT,provider:env.BIFROST_LLM_PROVIDER??env.BIFROST_LLM_MODEL?.split('/')[0]??'gemini',model:env.BIFROST_LLM_MODEL??'',timeoutMs:env.BIFROST_LLM_TIMEOUT_MS,virtualKey:env.BIFROST_LLM_VIRTUAL_KEY,maxRequests:env.BIFROST_LLM_MAX_REQUESTS});
  if(settings.model&&!settings.model.startsWith(`${settings.provider}/`))throw new Error('Model route must match selected provider');
@@ -53,6 +53,7 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   }catch{unavailableUntil=Date.now()+60000;throw new Error('Bifrost interpretation unavailable; rules-only fallback');}
  }
  return {description:`Bifrost → ${settings.model}`,
+  timeoutMs:settings.timeoutMs,
   canRequest:()=>!blocked&&(settings.provider==='ollama'||requests<settings.maxRequests&&Date.now()>=unavailableUntil),
   interpret:text=>request(text,INTERPRETATION_PROMPT,'claim_interpretation',INTERPRETATION_JSON_SCHEMA,value=>Interpretation.parse(value)),
   extractClaims:text=>request(text,EXTRACTION_PROMPT,'claim_extraction',EXTRACTION_SCHEMA,value=>ExtractionOutput.parse(value)),

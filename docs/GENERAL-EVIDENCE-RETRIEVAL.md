@@ -16,6 +16,8 @@ This is unverified example input, not a statement of current truth. With saved `
 
 Response fields are `version`, `claim`, `query`, `mode`, `status`, `createdAt`, `retrievedAt`, `evidence`, `message` and `limitations`. Results pass Zod validation. Evidence includes HTTP(S) URLs without embedded credentials, titles, bounded snippets and available date metadata. Every source has `relation: context` and `sourceTier: unreviewed`. There is no support/contradiction verdict. Query whitespace is normalized, but case, negation, dates, currencies and conditions are preserved; no forced `current` suffix is added to historical claims.
 
+Optional `scope: current` explicitly selects recent dated evidence; absent scope defaults to `as_stated` and retains the behavior above. Reports now also carry `searchScope` and optional `searchWindow`. See [scope, date-estimate limitations and budget behavior](FLOW-RELIABILITY.md). Current scope does not automatically make another search or grant another request allowance.
+
 ## Live readiness and shared budget
 
 Live mode requires all three existing controls: `TAVILY_MODE=live`, an ignored local `TAVILY_API_KEY`, and `ALLOW_PAID_REQUESTS=true` with an explicitly approved positive `TAVILY_MAX_REQUESTS` between 1 and 50. The oddly named consent flag permits API requests; it does not inspect billing, purchase credits, or prove that the account is free. Keep it false until a specific experiment is authorized and free-credit/account settings are checked. The API client cannot override any of these through its JSON body. Empty, oversized or unexpected fields are rejected. One call accepts only one claim of at most 2,000 characters, so extraction of a long answer does not automatically trigger a batch of searches.

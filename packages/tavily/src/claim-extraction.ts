@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import type {LanguageInterpreter} from './interpretation';
+import {interpretationDeadline,type LanguageInterpreter} from './interpretation';
 import {ClaimExtractionReport} from '../../contracts/src/index';
 
 export const ExtractionOutput=z.object({claims:z.array(z.object({text:z.string().min(1).max(2000)}).strict()).max(50)}).strict();
@@ -38,7 +38,7 @@ export async function extractFactualClaims(text:string,options:{mode?:'rules'|'l
  if(!options.interpreter?.extractClaims)return result('rules_fallback',eligible,'Model extraction is unavailable; returning heuristic sentence candidates.');
  let timer:ReturnType<typeof setTimeout>|undefined;
  try{
-  const raw=await Promise.race([options.interpreter.extractClaims(JSON.stringify({candidates:eligible.map(item=>item.text)})),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Extraction timeout')),10000);timer.unref();})]);
+  const raw=await Promise.race([options.interpreter.extractClaims(JSON.stringify({candidates:eligible.map(item=>item.text)})),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Extraction timeout')),interpretationDeadline(options.interpreter));timer.unref();})]);
   const parsed=ExtractionOutput.parse(raw);
   const selected:typeof eligible=[];let cursor=0;
   const seen=new Set<string>();

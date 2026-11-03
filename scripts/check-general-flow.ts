@@ -8,6 +8,7 @@ import {bifrostSettings} from '../packages/tavily/src/bifrost-interpreter';
 import {checkBifrostStack} from '../packages/tavily/src/bifrost-status';
 
 const resume=process.argv.includes('--resume-extraction');
+const searchScope=process.argv.includes('--current-evidence')?'current':'as_stated';
 if(process.env.TAVILY_MODE!=='live'||process.env.ALLOW_PAID_REQUESTS!=='true'||process.env.TAVILY_MAX_REQUESTS!=='1'||process.env.LANGUAGE_MODE!=='bifrost'||process.env.BIFROST_LLM_MAX_REQUESTS!==(resume?'1':'2')||process.env.CLAIM_EXTRACTION_MODE!=='llm'||process.env.EVIDENCE_COMPARISON_MODE!=='llm')throw new Error('Explicit test settings required: one search, two total model attempts (one remaining for resume), and extraction/comparison enabled.');
 const settings=bifrostSettings();
 const claim='Cristiano Ronaldo is captain of Real Madrid.';
@@ -42,7 +43,7 @@ try{
  assert.equal(claims.claims.length,1);assert.equal(claims.claims[0].text,claim);
  const extractionFallback=claims.method!=='llm';
  stages.push({name:extractionFallback?'heuristic_extraction_fallback':'real_claim_extraction',passed:true});console.log(extractionFallback?'PASS heuristic fallback retained exact claim; no extraction retry':'PASS real claim extraction');
- const payload={version:'1',claim:claims.claims[0].text};
+ const payload={version:'1',claim:claims.claims[0].text,scope:searchScope};
  const retrieved=await app.inject({method:'POST',url:'/api/claims/retrieve',payload});assert.equal(retrieved.statusCode,200);
  const evidence=EvidenceRetrievalReport.parse(retrieved.json());retrieval=evidence;
  assert.equal(evidence.status,'retrieved');assert.ok(evidence.evidence.length>0);assert.equal(searches,1);
@@ -63,6 +64,6 @@ finally{
  globalThis.fetch=upstream;
  try{await app?.close();}finally{await rm(directory,{recursive:true,force:true});}
  await mkdir('.local/general-flow-check',{recursive:true});
- await writeFile('.local/general-flow-check/report.json',JSON.stringify({createdAt:new Date().toISOString(),status,stages,claim,model:settings.model,tavilySearchAttempts:searches,expectedTavilyCredits:searches?1:0,gatewayRequests:inferences+priorInferences,currentRunGatewayRequests:inferences,extraction,retrieval,comparison,notice:'A comparison may abstain before inference when evidence does not qualify. Only completed status exercises all model stages. completed_with_extraction_fallback reuses a saved heuristic extraction after one timed-out model attempt. This is a single-case pipeline check, not independent factual accuracy or billing verification.'},null,2));
+ await writeFile('.local/general-flow-check/report.json',JSON.stringify({createdAt:new Date().toISOString(),status,stages,claim,searchScope,model:settings.model,tavilySearchAttempts:searches,expectedTavilyCredits:searches?1:0,gatewayRequests:inferences+priorInferences,currentRunGatewayRequests:inferences,extraction,retrieval,comparison,notice:'A comparison may abstain before inference when evidence does not qualify. Only completed status exercises all model stages. completed_with_extraction_fallback uses heuristic extraction after a model failure. This is a single-case pipeline check, not independent factual accuracy or billing verification.'},null,2));
  console.log(`${searches} Tavily search attempt(s), ${inferences} new Gemini request(s), ${inferences+priorInferences} total across this check. Local report saved.`);
 }

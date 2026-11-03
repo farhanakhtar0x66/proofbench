@@ -1,6 +1,6 @@
 import {z} from 'zod';
 import {EvidenceRetrievalReport,EvidenceComparisonReport} from '../../contracts/src/index';
-import type {LanguageInterpreter} from './interpretation';
+import {interpretationDeadline,type LanguageInterpreter} from './interpretation';
 import {normalizeSource} from './comparison';
 import {canonicalUrl} from './sources';
 import {assessSourceDates} from './dates';
@@ -54,7 +54,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  if(payload.length>10000)return fallback('Comparison input exceeds the bounded model context. No model request was made.');
  let timer:ReturnType<typeof setTimeout>|undefined;
  try{
-  const raw=await Promise.race([options.interpreter.compareEvidence(payload),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Comparison timeout')),10000);timer.unref();})]);
+  const raw=await Promise.race([options.interpreter.compareEvidence(payload),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Comparison timeout')),interpretationDeadline(options.interpreter));timer.unref();})]);
   const parsed=ComparisonOutput.parse(raw);
   if(parsed.assessments.length!==sources.length)throw new Error('Every source must be assessed');
   const citations=parsed.assessments.map((assessment,index)=>{
