@@ -25,7 +25,7 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}){
  let budget=options.budget??budgets.get(fetcher);
  if(!budget){budget=new SearchBudget();budgets.set(fetcher,budget);}
  try{
-  const search=await budget.search(query,apiKey,limit,()=>searchTavily(query,apiKey,fetcher));
+  const search=await budget.search(query,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true}));
   const seen=new Set<string>();
   const evidence=[];
   for(const result of search.value){

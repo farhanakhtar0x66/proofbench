@@ -2,6 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {Interpretation,INTERPRETATION_PROMPT,type LanguageInterpreter} from './interpretation';
 import {ExtractionOutput,EXTRACTION_PROMPT,EXTRACTION_SCHEMA} from './claim-extraction';
+import {ComparisonOutput,COMPARISON_PROMPT,COMPARISON_SCHEMA} from './evidence-comparison';
 
 export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+)?$/u).refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(10000).default(8000),virtualKey:z.string().optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
 export function bifrostSettings(env:NodeJS.ProcessEnv=process.env){
@@ -36,7 +37,7 @@ async function readBounded(response:Response):Promise<unknown>{
 export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetcher:typeof fetch=fetch):LanguageInterpreter{
  const settings=bifrostSettings(env);
  const blocked=hostedReadiness(env,settings);let requests=0;let unavailableUntil=0;
- async function request(text:string,prompt:string,name:string,schema:unknown,parse:(value:unknown)=>unknown){
+ async function request(text:string,prompt:string,name:string,schema:unknown,parse:(value:unknown)=>unknown,maxTokens=1024){
   if(blocked)throw new Error(blocked);
   if(settings.provider!=='ollama'&&(requests>=settings.maxRequests||Date.now()<unavailableUntil))throw new Error('Hosted request cap or cooldown reached; rules-only fallback');
   requests++;
@@ -45,14 +46,16 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   // Gemini's newer models reject sampling overrides; use provider defaults.
   const sampling=settings.provider==='gemini'?{}:{temperature:0};
   try{
-  const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:1024,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
+  const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:maxTokens,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
   if(!response.ok)throw new Error(response.status===429?'Bifrost rate limited':'Bifrost inference unavailable');
   const envelope=ChatEnvelope.parse(await readBounded(response));
   return parse(JSON.parse(envelope.choices[0].message.content));
   }catch{unavailableUntil=Date.now()+60000;throw new Error('Bifrost interpretation unavailable; rules-only fallback');}
  }
  return {description:`Bifrost → ${settings.model}`,
+  canRequest:()=>!blocked&&(settings.provider==='ollama'||requests<settings.maxRequests&&Date.now()>=unavailableUntil),
   interpret:text=>request(text,INTERPRETATION_PROMPT,'claim_interpretation',INTERPRETATION_JSON_SCHEMA,value=>Interpretation.parse(value)),
   extractClaims:text=>request(text,EXTRACTION_PROMPT,'claim_extraction',EXTRACTION_SCHEMA,value=>ExtractionOutput.parse(value)),
+  compareEvidence:text=>request(text,COMPARISON_PROMPT,'evidence_comparison',COMPARISON_SCHEMA,value=>ComparisonOutput.parse(value),2048),
  };
 }

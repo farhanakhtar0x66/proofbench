@@ -6,6 +6,7 @@ import {createApp} from '../apps/api/src/app';
 
 process.env.LANGUAGE_MODE='rules';
 process.env.CLAIM_EXTRACTION_MODE='rules';
+process.env.EVIDENCE_COMPARISON_MODE='rules';
 const dir=await mkdtemp(join(tmpdir(),'proofbench-smoke-'));
 const app=await createApp({implementation:'mock',tavilyMode:'mock',dataDir:dir});
 try{
@@ -19,6 +20,9 @@ try{
  const retrieved=await app.inject({method:'POST',url:'/api/claims/retrieve',payload:{version:'1',claim:'An example claim on any topic.'}});
  assert.equal(retrieved.statusCode,200);assert.equal(retrieved.json().status,'offline');assert.equal(retrieved.json().evidence.length,0);
  console.log('PASS general retrieval stays offline without fabricated evidence');
+ const compared=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim:'An example claim on any topic.'}});
+ assert.equal(compared.statusCode,200);assert.equal(compared.json().outcome,'inconclusive');assert.equal(compared.json().correction,null);
+ console.log('PASS general comparison stays disabled with no invented correction');
  assert.equal((await app.inject(`/api/verify/${report.id}`)).statusCode,200);
  console.log('PASS saved report lookup');
  const invalid=await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:''}});

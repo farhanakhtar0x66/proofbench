@@ -9,6 +9,7 @@ import {JsonStore} from './store';
 import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
 import {extractFactualClaims} from '../../../packages/tavily/src/claim-extraction';
 import {retrieveClaimEvidence} from '../../../packages/tavily/src/general-retrieval';
+import {compareClaimEvidence} from '../../../packages/tavily/src/evidence-comparison';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
@@ -17,6 +18,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  const tavilyBudget=new SearchBudget();
  const interpreter=createLanguageInterpreter();
  const extractionMode=z.enum(['rules','llm']).parse(process.env.CLAIM_EXTRACTION_MODE??'rules');
+ const comparisonMode=z.enum(['rules','llm']).parse(process.env.EVIDENCE_COMPARISON_MODE??'rules');
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',message:'Request validation failed. Use version "1", a nonempty text field of at most 20,000 characters, and at most 50 optional claims.',details:error.issues.map(i=>({path:i.path,message:i.message}))});
@@ -39,6 +41,12 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return extractFactualClaims(input.text,{mode:extractionMode,interpreter});
  });
  app.post('/api/claims/retrieve',async(request)=>retrieveClaimEvidence(EvidenceRetrievalRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget}));
+ app.post('/api/claims/compare',async(request)=>{
+  const input=EvidenceRetrievalRequest.parse(request.body);
+  const available=comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
+  const evidence=await retrieveClaimEvidence(input,{mode:available?tavilyMode:'mock',budget:tavilyBudget});
+  return compareClaimEvidence(evidence,{mode:available?'llm':'rules',interpreter});
+ });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);
   if(input.agentId!==adapter.descriptor.id)return reply.code(400).send({version:'1',error:'unknown_agent'});

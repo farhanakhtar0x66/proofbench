@@ -36,6 +36,7 @@
     "bifrost:models": "node --env-file-if-exists=.env --import tsx scripts/provider-models.ts",
     "bifrost:schema": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-schema.ts",
     "bifrost:check:claims": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-claims.ts",
+    "tavily:check:retrieval": "node --env-file-if-exists=.env --import tsx scripts/check-tavily-retrieval.ts",
     "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
   },
   "dependencies": {
