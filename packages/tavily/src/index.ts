@@ -7,6 +7,7 @@ import {analyzeEvidence,claimFormatLimitation,normalizeSource} from './compariso
 import {rankSources,type SourcePolicy} from './sources';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
 import {freshnessScore} from './freshness';
+import {TavilyRetrievalError,retrievalFailureMessage} from './retrieval-errors';
 import {interpretationSession,type LanguageInterpreter,type InterpretationStats} from './interpretation';
 export {SearchBudget} from './budget';
 const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
@@ -25,8 +26,15 @@ const requestLimit=(value:string|number|undefined)=>{
 const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group}));
 async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
- if(!response.ok)throw new Error(`Tavily search failed with HTTP ${response.status}.`);
- const data=TavilyResponse.parse(await response.json());
+ if(!response.ok){
+  const reason=response.status===401||response.status===403?'Tavily rejected server credentials. Ask the backend owner to check the key and permissions.':response.status===429?'Tavily reported a rate or account limit. Check account usage before authorizing more requests.':'Tavily is unavailable or returned an unsuccessful response.';
+  throw new TavilyRetrievalError(`${reason} No retry was made; the attempted search counts toward the server budget.`);
+ }
+ let data:z.infer<typeof TavilyResponse>;
+ try{data=TavilyResponse.parse(await response.json());}catch(error){
+  if(error instanceof Error&&['AbortError','TimeoutError'].includes(error.name))throw error;
+  throw new TavilyRetrievalError('Tavily returned invalid evidence or an unreadable response. No retry was made; the attempted search counts toward the server budget.');
+ }
  return data.results.map(result=>({...result,title:result.title??undefined,content:result.content??undefined,published_date:result.published_date??undefined}));
 }
 function mockVerification(text:string,asOf:string|undefined,now:string){
@@ -92,7 +100,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
    result=liveVerification(claim.text,undefined,new Date().toISOString(),interpreted,search.retrievedAt,options.sourcePolicy,comparisonText);
    if(language.stats.calls>0)result.uncertainty+=' Optional language interpretation was attempted; only validated text-grounded fields were used. It does not establish truth and can still misinterpret text.';
   } catch(error) {
-   result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:error instanceof RequestBudgetExhausted?'Live request budget exhausted for this server lifetime. No search was made.':'Tavily retrieval failed, timed out, or returned invalid evidence. No retry was made; the attempted request counts toward the budget.',evidence:[]});
+   result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:error instanceof RequestBudgetExhausted?'Live request budget exhausted for this server lifetime. No search was made. Cached queries can still be served; ask the backend owner before restarting or granting a new budget.':retrievalFailureMessage(error),evidence:[]});
   }
   cache.set(cacheKey,result);verified.push(result);
  }

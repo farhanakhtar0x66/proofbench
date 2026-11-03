@@ -13,6 +13,8 @@
   },
   "scripts": {
     "practice": "node --import tsx scripts/practice.ts",
+    "demo:verifier": "node --import tsx scripts/demo-verifier.ts",
+    "smoke:api": "node --import tsx scripts/api-smoke.ts",
     "dev": "concurrently -k -n api,web \"npm:dev:api\" \"npm:dev:web\"",
     "dev:api": "node --env-file-if-exists=.env --import tsx apps/api/src/server.ts",
     "dev:web": "vite --config apps/web/vite.config.ts",

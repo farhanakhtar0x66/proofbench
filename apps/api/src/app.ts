@@ -16,11 +16,11 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  const interpreter=createOllamaInterpreter();
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
-  if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
+  if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',message:'Request validation failed. Use version "1", a nonempty text field of at most 20,000 characters, and at most 50 optional claims.',details:error.issues.map(i=>({path:i.path,message:i.message}))});
   if(error instanceof TavilyConfigurationError)return reply.code(error.statusCode).send({version:'1',error:'invalid_request',message:error.message});
   if(error instanceof UnsupportedCapability)return reply.code(501).send({version:'1',error:'unsupported_capability',message:error.message});
-  if(error instanceof Error && 'statusCode' in error && typeof error.statusCode==='number' && error.statusCode<500)return reply.code(error.statusCode).send({version:'1',error:'invalid_request'});
-  return reply.code(500).send({version:'1',error:'internal_error'});
+  if(error instanceof Error && 'statusCode' in error && typeof error.statusCode==='number' && error.statusCode<500)return reply.code(error.statusCode).send({version:'1',error:'invalid_request',message:error.statusCode===413?'Request body exceeds the 128 KiB limit. Send a smaller answer.':'The request could not be read. Check JSON syntax, Content-Type and request parameters.'});
+  return reply.code(500).send({version:'1',error:'internal_error',message:'The server could not complete or save this request. Ask the backend owner to check the server; avoid repeating live requests until the cause is known.'});
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
  app.get('/api/capabilities',async()=>Capabilities.parse({version:'1',implementation:adapter.descriptor.implementation,agent:adapter.descriptor,capabilities:adapter.capabilities,limitations:[tavilyMode==='mock'?'Tavily is offline fixture mode; arbitrary claims are inconclusive.':'Tavily live mode is selected; search still requires explicit spending consent, a key and remaining server budget. Only narrow English templates are evaluated; source authority is not established.','Native execution is not integrated.',...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:['Selected Bifrost implementation is not integrated.'])]}));

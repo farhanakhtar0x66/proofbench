@@ -34,4 +34,6 @@ A known or estimated quantity includes source, scope and unit. Estimates additio
 
 Invalid identifiers return 400. Internal storage failures return sanitized 500. Error envelopes contain version and error code. All successful stored responses are parsed against runtime schemas. Runs execute synchronously for the small offline fixture; async scheduling/cancellation belongs in the real adapter integration design.
 
+Invalid-request and internal-error envelopes may include a safe human-readable message. HTTP status codes and error codes remain unchanged. Retrieval failures and budget exhaustion remain per-claim inconclusive findings in a 201 VerificationReport when report generation succeeds; consumers must inspect each claim. See API-TESTING.md for the failure matrix.
+
 Verification input: `{ "version":"1", "text":"arbitrary answer", "claims":[{"text":"optional explicit claim","asOf":"2026-11-02T00:00:00.000Z"}] }`. Input is limited to 20,000 characters and 50 explicit claims. Mock preserves explicit claim asOf and abstains (inconclusive) because no temporal retrieval is available. Offline evidence uses retrievedAt: null and a separate annotation recordedAt; timestamps never imply a fetch. Mohit must implement date-aware extraction/evaluation. Empty explicit claim arrays return an empty report.
