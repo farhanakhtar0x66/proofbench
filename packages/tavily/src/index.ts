@@ -7,12 +7,13 @@ import {analyzeEvidence,claimFormatLimitation,normalizeSource} from './compariso
 import {rankSources,type SourcePolicy} from './sources';
 import {RequestBudgetExhausted,SearchBudget} from './budget';
 import {freshnessScore} from './freshness';
+import {interpretationSession,type LanguageInterpreter,type InterpretationStats} from './interpretation';
 export {SearchBudget} from './budget';
 const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
-type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string};
+type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string;originalContent?:string};
 const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
-type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy};
+type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy;interpreter?:LanguageInterpreter;interpretationStats?:InterpretationStats};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
@@ -21,7 +22,7 @@ const requestLimit=(value:string|number|undefined)=>{
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
  return parsed;
 };
-const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:result.content?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group}));
+const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>({url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:result.published_date,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group}));
 async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
  if(!response.ok)throw new Error(`Tavily search failed with HTTP ${response.status}.`);
@@ -32,12 +33,12 @@ function mockVerification(text:string,asOf:string|undefined,now:string){
  const fixture=asOf?undefined:cases.find(candidate=>candidate.statement===text.trim());
  return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:fixture?.timeSensitive??(timeSensitivePattern.test(text)?'yes':'unknown'),outcome:fixture?.expectedOutcome??'inconclusive',freshness:fixture?.expectedFreshness??'unknown',asOf:asOf??now,uncertainty:fixture?`Offline fixture, not live Tavily evidence. ${fixture.uncertainty}`:asOf?'Explicit date scope requires temporal evidence; mock cannot verify this date.':'No exact offline fixture. Claim extraction is heuristic; current truth has not been established.',evidence:fixture&&fixture.expectedOutcome!=='inconclusive'?[{url:fixture.source,title:`Offline reference: ${fixture.id}`,retrievedAt:null,recordedAt:'2026-11-02T00:00:00.000Z',excerpt:fixture.reference,relation:fixture.expectedOutcome==='supported'?'supports':'contradicts',retrieval:'fixture'}]:[]});
 }
-function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[],retrievedAt=now,policy?:SourcePolicy){
+function liveVerification(text:string,asOf:string|undefined,now:string,results:TavilyResult[],retrievedAt=now,policy?:SourcePolicy,comparisonText=text){
  if(asOf)return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome:'inconclusive',freshness:'unknown',asOf,uncertainty:'Historical verification needs date-scoped retrieval and is not available in the live v1 verifier.',evidence:[]});
- const evidence=liveEvidence(text,results,now,policy).map(item=>({...item,retrievedAt}));
+ const evidence=liveEvidence(comparisonText,results,now,policy).map(item=>({...item,retrievedAt,excerpt:results.find(source=>source.url===item.url)?.originalContent?.slice(0,1200)??item.excerpt}));
  const domains=(relation:string)=>new Set(evidence.filter(item=>item.relation===relation&&!item.duplicateOf).map(item=>item.corroborationGroup)).size;
  const supports=domains('supports');const contradicts=domains('contradicts');
- const internalConflict=results.map(normalizeSource).filter(source=>!!source).some(source=>analyzeEvidence(text,source,now).conflicting);
+ const internalConflict=results.map(normalizeSource).filter(source=>!!source).some(source=>analyzeEvidence(comparisonText,source,now).conflicting);
  const outcome=internalConflict?'inconclusive':contradicts>=2&&supports===0?'contradicted':supports>=2&&contradicts===0?'supported':'inconclusive';const freshness=outcome==='supported'?'current':outcome==='contradicted'?'stale':'unknown';
  const dated=evidence.filter(item=>{
   if(!item.publishedAt)return false;
@@ -46,7 +47,7 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
  });
  let uncertainty='Two distinct source groups provide recent matching entity and scope statements after duplicate checks. This is a rule-based assessment; different groups do not prove independence. Review the evidence.';
  if(outcome==='inconclusive'){
-  uncertainty=claimFormatLimitation(text)??(
+  uncertainty=claimFormatLimitation(comparisonText)??(
    internalConflict?'A source contains both supporting and contradicting statements for the same claim. Review this conflicting evidence before drawing a conclusion.':
    supports>0&&contradicts>0?'Recent sources disagree about this claim. The verifier cannot choose between conflicting statements.':
    evidence.length===0?'No usable source evidence was returned. The claim has not been verified.':
@@ -57,7 +58,7 @@ function liveVerification(text:string,asOf:string|undefined,now:string,results:T
  const reviewed=evidence.filter(item=>item.sourceTier==='official_direct'||item.sourceTier==='reviewed_secondary').length;
  const likely=evidence.filter(item=>item.sourceTier==='likely_official').length;
  uncertainty+=` Source ranking: ${reviewed} reviewed, ${likely} likely official (unverified), ${evidence.length-reviewed-likely} unreviewed. Heuristic identity and unreviewed agreement do not establish authority; exact-copy detection cannot prove independence.`;
- return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:timeSensitivePattern.test(text)?'yes':'unknown',outcome,freshness,asOf:now,uncertainty,evidence});
+ return ClaimVerification.parse({version:'1',id:randomUUID(),text,timeSensitive:classifyClaim(comparisonText).timeSensitive,outcome,freshness,asOf:now,uncertainty,evidence});
 }
 export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={}):Promise<VerificationReport> {
  const request=VerifyRequest.parse(input);const now=new Date().toISOString();const claims=request.claims??extractClaims(request.text).map(text=>({text,asOf:undefined}));const mode=options.mode??process.env.TAVILY_MODE??'mock';
@@ -69,18 +70,27 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
  let shared=options.budget??sharedBudgets.get(fetcher);
  if(!shared){shared=new SearchBudget();sharedBudgets.set(fetcher,shared);}
  const cache=new Map<string,ClaimVerification>();
+ const language=interpretationSession(options.interpreter,options.interpretationStats);
  for(const claim of claims){
   const cacheKey=JSON.stringify([claim.text.trim().toLowerCase().replace(/\s+/gu,' '),claim.asOf??null]);
   const cached=cache.get(cacheKey);
   if(cached){verified.push({...cached,id:randomUUID(),text:claim.text});continue;}
   if(claim.asOf){verified.push(liveVerification(claim.text,claim.asOf,now,[]));continue;}
-  const classification=classifyClaim(claim.text);
+  const comparisonText=await language.normalize(claim.text);
+  const classification=classifyClaim(comparisonText);
   if(classification.ambiguous||classification.timeSensitive==='unknown'){verified.push(ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:classification.timeSensitive,outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:classification.ambiguous?'Claim needs an explicit entity or product before retrieval. No search was made.':'Claim was not identified as time-sensitive, so live retrieval was skipped to conserve the request budget.',evidence:[]}));continue;}
   let result:ClaimVerification;
   try {
    const query=`${claim.text.trim().toLowerCase().replace(/\s+/gu,' ')} official current`;
    const search=await shared.search(query,apiKey,budget,()=>searchTavily(query,apiKey,fetcher));
-   result=liveVerification(claim.text,undefined,new Date().toISOString(),search.value,search.retrievedAt,options.sourcePolicy);
+   const interpreted:TavilyResult[]=[];
+   for(const source of search.value){
+    const age=Date.now()-Date.parse(source.published_date??'');
+    const content=source.content&&age>=0&&age<=30*86400000?await language.normalize(source.content):source.content;
+    interpreted.push({...source,content,originalContent:source.content});
+   }
+   result=liveVerification(claim.text,undefined,new Date().toISOString(),interpreted,search.retrievedAt,options.sourcePolicy,comparisonText);
+   if(language.stats.calls>0)result.uncertainty+=' Optional language interpretation was attempted; only validated text-grounded fields were used. It does not establish truth and can still misinterpret text.';
   } catch(error) {
    result=ClaimVerification.parse({version:'1',id:randomUUID(),text:claim.text,timeSensitive:'yes',outcome:'inconclusive',freshness:'unknown',asOf:now,uncertainty:error instanceof RequestBudgetExhausted?'Live request budget exhausted for this server lifetime. No search was made.':'Tavily retrieval failed, timed out, or returned invalid evidence. No retry was made; the attempted request counts toward the budget.',evidence:[]});
   }

@@ -41,4 +41,6 @@ See [architecture](docs/ARCHITECTURE.md), [contracts](docs/CONTRACTS.md), [integ
 
 ## Honest limits
 
+Optional local language interpretation is documented in [Language interpretation](docs/LANGUAGE-INTERPRETATION.md). It is disabled by default, requires no model download for normal use/tests, and preserves rules-only behavior. Run `npm run benchmark:language` for recorded offline paired comparisons; real Ollama quality is not established by that simulation.
+
 Mock verification uses exact fixtures with heuristic claim extraction. Live retrieval is integrated with a server-lifetime request cap and cache; comparison handles only narrow English pricing, version and CEO templates. Many real-world claims remain inconclusive. Numeric freshness is a coarse 0/100/null indicator, not calibrated confidence. Source authority and independence are not established. Fixture regressions measure plumbing, not verification accuracy. Persistent JSON storage is local prototype storage, not a multi-user production database. Bifrost `01` and `02` return unsupported (HTTP 501). The Rust executable is a capability probe only. Default server binding is loopback; deployment remains a team-reviewed step. November 15 is our internal prototype target; exact organizer cutoff and reuse eligibility require confirmation.

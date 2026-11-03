@@ -25,6 +25,7 @@
     "test:ui": "playwright test",
     "evaluate": "node --import tsx scripts/evaluate.ts",
     "evaluate:verifier": "node --import tsx scripts/evaluate-verifier.ts",
+    "benchmark:language": "node --import tsx scripts/benchmark-language.ts",
     "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
   },
   "dependencies": {

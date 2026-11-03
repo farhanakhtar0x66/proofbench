@@ -1,4 +1,4 @@
-export type SearchEvidence={title?:string;url?:string;content?:string;published_date?:string};
+export type SearchEvidence={title?:string;url?:string;content?:string;published_date?:string;originalContent?:string};
 type Fact={entity:string;kind:string;value:string;scope:string};
 const normalize=(value:string)=>value.trim().toLowerCase().replace(/\s+/gu,' ');
 

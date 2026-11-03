@@ -6,12 +6,14 @@ import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
+import {createOllamaInterpreter} from '../../../packages/tavily/src/interpretation';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
  if(!['mock','live'].includes(tavilyMode))throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const tavilyBudget=new SearchBudget();
+ const interpreter=createOllamaInterpreter();
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
@@ -27,7 +29,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return {version:'1',tasks:[task]};
  });
  app.post('/api/verify',async(request,reply)=>{
-  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget});await store.put('verify',result.id,result);return reply.code(201).send(result);
+  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget,interpreter});await store.put('verify',result.id,result);return reply.code(201).send(result);
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

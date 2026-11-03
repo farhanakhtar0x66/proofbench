@@ -33,7 +33,7 @@ export function rankSources(claim:string,input:SearchEvidence[],now:string,polic
  });
  const urls=new Map<string,string>();const copies=new Map<string,string>();
  return ranked.map(source=>{
-  const url=canonicalUrl(source.url);const content=(source.content??'').trim().toLowerCase().replace(/\s+/gu,' ');
+  const url=canonicalUrl(source.url);const content=(source.originalContent??source.content??'').trim().toLowerCase().replace(/\s+/gu,' ');
   // Short factual statements may independently have identical wording.
   const copyEligible=content.length>=120&&content.split(' ').length>=20;
   const duplicateOf=urls.get(url)??(copyEligible?copies.get(content):undefined);
