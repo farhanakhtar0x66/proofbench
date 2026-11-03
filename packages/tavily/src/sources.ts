@@ -6,7 +6,7 @@ export type SourcePolicy={official:SourceRule[];secondary:SourceRule[]};
 export type SourceTier='official_direct'|'reviewed_secondary'|'likely_official'|'unreviewed';
 // Empty until the team reviews and adds entity/domain/page mappings.
 export const sourcePolicy:SourcePolicy={official:[],secondary:[]};
-const canonicalUrl=(input:string)=>{
+export const canonicalUrl=(input:string)=>{
  const url=new URL(input);url.hash='';
  for(const key of [...url.searchParams.keys()])if(/^utm_/iu.test(key)||['fbclid','gclid'].includes(key))url.searchParams.delete(key);
  url.searchParams.sort();return url.href;

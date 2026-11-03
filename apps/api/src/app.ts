@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import {z,ZodError} from 'zod';
-import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,ClaimExtractionRequest} from '../../../packages/contracts/src/index';
+import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,ClaimExtractionRequest,EvidenceRetrievalRequest} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
@@ -8,6 +8,7 @@ import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
 import {extractFactualClaims} from '../../../packages/tavily/src/claim-extraction';
+import {retrieveClaimEvidence} from '../../../packages/tavily/src/general-retrieval';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
@@ -37,6 +38,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   const input=ClaimExtractionRequest.parse(request.body);
   return extractFactualClaims(input.text,{mode:extractionMode,interpreter});
  });
+ app.post('/api/claims/retrieve',async(request)=>retrieveClaimEvidence(EvidenceRetrievalRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget}));
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);
   if(input.agentId!==adapter.descriptor.id)return reply.code(400).send({version:'1',error:'unknown_agent'});

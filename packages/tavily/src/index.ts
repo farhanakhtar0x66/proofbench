@@ -13,13 +13,13 @@ import {interpretationSession,type LanguageInterpreter,type InterpretationStats}
 export {SearchBudget} from './budget';
 const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
-type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string;originalContent?:string};
+export type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string;originalContent?:string};
 const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
 type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy;interpreter?:LanguageInterpreter;interpretationStats?:InterpretationStats};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
-const requestLimit=(value:string|number|undefined)=>{
+export const requestLimit=(value:string|number|undefined)=>{
  const parsed=typeof value==='number'?value:Number(value);
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
  return parsed;
@@ -28,7 +28,7 @@ const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,polic
  const dates=assessSourceDates(result,retrievedAt);
  return {url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group};
 });
-async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
+export async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch):Promise<TavilyResult[]> {
  const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false})});
  if(!response.ok){
   const reason=response.status===401||response.status===403?'Tavily rejected server credentials. Ask the backend owner to check the key and permissions.':response.status===429?'Tavily reported a rate or account limit. Check account usage before authorizing more requests.':'Tavily is unavailable or returned an unsuccessful response.';

@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import {createApp} from '../apps/api/src/app';
 
 process.env.LANGUAGE_MODE='rules';
+process.env.CLAIM_EXTRACTION_MODE='rules';
 const dir=await mkdtemp(join(tmpdir(),'proofbench-smoke-'));
 const app=await createApp({implementation:'mock',tavilyMode:'mock',dataDir:dir});
 try{
@@ -15,6 +16,9 @@ try{
  const report=verified.json();
  assert.equal(report.mode,'mock');assert.equal(report.claims[0].outcome,'contradicted');assert.equal(report.claims[0].freshnessScore,null);
  console.log('PASS offline fixture verification (score unavailable because evidence is offline)');
+ const retrieved=await app.inject({method:'POST',url:'/api/claims/retrieve',payload:{version:'1',claim:'An example claim on any topic.'}});
+ assert.equal(retrieved.statusCode,200);assert.equal(retrieved.json().status,'offline');assert.equal(retrieved.json().evidence.length,0);
+ console.log('PASS general retrieval stays offline without fabricated evidence');
  assert.equal((await app.inject(`/api/verify/${report.id}`)).statusCode,200);
  console.log('PASS saved report lookup');
  const invalid=await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:''}});
