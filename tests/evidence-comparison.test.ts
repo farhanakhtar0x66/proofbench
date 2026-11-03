@@ -3,7 +3,7 @@ import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
 import {EvidenceRetrievalReport} from '../packages/contracts/src/index';
-import {compareClaimEvidence,COMPARISON_SCHEMA} from '../packages/tavily/src/evidence-comparison';
+import {compareClaimEvidence,comparisonSchemaFor} from '../packages/tavily/src/evidence-comparison';
 import {createBifrostInterpreter} from '../packages/tavily/src/bifrost-interpreter';
 import {createApp} from '../apps/api/src/app';
 
@@ -72,7 +72,7 @@ it('bounds a stalled custom adapter',async()=>{
 });
 it('uses Bifrost structured output and shares the cap with extraction/interpretation',async()=>{
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
-  expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');const body=JSON.parse(String(init?.body));expect(body.response_format.json_schema.schema).toEqual(COMPARISON_SCHEMA);expect(body.max_tokens).toBe(2048);expect(body).not.toHaveProperty('temperature');expect(body.messages[0].content).toContain('Never use your memory');
+  expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');const body=JSON.parse(String(init?.body));expect(body.response_format.json_schema.schema.properties.assessments.minItems).toBe(2);expect(body.response_format.json_schema.schema.properties.assessments.items.properties.quote.enum).toEqual(excerpts);expect(body.max_tokens).toBe(2048);expect(body).not.toHaveProperty('temperature');expect(body.messages[0].content).toContain('Never use your memory');
   return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(proposal())}}]});
  });
  const interpreter=createBifrostInterpreter(hosted,fetcher);expect(interpreter.canRequest?.()).toBe(true);
@@ -85,6 +85,16 @@ it('keeps the Fastify comparison route disabled with zero network by default',as
  const app=await createApp({implementation:'mock',tavilyMode:'live',dataDir:dir});
  try{const result=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim}});expect(result.statusCode).toBe(200);expect(result.json().outcome).toBe('inconclusive');expect(fetcher).not.toHaveBeenCalled();}finally{await app.close();await rm(dir,{recursive:true,force:true});}
 },20000);
+it('constrains the wire schema to actual sources, whole quotes and shared correction sentences',()=>{
+ const context={claim,sources:excerpts.map((excerpt,i)=>({sourceId:`S${i+1}`,excerpt}))};
+ const schema=comparisonSchemaFor(JSON.stringify(context));
+ expect(schema.properties.assessments.maxItems).toBe(2);
+ expect(schema.properties.assessments.items.properties.sourceId.enum).toEqual(['S1','S2']);
+ expect(JSON.stringify(schema.properties.correction)).toContain(correction);
+ const noCorrection=comparisonSchemaFor(JSON.stringify({...context,sources:[{sourceId:'S1',excerpt:claim},{sourceId:'S2',excerpt:claim}]}));
+ expect(noCorrection.properties.correction).toEqual({type:'null'});
+ expect(()=>comparisonSchemaFor(JSON.stringify({...context,sources:[{sourceId:'S2',excerpt:claim},{sourceId:'S1',excerpt:claim}]}))).toThrow();
+});
 it('retrieves evidence server-side and compares it through the shared gateway adapter; refuses client citations',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'b05-compare-api-'));vi.stubEnv('LANGUAGE_MODE','bifrost');vi.stubEnv('EVIDENCE_COMPARISON_MODE','llm');vi.stubEnv('ALLOW_PAID_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
  for(const [key,value] of Object.entries(hosted))vi.stubEnv(key,value);

@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {Interpretation,INTERPRETATION_PROMPT,type LanguageInterpreter} from './interpretation';
 import {ExtractionOutput,EXTRACTION_PROMPT,EXTRACTION_SCHEMA} from './claim-extraction';
-import {ComparisonOutput,COMPARISON_PROMPT,COMPARISON_SCHEMA} from './evidence-comparison';
+import {ComparisonOutput,COMPARISON_PROMPT,comparisonSchemaFor} from './evidence-comparison';
 
 export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+)?$/u).refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(10000).default(8000),virtualKey:z.string().optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
 export function bifrostSettings(env:NodeJS.ProcessEnv=process.env){
@@ -56,6 +56,6 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   canRequest:()=>!blocked&&(settings.provider==='ollama'||requests<settings.maxRequests&&Date.now()>=unavailableUntil),
   interpret:text=>request(text,INTERPRETATION_PROMPT,'claim_interpretation',INTERPRETATION_JSON_SCHEMA,value=>Interpretation.parse(value)),
   extractClaims:text=>request(text,EXTRACTION_PROMPT,'claim_extraction',EXTRACTION_SCHEMA,value=>ExtractionOutput.parse(value)),
-  compareEvidence:text=>request(text,COMPARISON_PROMPT,'evidence_comparison',COMPARISON_SCHEMA,value=>ComparisonOutput.parse(value),2048),
+  compareEvidence:text=>request(text,COMPARISON_PROMPT,'evidence_comparison',comparisonSchemaFor(text),value=>ComparisonOutput.parse(value),2048),
  };
 }

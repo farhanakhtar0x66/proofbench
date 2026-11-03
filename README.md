@@ -49,7 +49,7 @@ The new [general claim-extraction endpoint](docs/GENERAL-CLAIM-EXTRACTION.md) ca
 
 The [general evidence-retrieval endpoint](docs/GENERAL-EVIDENCE-RETRIEVAL.md) collects Tavily excerpts for arbitrary claims when explicitly enabled, using the existing shared server search budget. It defaults to offline mode and returns no truth verdict. A controlled one-search Tavily check passed retrieval, cache reuse and budget blocking; general verdicts are not yet available in the website.
 
-The new [evidence-comparison endpoint](docs/EVIDENCE-COMPARISON.md) adds optional Bifrost assessment of server-retrieved excerpts, backend citation/date checks, conservative verdicts and exact corroborated correction quotes. It is disabled by default and tested offline only; its live validation and website integration remain pending.
+The new [evidence-comparison endpoint](docs/EVIDENCE-COMPARISON.md) adds optional Bifrost assessment of server-retrieved excerpts, backend citation/date checks, conservative verdicts and exact corroborated correction quotes. It is disabled by default. After an initial failed run, its strengthened schema passed offline tests and a separately authorized real Gemini smoke check using synthetic evidence. The complete real-source flow and website integration remain pending.
 
 Optional local language interpretation is documented in [Language interpretation](docs/LANGUAGE-INTERPRETATION.md). It is disabled by default, requires no model download for normal use/tests, and preserves rules-only behavior. Run `npm run benchmark:language` for recorded offline paired comparisons; real Ollama quality is not established by that simulation.
 
