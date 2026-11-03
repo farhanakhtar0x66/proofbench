@@ -29,7 +29,7 @@ export function canonicalInterpretation(text:string,output:unknown):string|undef
   const periods:Record<string,string>={month:'month',monthly:'month',year:'year',yearly:'year',annually:'year'};
   if(value&&currency&&['USD','INR','EUR','GBP'].includes(currency)&&period&&periods[period])canonical=`${fact.entity} costs ${currency} ${value} per ${periods[period]}.`;
  }else if(fact.kind==='ceo'&&/\bceo\b/iu.test(text)&&!fact.currency&&!fact.period){canonical=`${fact.value} is the CEO of ${fact.entity}.`;
- }else if(fact.kind==='version'&&/\blatest\b/iu.test(text)&&/^v?\d+(?:\.\d+){0,3}$/iu.test(fact.value)&&!fact.currency&&!fact.period){canonical=`${fact.entity} latest version is ${fact.value}.`;}
+ }else if(fact.kind==='version'&&/\blatest\b/iu.test(text)&&!/\b(?:api|sdk|app|application|stable|beta|alpha|preview|rc)\b/iu.test(text)&&/^v?\d+(?:\.\d+){0,3}$/iu.test(fact.value)&&!fact.currency&&!fact.period){canonical=`${fact.entity} latest version is ${fact.value}.`;}
  return canonical&&claimEntity(canonical)?canonical:undefined;
 }
 

@@ -1,4 +1,5 @@
 import {assessSourceDates} from './dates';
+import {parseVersion} from './versions';
 
 export type SearchEvidence={title?:string;url?:string;content?:string;published_date?:string;originalContent?:string};
 type Fact={entity:string;kind:string;value:string;scope:string};
@@ -12,8 +13,8 @@ function parseFact(text:string):Fact|undefined{
  if(reversed)return {entity:normalize(reversed[2]),kind:'ceo',value:normalize(reversed[1]),scope:'current'};
  let match=value.match(/^(?:The )?(?:current )?CEO of ([\p{L}][\p{L}\p{N} &-]{1,80}) is ([\p{L}][\p{L} .'-]{1,80})$/iu);
  if(match)return {entity:normalize(match[1]),kind:'ceo',value:normalize(match[2]),scope:'current'};
- match=value.match(/^([\p{L}][\p{L}\p{N} &-]{1,80})(?:'s)? latest (?:API )?version is (v?\d+(?:\.\d+){0,3})$/iu);
- if(match)return {entity:normalize(match[1]),kind:'version',value:normalize(match[2]).replace(/^v/u,''),scope:'latest'};
+ const version=parseVersion(value);
+ if(version)return version;
  const monthly=value.match(/^The (monthly|annual) price of ([\p{L}][\p{L}\p{N} &-]{1,80}) is (.+)$/iu);
  if(monthly)value=`${monthly[2]} costs ${monthly[3]} per ${normalize(monthly[1])==='monthly'?'month':'year'}`;
  value=value.replace(/\b(USD|INR|EUR|GBP)\s*/giu,'$1 ').replace(/€\s*/gu,'EUR ').replace(/£\s*/gu,'GBP ').replace(/₹\s*/gu,'INR ').replace(/\s*\/\s*(month|year)\b/giu,' per $1');

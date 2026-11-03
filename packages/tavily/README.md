@@ -1,5 +1,11 @@
 # Verification rules
 
+## Version scope
+
+Versions are compared only when normalized product, component and release channel match. API, SDK, app/application, mobile app, web app and desktop app are distinct scopes. Stable, beta, alpha, preview and rc channels are preserved; no channel means unspecified, never automatically stable. Explicit API/SDK/app and unspecified components are not interchangeable. Current/latest version statements share the current-release interpretation only within the same component/channel.
+
+Supported examples include `Acme’s latest API version is v3.`, `The latest version of Acme's API is 3.`, `Acme SDK’s current stable release is 2.1.`, and `Acme’s beta app version is 5.` Known prerelease suffixes such as -beta.1 preserve the channel; contradictory stable/beta labels abstain. Unknown platforms, qualifiers or phrasing remain unsupported. The optional language adapter cannot erase explicit component/channel qualifiers to force a generic match. No extra searches or new response fields are needed.
+
 ## Source dates
 
 Publication date, actual retrieval time, explicit update date and effective date have separate meanings. Live evidence adds optional updatedAt, effectiveAt and dateReason fields. Update/effective dates are extracted only from explicit ISO YYYY-MM-DD markers in the original snippet, not inferred from retrieval time, URL or model output. The upstream publication date must be an ISO calendar date or timestamp; invalid calendar dates and ambiguous locale formats abstain.
