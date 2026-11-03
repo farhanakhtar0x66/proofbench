@@ -1,6 +1,6 @@
 import Fastify from 'fastify';
 import {z,ZodError} from 'zod';
-import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,ClaimExtractionRequest,EvidenceRetrievalRequest} from '../../../packages/contracts/src/index';
+import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,ClaimExtractionRequest,EvidenceRetrievalRequest,AnalysisRequest,AnalysisReport} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
@@ -9,7 +9,7 @@ import {JsonStore} from './store';
 import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
 import {extractFactualClaims} from '../../../packages/tavily/src/claim-extraction';
 import {retrieveClaimEvidence} from '../../../packages/tavily/src/general-retrieval';
-import {compareClaimEvidence} from '../../../packages/tavily/src/evidence-comparison';
+import {analyzeAnswer,compareGeneralClaim} from '../../../packages/tavily/src/analysis';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
@@ -42,11 +42,12 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  });
  app.post('/api/claims/retrieve',async(request)=>retrieveClaimEvidence(EvidenceRetrievalRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget}));
  app.post('/api/claims/compare',async(request)=>{
-  const input=EvidenceRetrievalRequest.parse(request.body);
-  const available=comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
-  const reason=comparisonMode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made.':!interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':!available?interpreter.unavailableReason?.()??'The model is temporarily unavailable. No model request was made.':undefined;
-  const evidence=await retrieveClaimEvidence(input,{mode:tavilyMode,budget:tavilyBudget,cacheOnly:!available});
-  return compareClaimEvidence(evidence,{mode:available?'llm':'rules',interpreter,unavailableReason:reason});
+  const result=await compareGeneralClaim(request.body,{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode});
+  return result.comparison;
+ });
+ app.post('/api/analysis',async(request,reply)=>{
+  const result=await analyzeAnswer(AnalysisRequest.parse(request.body),{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode});
+  await store.put('analysis',result.id,result);return reply.code(201).send(result);
  });
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);
@@ -61,6 +62,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(req.params.id);
   const result=await store.get(kind,req.params.id,schema);return result??reply.code(404).send({version:'1',error:'not_found'});
  });
+ read('/api/analysis/:id','analysis',AnalysisReport);
  read('/api/verify/:id','verify',VerificationReport);read('/api/runs/:id','runs',RunRecord);read('/api/runs/:id/trace','trace',ExecutionTrace);read('/api/reports/:id','reports',EvidenceReport);
  return app;
 }

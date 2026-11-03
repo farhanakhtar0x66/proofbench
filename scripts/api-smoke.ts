@@ -23,6 +23,10 @@ try{
  const compared=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim:'An example claim on any topic.'}});
  assert.equal(compared.statusCode,200);assert.equal(compared.json().outcome,'inconclusive');assert.equal(compared.json().correction,null);
  console.log('PASS general comparison stays disabled with no invented correction');
+ const analysis=await app.inject({method:'POST',url:'/api/analysis',payload:{version:'1',text:'An example claim on any topic.'}});
+ assert.equal(analysis.statusCode,201);assert.equal(analysis.json().results[0].comparison.outcome,'inconclusive');assert.equal(analysis.json().results[0].retrieval.status,'offline');
+ assert.equal((await app.inject(`/api/analysis/${analysis.json().id}`)).statusCode,200);
+ console.log('PASS combined offline analysis and saved report lookup');
  assert.equal((await app.inject(`/api/verify/${report.id}`)).statusCode,200);
  console.log('PASS saved report lookup');
  const invalid=await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:''}});
