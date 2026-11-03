@@ -13,6 +13,9 @@ it.each(['gemini','groq'])('routes %s only through Bifrost with explicit strict 
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
   expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');
   const body=JSON.parse(String(init?.body));expect(body.model).toBe(`${provider}/test-model`);
+  if(provider==='gemini')expect(body).not.toHaveProperty('temperature');
+  else expect(body.temperature).toBe(0);
+  expect(body).not.toHaveProperty('top_p');expect(body).not.toHaveProperty('top_k');
   expect(body.response_format).toEqual({type:'json_schema',json_schema:{name:'claim_interpretation',strict:true,schema:INTERPRETATION_JSON_SCHEMA}});
   expect(JSON.stringify(init)).not.toContain('fake-gemini');expect(JSON.stringify(init)).not.toContain('fake-groq');
   expect(body.fallbacks).toBeUndefined();return envelope();

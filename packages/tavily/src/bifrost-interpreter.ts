@@ -41,8 +41,10 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   requests++;
   const headers:Record<string,string>={'Content-Type':'application/json','x-bf-eh-correlation-id':randomUUID()};
   if(settings.virtualKey)headers['x-bf-vk']=settings.virtualKey;
+  // Gemini's newer models reject sampling overrides; use provider defaults.
+  const sampling=settings.provider==='gemini'?{}:{temperature:0};
   try{
-  const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,temperature:0,max_tokens:1024,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name:'claim_interpretation',strict:true,schema:INTERPRETATION_JSON_SCHEMA}},messages:[{role:'system',content:INTERPRETATION_PROMPT},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
+  const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:1024,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name:'claim_interpretation',strict:true,schema:INTERPRETATION_JSON_SCHEMA}},messages:[{role:'system',content:INTERPRETATION_PROMPT},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
   if(!response.ok)throw new Error(response.status===429?'Bifrost rate limited':'Bifrost inference unavailable');
   const envelope=ChatEnvelope.parse(await readBounded(response));
   return Interpretation.parse(JSON.parse(envelope.choices[0].message.content));

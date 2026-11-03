@@ -27,7 +27,7 @@ it('sends one bounded, nonstreaming request with explicit Ollama route and optio
   expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');
   expect(init?.redirect).toBe('error');expect(init?.signal).toBeInstanceOf(AbortSignal);
   const headers=init?.headers as Record<string,string>;expect(headers['x-bf-vk']).toBe('test-gateway-key');expect(headers['x-bf-eh-correlation-id']).toBeTruthy();
-  const body=JSON.parse(String(init?.body));expect(body.model).toBe('ollama/qwen2.5:3b');expect(body.stream).toBe(false);expect(body.tools).toBeUndefined();expect(body.fallbacks).toBeUndefined();expect(body.messages[0].content).toContain('Never decide truth');
+  const body=JSON.parse(String(init?.body));expect(body.model).toBe('ollama/qwen2.5:3b');expect(body.temperature).toBe(0);expect(body.stream).toBe(false);expect(body.tools).toBeUndefined();expect(body.fallbacks).toBeUndefined();expect(body.messages[0].content).toContain('Never decide truth');
   return Response.json(envelope());
  });
  const adapter=createLanguageInterpreter({...local,LANGUAGE_MODE:'bifrost',BIFROST_LLM_VIRTUAL_KEY:'test-gateway-key'},fetcher)!;
