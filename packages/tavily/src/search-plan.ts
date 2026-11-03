@@ -1,8 +1,13 @@
 import {captainClaimScope} from './captain-scope';
+import {supportClaimSubject} from './support-scope';
 
 export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_stated',now=new Date()){
  const literal=claim.replace(/\s+/gu,' ');
  if(scope==='as_stated')return {query:literal,dateWindow:undefined};
+ const supportSubject=supportClaimSubject(literal);
+ // Support lifecycles may be documented in older announcements. Retrieve those
+ // without declaring them current; comparison's date rules still apply.
+ if(supportSubject)return {query:`${supportSubject} support status end of life official documentation`,dateWindow:undefined};
  const start=new Date(now.getTime()-30*86400000);
  const end=new Date(now.getTime()+86400000);
  // Search the role rather than presuming the asserted holder is correct.

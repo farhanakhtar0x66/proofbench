@@ -22,7 +22,7 @@ it('searches a general topic once with original negation, dates and case and the
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
   expect(String(url)).toBe('https://api.tavily.com/search');
   expect((init?.headers as Record<string,string>).Authorization).toBe('Bearer fake-test-key');
-  const body=JSON.parse(String(init?.body));expect(body).toEqual({query:claim,search_depth:'basic',max_results:3,include_raw_content:false,include_answer:false,include_published_date:true});
+  const body=JSON.parse(String(init?.body));expect(body).toEqual({query:claim,search_depth:'basic',auto_parameters:false,max_results:3,include_raw_content:false,include_answer:false,include_published_date:true});
   return Response.json({results:[result]});
  });
  const report=await retrieveClaimEvidence(request,{...options,fetch:fetcher});

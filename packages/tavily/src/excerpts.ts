@@ -1,22 +1,22 @@
 import {roleClaimAnchors} from './evidence-relevance';
+import {supportClaimSubject} from './support-scope';
 
 const tokens=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/([\p{L}])(?=\d)/gu,'$1 ').match(/[\p{L}\p{N}]+/gu)??[];
 const phrase=(text:string,term:string)=>` ${tokens(text).join(' ')} `.includes(` ${tokens(term).join(' ')} `);
 const supportTerms=/\b(?:support(?:ed)?|end[- ]of[- ]life|eol|deprecated|sunset|maintenance|discontinued)\b/iu;
-function supportSubject(claim:string){return claim.match(/^(.+?)\s+(?:is|are)\s+(?:(?:not|currently|no longer)\s+){0,2}supported[.!]?$/iu)?.[1];}
 
 export function excerptQualityReason(claim:string,excerpt:string):string|undefined{
  const lines=excerpt.split('\n').filter(line=>line.trim());
  const packageLines=lines.filter(line=>/^\s*(?:purl:|pkg:)/iu.test(line)).length;
  if(packageLines>=3&&packageLines>lines.length/2)return 'The excerpt is dominated by package identifiers rather than a support statement. Fuller explanatory evidence is required.';
- const subject=supportSubject(claim);
+ const subject=supportClaimSubject(claim);
  if(subject&&(!phrase(excerpt,subject)||!supportTerms.test(excerpt)))return 'This support claim needs an explicit matching product/version and support context in the excerpt. Generic compatibility wording or another version cannot corroborate it.';
 }
 
 export function selectEvidenceExcerpt(claim:string,content:string){
  const sourceLength=content.length;const scan=content.slice(0,20000);
  const ranges:{start:number;end:number;score:number}[]=[];
- const role=roleClaimAnchors(claim);const subject=supportSubject(claim);
+ const role=roleClaimAnchors(claim);const subject=supportClaimSubject(claim);
  const anchors=[...new Set(tokens(claim).filter(word=>word.length>2&&!/^(?:the|and|for|are|not|currently|supported|costs|with|from|that|this)$/u.test(word)))];
  const score=(text:string)=>{
   if(excerptQualityReason(claim,text)?.includes('package identifiers'))return -1;
