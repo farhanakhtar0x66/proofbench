@@ -7,6 +7,7 @@ import {assessSourceDates} from './dates';
 import {retrievalFailureMessage} from './retrieval-errors';
 import {evidenceSearchPlan} from './search-plan';
 import {captainClaimScope,captainEvidenceHint} from './captain-scope';
+import {selectEvidenceExcerpt} from './excerpts';
 
 type Options={mode?:string;allowPaidRequests?:string;apiKey?:string;maxRequests?:string|number;budget?:SearchBudget;fetch?:typeof fetch;cacheOnly?:boolean};
 const budgets=new WeakMap<typeof fetch,SearchBudget>();
@@ -39,16 +40,18 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
    const source=normalizeSource(result);if(!source?.url||!source.content?.trim())continue;
    const canonical=canonicalUrl(source.url);if(seen.has(canonical))continue;seen.add(canonical);
    const dates=assessSourceDates(source,createdAt);
-   const excerpt=source.content.trim().slice(0,1200);
+   const selected=selectEvidenceExcerpt(request.claim,source.content);const excerpt=selected.excerpt;
    const scopeHint=seekAppointment?captainEvidenceHint(excerpt):undefined;
-   evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
+   evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,excerptSelection:selected.selection,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
    if(evidence.length===3)break;
   }
   if(seekAppointment){
    const priority={appointment:0,unspecified:1,match_only:2};
-   evidence.sort((a,b)=>priority[a.scopeHint??'unspecified']-priority[b.scopeHint??'unspecified']);
+   evidence.sort((a,b)=>Number(!!a.excerptSelection.warning)-Number(!!b.excerptSelection.warning)||priority[a.scopeHint??'unspecified']-priority[b.scopeHint??'unspecified']);
    limitations.push('Appointment-oriented ranking is heuristic. Match-only sources are retained as context, not silently removed or counted as ongoing-role proof.');
   }
+  else if(request.scope==='current')evidence.sort((a,b)=>Number(!!a.excerptSelection.warning)-Number(!!b.excerptSelection.warning));
+  limitations.push('Excerpt selection uses heuristic claim anchors within returned text, not a new page fetch. Selected passages can omit context; quality warnings exclude weak passages from corroboration.');
   return EvidenceRetrievalReport.parse({version:'1',claim:request.claim,query,...scope,mode,status:evidence.length?'retrieved':'empty',createdAt,retrievedAt:search.retrievedAt,evidence,limitations,message:evidence.length?'Source excerpts retrieved; their agreement with the claim has not been assessed.':'Search completed but returned no usable, nonempty HTTP(S) source excerpts.'});
  }catch(error){
   const exhausted=error instanceof RequestBudgetExhausted;

@@ -8,6 +8,7 @@ import {candidateStatements} from './claim-extraction';
 import {captainClaimScope,captainEvidenceHint} from './captain-scope';
 import {evidenceOverlapTracker} from './evidence-overlap';
 import {sourceRelevanceReason} from './evidence-relevance';
+import {excerptQualityReason} from './excerpts';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
@@ -49,7 +50,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   // Conservative grouping, not a public-suffix or ownership verification service.
   const group=hostname.split('.').slice(-2).join('.');
   const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},assessedAt);
-  const scopeReason=sourceScopeReason(data.claim,source.excerpt)??sourceRelevanceReason(data.claim,source.excerpt);
+  const scopeReason=sourceScopeReason(data.claim,source.excerpt)??sourceRelevanceReason(data.claim,source.excerpt)??source.excerptSelection?.warning??excerptQualityReason(data.claim,source.excerpt);
   const metadataConflict=!!source.updatedAt&&(Date.parse(source.updatedAt)>Date.parse(assessedAt)||!!source.publishedAt&&Date.parse(source.updatedAt)<Date.parse(source.publishedAt))||!!source.effectiveAt&&Date.parse(source.effectiveAt)>Date.parse(assessedAt);
   return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,eligible:dates.eligible&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL, long repeated excerpt or substantial shared sentence does not count as separate corroboration; source independence is not established.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':dates.reason};
  });
