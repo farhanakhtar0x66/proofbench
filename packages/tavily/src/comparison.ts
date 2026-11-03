@@ -1,5 +1,6 @@
 import {assessSourceDates} from './dates';
 import {parseVersion} from './versions';
+import {parsePrice} from './pricing';
 
 export type SearchEvidence={title?:string;url?:string;content?:string;published_date?:string;originalContent?:string};
 type Fact={entity:string;kind:string;value:string;scope:string};
@@ -7,21 +8,15 @@ const normalize=(value:string)=>value.trim().toLowerCase().replace(/\s+/gu,' ');
 
 // Deliberately narrow templates: unsupported phrasing must abstain.
 function parseFact(text:string):Fact|undefined{
- let value=text.trim().replace(/[.!]$/u,'').replace(/’/gu,"'");
+ const value=text.trim().replace(/[.!]$/u,'').replace(/’/gu,"'");
  if(/\b(not|no longer|formerly|previously|might|may|could|reportedly|expected|will|was|until|starting|from|approximately|about)\b/iu.test(value))return;
  const reversed=value.match(/^([\p{L}][\p{L} .'-]{1,80}) is (?:currently )?the (?:current )?CEO of ([\p{L}][\p{L}\p{N} &-]{1,80})$/iu);
  if(reversed)return {entity:normalize(reversed[2]),kind:'ceo',value:normalize(reversed[1]),scope:'current'};
- let match=value.match(/^(?:The )?(?:current )?CEO of ([\p{L}][\p{L}\p{N} &-]{1,80}) is ([\p{L}][\p{L} .'-]{1,80})$/iu);
+ const match=value.match(/^(?:The )?(?:current )?CEO of ([\p{L}][\p{L}\p{N} &-]{1,80}) is ([\p{L}][\p{L} .'-]{1,80})$/iu);
  if(match)return {entity:normalize(match[1]),kind:'ceo',value:normalize(match[2]),scope:'current'};
  const version=parseVersion(value);
  if(version)return version;
- const monthly=value.match(/^The (monthly|annual) price of ([\p{L}][\p{L}\p{N} &-]{1,80}) is (.+)$/iu);
- if(monthly)value=`${monthly[2]} costs ${monthly[3]} per ${normalize(monthly[1])==='monthly'?'month':'year'}`;
- value=value.replace(/\b(USD|INR|EUR|GBP)\s*/giu,'$1 ').replace(/€\s*/gu,'EUR ').replace(/£\s*/gu,'GBP ').replace(/₹\s*/gu,'INR ').replace(/\s*\/\s*(month|year)\b/giu,' per $1');
- // A bare dollar symbol does not identify USD versus CAD/AUD/etc.
- if(value.includes('$'))return;
- match=value.match(/^([\p{L}][\p{L}\p{N} &-]{1,80}?) (?:currently )?costs (USD|INR|EUR|GBP) (\d+(?:\.\d{1,2})?) per (month|year|million input tokens|million output tokens)$/iu);
- if(match)return {entity:normalize(match[1]),kind:'price',value:String(Number(match[3])),scope:`${normalize(match[2])}/${normalize(match[4])}`};
+ return parsePrice(value);
 }
 
 export function splitComparableClauses(text:string):string[]{

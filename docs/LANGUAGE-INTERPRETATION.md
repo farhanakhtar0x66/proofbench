@@ -32,7 +32,7 @@ npm run benchmark:language -- --ollama
 
 The default compares rules, a recorded fake interpreter and simulated unavailability using identical mocked evidence. It writes ignored .local/language-benchmark/report.json. The second command uses the configured local Ollama model, still with zero real Tavily requests; the model must already be installed/running. Reports include verdict correctness, false decisive verdicts, abstention rate, entity extraction correctness, latency, inference overhead and mocked search counts. Entity extraction correctness is a narrow proxy, not full claim extraction accuracy. Cases are development fixtures, not an independent holdout. Ask Khushi to supply a frozen unseen set before making accuracy or improvement claims. The recorded simulation validates wiring and failure behavior, not model quality or performance.
 
-No real Ollama benchmark or model download is part of default validation. Real model accuracy and hardware latency remain unmeasured unless the optional command is run with a working local model. Existing API schemas and response fields are unchanged; broad language coverage and region-aware comparison remain future work.
+No real Ollama benchmark or model download is part of default validation. Real model accuracy and hardware latency remain unmeasured unless the optional command is run with a working local model. Existing API schemas and response fields are unchanged. The deterministic parser supports explicit region/billing pricing patterns and component/channel version patterns; this optional interpreter still abstains when it cannot preserve those qualifiers. Broader qualifier-aware paraphrase interpretation remains future work.
 
 Recorded development run, November 3, 2026 (eight paired cases):
 

@@ -21,7 +21,8 @@ export function canonicalInterpretation(text:string,output:unknown):string|undef
  for(const span of [fact.entity,fact.value,fact.currency,fact.period,fact.time,fact.region,fact.tier].filter((span):span is string=>!!span).sort((a,b)=>b.length-a.length))residual=residual.split(span.toLowerCase()).join(' ');
  const allowed=new Set('a an the of for per each is are costs cost price pricing subscribers pay pays monthly annually yearly month year subscription plan ceo current currently latest api version release has now at its'.split(' '));
  if((residual.match(/[\p{L}\p{N}]+/gu)??[]).some(token=>!allowed.has(token)))return;
- // Qualifiers unsupported by the deterministic engine must not disappear.
+ // Qualifiers unsupported by this interpreter must not disappear, even when
+ // the deterministic parser supports their explicitly worded forms.
  if(fact.region||fact.tier||fact.time||/\b(if|unless|not|never|previously|formerly|was|will|may|might|cheapest|starting|before|after|excluding|including|tax|region|country|in the|in us|in india|in europe)\b|\b(?:19|20)\d{2}\b/iu.test(text))return;
  let canonical:string|undefined;
  if(fact.kind==='price'){

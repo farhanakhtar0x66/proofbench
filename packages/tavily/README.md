@@ -1,5 +1,11 @@
 # Verification rules
 
+## Pricing scope
+
+Pricing comparisons preserve the explicit product/plan, currency, rate unit, region and billing commitment. `Acme’s Pro plan` and `Acme Pro plan` normalize to the same explicit plan as `Acme Pro`; Basic is a different entity and an omitted plan is not guessed. Supported region suffixes use `in REGION`, with US/USA/United States, UK/United Kingdom and India/IN aliases; other explicit region names require an exact normalized match. No region means unspecified, not global or US. Currency never implies region.
+
+Monthly versus yearly rates, million input versus output token units, and per-user versus whole-plan prices are separate scopes. Optional `billed monthly/annually/yearly` commitments are preserved; a monthly displayed rate billed annually is not assumed equivalent to a month-to-month price. Both `... in India billed annually` and `... billed annually in India` are supported. No currency conversion, annual-rate arithmetic or assumption of taxes/discounts/trials is performed. Unknown qualifiers abstain. The optional model adapter cannot erase region/plan/billing details to force a price match. This uses no additional requests and adds no API fields.
+
 ## Version scope
 
 Versions are compared only when normalized product, component and release channel match. API, SDK, app/application, mobile app, web app and desktop app are distinct scopes. Stable, beta, alpha, preview and rc channels are preserved; no channel means unspecified, never automatically stable. Explicit API/SDK/app and unspecified components are not interchangeable. Current/latest version statements share the current-release interpretation only within the same component/channel.
