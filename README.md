@@ -53,7 +53,11 @@ The new [evidence-comparison endpoint](docs/EVIDENCE-COMPARISON.md) adds optiona
 
 The first [real-source flow check](docs/GENERAL-FLOW-CHECK.md) exercised exact-claim fallback, real retrieval, shared caching and safe abstention. Extraction timed out and only one recent dated source group was returned, so model comparison was not exercised. The complete model-backed chain and website integration remain pending.
 
-[Deadline coordination and explicit current-evidence search](docs/FLOW-RELIABILITY.md) address those gaps with offline-tested changes: configurable bounded model waits and optional recent dated search within the same existing request cap. Their effect on the real-source flow still needs a controlled live check; saved offline settings are unchanged.
+[Deadline coordination and explicit current-evidence search](docs/FLOW-RELIABILITY.md) add configurable bounded model waits and optional recent dated search within the same existing request cap. Offline checks pass; the later live result below improved extraction/source coverage but did not complete comparison. Saved offline settings are unchanged.
+
+The subsequent current-evidence live check succeeded at model extraction and found two dated source groups, but comparison hit the gateway provider deadline and returned inconclusive. The complete flow remains unvalidated; saved-source continuation can test the remaining stage only after a fresh explicit model allowance.
+
+The authorized saved-source comparison completed with a 30-second deadline, but review found that its match-captaincy evidence did not justify an ongoing-role verdict. A new scope guard correctly abstains on an offline replay of those sources. The live transport path is exercised; broader real-source semantic validation and website integration remain pending.
 
 Optional local language interpretation is documented in [Language interpretation](docs/LANGUAGE-INTERPRETATION.md). It is disabled by default, requires no model download for normal use/tests, and preserves rules-only behavior. Run `npm run benchmark:language` for recorded offline paired comparisons; real Ollama quality is not established by that simulation.
 

@@ -24,6 +24,13 @@ export const COMPARISON_PROMPT='Assess ONLY the supplied source excerpts against
 const suspicious=/\b(?:ignore|disregard)\b.{0,80}\b(?:instructions?|prompts?)\b|\bsystem prompt\b|\boutput\s+(?:supported|contradicted)\b/isu;
 type Input=z.infer<typeof EvidenceRetrievalReport>;
 
+export function sourceScopeReason(claim:string,excerpt:string):string|undefined{
+ const unqualifiedCaptain=/\bcaptain\b/iu.test(claim)&&!/\b(?:match|game|against)\b/iu.test(claim);
+ const temporary=/\b(?:started|starting|served|serving|stand-in|temporary|acting)\s+(?:as\s+)?captain\b|\bend of (?:the|a) (?:match|game)\b|\bcaptain(?:ed)?.{0,80}\bagainst\b/isu.test(excerpt);
+ const ongoing=/\b(?:club|permanent|first[- ]team|first|team)\s+captain\b|\bappointed.{0,60}\bcaptain\b/isu.test(excerpt);
+ if(unqualifiedCaptain&&temporary&&!ongoing)return 'Match-specific or temporary captaincy does not establish an unqualified ongoing captain appointment. More directly scoped evidence is required.';
+}
+
 export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'llm';interpreter?:LanguageInterpreter}={}){
  const data=EvidenceRetrievalReport.parse(input);const assessedAt=new Date().toISOString();
  let fallbackCitations:z.infer<typeof EvidenceComparisonReport>['citations']=[];
@@ -43,13 +50,14 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   // Conservative grouping, not a public-suffix or ownership verification service.
   const group=hostname.split('.').slice(-2).join('.');
   const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},assessedAt);
+  const scopeReason=sourceScopeReason(data.claim,source.excerpt);
   const metadataConflict=!!source.updatedAt&&(Date.parse(source.updatedAt)>Date.parse(assessedAt)||!!source.publishedAt&&Date.parse(source.updatedAt)<Date.parse(source.publishedAt))||!!source.effectiveAt&&Date.parse(source.effectiveAt)>Date.parse(assessedAt);
-  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,eligible:dates.eligible&&!duplicate&&!metadataConflict,dateReason:duplicate?'Duplicate URL or long copied excerpt does not corroborate another source.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':dates.reason};
+  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,eligible:dates.eligible&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL or long copied excerpt does not corroborate another source.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':dates.reason};
  });
  let sources:ReturnType<typeof prepareSources>;
  try{sources=prepareSources();}catch{return fallback('Source URLs, excerpts or retrieval metadata are invalid. No model request was made.');}
- fallbackCitations=sources.map(source=>({sourceId:source.sourceId,url:source.url,quote:source.excerpt,relation:'insufficient',eligible:source.eligible,dateReason:source.dateReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt}));
- if(new Set(sources.filter(source=>source.eligible).map(source=>source.group)).size<2)return fallback('Fewer than two distinct source groups have nonduplicate excerpts and qualifying recent publication dates. No model request was made.');
+ fallbackCitations=sources.map(source=>({sourceId:source.sourceId,url:source.url,quote:source.excerpt,relation:'insufficient',eligible:source.eligible,dateReason:source.dateReason,scopeReason:source.scopeReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt}));
+ if(new Set(sources.filter(source=>source.eligible).map(source=>source.group)).size<2)return fallback('Fewer than two distinct source groups pass date, duplication and claim-scope checks. Review the source warnings. No model request was made.');
  const payload=JSON.stringify({claim:data.claim,assessedAt,sources:sources.map(({sourceId,url,excerpt,publishedAt,retrievedAt})=>({sourceId,url,excerpt,publishedAt,retrievedAt}))});
  if(payload.length>10000)return fallback('Comparison input exceeds the bounded model context. No model request was made.');
  let timer:ReturnType<typeof setTimeout>|undefined;
@@ -60,7 +68,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   const citations=parsed.assessments.map((assessment,index)=>{
    const source=sources[index];
    if(assessment.sourceId!==source.sourceId||assessment.quote!==source.excerpt)throw new Error('Invalid citation or altered source context');
-   return {sourceId:source.sourceId,url:source.url,quote:assessment.quote,relation:assessment.relation,eligible:source.eligible,dateReason:source.dateReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt};
+   return {sourceId:source.sourceId,url:source.url,quote:assessment.quote,relation:assessment.relation,eligible:source.eligible,dateReason:source.dateReason,scopeReason:source.scopeReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt};
   });
   const groups=(kind:'supports'|'contradicts')=>new Set(citations.filter(citation=>citation.eligible&&citation.relation===kind).map(citation=>sources.find(source=>source.sourceId===citation.sourceId)!.group)).size;
   const conflict=citations.some(citation=>citation.relation==='conflicting')||(citations.some(citation=>citation.relation==='supports')&&citations.some(citation=>citation.relation==='contradicts'));

@@ -1,6 +1,6 @@
 # Bounded deadlines and current-evidence search
 
-These changes address the timeout and source-coverage gaps observed in the first real-source check. They are offline-tested, not proof that the next live run will produce a decisive verdict. No API calls, saved `.env` edits, service starts or automatic retries are part of this implementation step.
+These changes address the timeout and source-coverage gaps observed in the first real-source check. They have offline validation and partial live results recorded below, not proof that arbitrary claims can receive decisive verdicts. The implementation step made no API calls or saved `.env` edits; later live checks used separately approved request allowances. No automatic inference retry is included.
 
 ## Model deadlines
 
@@ -40,4 +40,8 @@ The live flow checker supports `--current-evidence` to pass the same scope to re
 
 On November 3, 2026, `npm run check` passed lint, TypeScript, all 364 tests, six fixture regressions and build. Eleven new tests check coordinated deadlines, 15-second simulated responses for interpretation/extraction/comparison, a stalled custom adapter, timeout-only configuration refresh, historical query preservation, neutral role queries, unknown wording, current date parameters, cache/budget isolation and invalid scope. The offline API smoke check also passed. All responses are simulated; no Gemini, Groq or Tavily credits were used for these changes.
 
-A new explicitly capped real-source check is still required to establish whether the longer deadline and current-evidence strategy help this account/query. The previous incomplete run remains the actual live result. The two-source agreement and semantic/date/correction checks have not been weakened to obtain a passing demonstration. A result may still correctly remain inconclusive. Website integration remains pending.
+The two-source agreement and semantic/date/correction checks have not been weakened to obtain a passing demonstration. A result may still correctly remain inconclusive. A complete real-source model chain and website integration remain pending.
+
+In the later authorized [current-evidence check](GENERAL-FLOW-CHECK.md), extraction succeeded and two dated source groups were returned, but comparison exceeded the 19-second provider limit and failed with HTTP 504. Thus the source-coverage/preflight gap improved for this query while comparison latency remains unresolved. No complete-flow success is claimed. Saved settings remain unchanged; the next one-model test would require a separate allowance and can reuse the saved source data without another Tavily search.
+
+The subsequently authorized saved-source request completed in about 20.34 seconds with the existing maximum 30-second client setting. This establishes completion for that attempt, not a general latency guarantee or a changed default/saved timeout. Its quotes exposed an ongoing-role versus match-role mismatch, which is now guarded separately. The replay abstains correctly; no complete semantic-success claim is made. See the preserved run and review details in the flow record.
