@@ -26,6 +26,7 @@
     "test:contracts": "vitest run tests/contracts.test.ts",
     "test:ui": "playwright test",
     "evaluate": "node --import tsx scripts/evaluate.ts",
+    "evaluate:general": "node --import tsx scripts/evaluate-general.ts",
     "evaluate:verifier": "node --import tsx scripts/evaluate-verifier.ts",
     "benchmark:language": "node --import tsx scripts/benchmark-language.ts",
     "benchmark:bifrost": "node --env-file-if-exists=.env --import tsx scripts/benchmark-language.ts --bifrost",

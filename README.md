@@ -32,6 +32,8 @@ Default mock development and automated checks make no paid Tavily requests. Live
 
 Quick offline checks: `npm run smoke:api` exercises the API without server ports, and `npm run demo:verifier` demonstrates all three verdicts with simulated evidence. See the [API testing guide](docs/API-TESTING.md) and [demo guide](docs/DEMO-GUIDE.md) for commands, expected results, error behavior and presentation notes. Neither command loads .env or makes live requests.
 
+`npm run evaluate:general` runs [14 cross-topic combined-API regression scenarios](docs/GENERAL-EVALUATION.md) with simulated search/model responses. It checks pipeline behavior and abstention with zero provider requests; its passing rate is not a model accuracy estimate.
+
 | Lead | First deliverable | Boundary |
 | --- | --- | --- |
 | Aryan — Team Leader / Product & Frontend | Refine dashboard and responsive interaction states | `apps/web`; independent architecture decisions within v1 API |
