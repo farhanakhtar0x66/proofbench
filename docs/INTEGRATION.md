@@ -17,8 +17,8 @@ The Bifrost #01 implementation (`implementations/bifrost-01`) integrates Maxim A
   `Task → Policy → Context → Bifrost → Model → Proposed Action → Approval → Execution → Verification → Recovery`
 - **Model Action Parsing & Safety:**
   The agent does not copy answer keys. It parses genuine model output via `parseModelActions` (supporting structured `write_file` tool calls or formatted markdown code blocks with `// File: <relpath>`). Proposed target paths are validated to prevent directory traversal or workspace escaping.
-- **Host Approval Engine:**
-  Read-only operations proceed automatically; write, command, and git mutations require host authorization via `HostApprovalEngine`. Model self-approval is rejected.
+- **Default-Deny Host Approval Engine:**
+  All mutating actions (`write`, `command`, `git`, `other`) default-deny without an explicit host approval handler. Read-only actions are auto-approved. The host runtime injects `createWorkspaceApprovalHandler()`, which enforces strict workspace containment (rejecting `..`, absolute paths, and null bytes), while defaulting to denying commands and Git operations unless explicitly authorized. Model self-approval is strictly rejected.
 - **M1 Deterministic Context Selection:**
   Syntax-aware Rust symbol extraction (top-level `fn`, `struct`, `enum`, `trait`, `impl`), bounded to ≤4,000 tokens with explicit omissions logged in the context ledger. Fails safely on context overflow.
 - **M2 Progress & Loop Control:**
@@ -27,8 +27,8 @@ The Bifrost #01 implementation (`implementations/bifrost-01`) integrates Maxim A
   Constructs compact diagnostic handoffs (≤2,000 tokens) with verified unified diffs and compiler diagnostics (zero LLM narrative) to authorize model escalation via Bifrost routing headers.
 - **Bifrost Gateway & Virtual Key Budgets:**
   Integrates Maxim AI Bifrost gateway daemon (`http://127.0.0.1:8089`) with virtual keys (`sk-bf-*`), conservative pre-request spending allowance reservation, automatic 5xx/429 fallback routing via `x-bf-fallback-providers`, and HTTP 402 rejection upon budget exhaustion. No paid overages allowed. Offline deterministic testing is supported via explicitly labeled `EmbeddedBifrostGateway` simulation (`simulated: true`). Live gateway errors fail closed and never silently fall back to simulation.
-- **Confidential Repository Policy:**
-  When `confidential: true`, cloud models are rejected at the host boundary (regardless of prompt injection), and external Tavily requests are suppressed to prevent code/dependency leakage.
+- **Confidential-Mode Enforcement:**
+  Determined by verified destination endpoints (local loopback addresses: `127.0.0.1`, `localhost`, `::1`, `0.0.0.0`) and trusted local providers (`['local', 'ollama']`), NOT model names alone. Cloud providers and remote endpoints (e.g. `https://api.openai.com/v1`) are blocked even if a model is named `local-...`. External Tavily documentation retrieval is suppressed in confidential mode to prevent source/dependency exfiltration.
 - **Tavily Documentation Verification:**
   Extracts version-sensitive claims in public mode and queries Mohit's `verifyAnswer` to supply cited documentation evidence.
 - **Frozen Task Fixtures:**
@@ -37,6 +37,19 @@ The Bifrost #01 implementation (`implementations/bifrost-01`) integrates Maxim A
   2. `task-2-missing-feature`: Implement exponential backoff retry calculation.
   3. `task-3-multi-file-regression`: Repair event pipeline regression across parser and sink.
   Reference solutions in `fixtures/coding-tasks/*/solution/` are evaluator-only benchmark controls and are never accessed by the execution agent runtime.
+
+## Truthful Benchmark Accounting
+
+In accordance with Contracts v1 and benchmarking integrity:
+- **No Token Invention:** Missing or unrecorded usage observations are never converted to zero. They retain `{ status: 'missing', reason: '...' }`.
+- **Comparable Efficiency Requirement:** Token and cost efficiency percentages are calculated ONLY when both the baseline and experimental arms pass acceptance checks and have verified token telemetry. If either arm fails or has missing tokens, `comparable` is set to `false` and savings are reported as `null` with an explicit reason.
+- **Comprehensive Success Tracking:** Benchmark suite evaluations (`ComparativeBenchmarkSuite.evaluateTaskSuite`) calculate overall success rates across all evaluated tasks, ensuring failed runs are kept in the denominator rather than silently dropped.
+
+## Virtual Key Rotation & Security Audit
+
+- **Virtual Key Rotation:** The virtual key exposed during early testing (`sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e`) has been moved to revoked status in the Bifrost SQLite database (`/tmp/bifrost-app/config.db`). Live testing confirms it returns HTTP 401 `access not found. The provided credential does not exist or has been revoked.`
+- **Active Key:** The active virtual key is `sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808`, configured via environment variable `BIFROST_VIRTUAL_KEY`.
+- **History Audit Disclosure:** Commit `29f6c25` in Git history contained the previous virtual key. Per team policies and instructions, shared Git history was not rewritten; instead, the credential was immediately revoked at the gateway provider level, neutralizing any exposure.
 
 ## Technical Disclosures & Limitations
 

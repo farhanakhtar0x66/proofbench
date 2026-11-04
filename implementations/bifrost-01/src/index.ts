@@ -7,8 +7,14 @@ import {
 import { BifrostClient } from './gateway/client';
 import { EmbeddedBifrostGateway } from './gateway/embedded';
 import type { GovernancePolicy } from './governance/policy';
-import { createDefaultPolicy, validateModelAgainstPolicy } from './governance/policy';
-import { HostApprovalEngine } from './governance/approval';
+import {
+  createDefaultPolicy,
+  validateModelAgainstPolicy,
+  isLocalDestination,
+  TRUSTED_LOCAL_PROVIDERS,
+  KNOWN_CLOUD_PROVIDERS,
+} from './governance/policy';
+import { HostApprovalEngine, createWorkspaceApprovalHandler } from './governance/approval';
 import { M1ContextSelector } from './context/m1-selector';
 import { M2StagnationDetector } from './progress/m2-stagnation';
 import { M3aFailureAutopsyBuilder } from './handoff/m3a-autopsy';
@@ -23,7 +29,11 @@ export {
   EmbeddedBifrostGateway,
   createDefaultPolicy,
   validateModelAgainstPolicy,
+  isLocalDestination,
+  TRUSTED_LOCAL_PROVIDERS,
+  KNOWN_CLOUD_PROVIDERS,
   HostApprovalEngine,
+  createWorkspaceApprovalHandler,
   M1ContextSelector,
   M2StagnationDetector,
   M3aFailureAutopsyBuilder,
@@ -56,7 +66,7 @@ export const bifrost01: AgentAdapter = {
       throw new Error('Unknown agent');
     }
 
-    const agent = new ProofBenchAgent();
+    const agent = new ProofBenchAgent({ approvalHandler: createWorkspaceApprovalHandler() });
     const result = await agent.runTask(request.task, request.seed);
 
     return {

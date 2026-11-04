@@ -5,6 +5,7 @@ import {
   BifrostClient,
   ComparativeBenchmarkSuite,
   getCodingTasksDir,
+  createWorkspaceApprovalHandler,
 } from '../implementations/bifrost-01/src/index';
 import { TaskSpec } from '../packages/contracts/src/index';
 
@@ -45,6 +46,9 @@ async function main() {
   const isLiveReachable = await checkLiveGatewayReachable();
   console.log(`\n[GATEWAY CHECK] Maxim Bifrost Daemon on http://127.0.0.1:8089: ${isLiveReachable ? 'ONLINE (ACTIVE)' : 'OFFLINE'}`);
 
+  const approvalHandler = createWorkspaceApprovalHandler();
+  const liveVirtualKey = process.env.BIFROST_VIRTUAL_KEY || 'sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808';
+
   // --------------------------------------------------------------------------
   // 1. Genuine Live Execution against Real Maxim Bifrost + Qwen 2.5 Coder
   // --------------------------------------------------------------------------
@@ -53,69 +57,90 @@ async function main() {
     console.log('SECTION 1: GENUINE LIVE BIFROST GATEWAY & MODEL EXECUTION');
     console.log('Gateway: Maxim AI Bifrost (v2.4.0) on http://127.0.0.1:8089');
     console.log('Model:   Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M (Local Ollama Provider)');
-    console.log('Task:    Task 1 (Fix off-by-one bounds bug in sliding window sums)');
+    console.log('Tasks:   All 3 Frozen Tasks (Tasks 1, 2, 3)');
     console.log('='.repeat(80));
 
+    const liveRuns: unknown[] = [];
+
+    for (const taskId of taskFiles) {
+      const taskJsonPath = path.join(tasksDir, taskId, 'task.json');
+      const taskRaw = await fs.readFile(taskJsonPath, 'utf8');
+      const taskSpec = TaskSpec.parse(JSON.parse(taskRaw));
+
+      console.log(`\n[LIVE RUN] Dispatching task ${taskSpec.id} to live agent runtime...`);
+
+      const liveClient = new BifrostClient({
+        mode: 'live',
+        gatewayUrl: 'http://127.0.0.1:8089',
+        virtualKey: liveVirtualKey,
+        userBudgetLimitUsd: 5.0,
+      });
+
+      const liveAgent = new ProofBenchAgent({
+        bifrostClient: liveClient,
+        approvalHandler,
+        primaryModel: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+        enableM1ContextBounding: true,
+        enableM2StagnationBreaker: true,
+        enableM3aAutopsyEscalation: true,
+        enableTavilyDocumentation: true,
+      });
+
+      const liveResult = await liveAgent.runTask(taskSpec, Date.now());
+
+      const liveIn = liveResult.run.usage.inputTokens.status === 'known' ? `${liveResult.run.usage.inputTokens.value} tokens` : liveResult.run.usage.inputTokens.status;
+      const liveOut = liveResult.run.usage.outputTokens.status === 'known' ? `${liveResult.run.usage.outputTokens.value} tokens` : liveResult.run.usage.outputTokens.status;
+      const liveDur = liveResult.run.usage.duration.status === 'known' ? `${liveResult.run.usage.duration.value} ms` : liveResult.run.usage.duration.status;
+      const liveCost = (liveResult.run.usage.cost.status === 'known' || liveResult.run.usage.cost.status === 'estimated')
+        ? `$${liveResult.run.usage.cost.value} (${liveResult.run.usage.cost.status})`
+        : liveResult.run.usage.cost.status;
+
+      console.log(`  Task:                    ${taskSpec.title}`);
+      console.log(`  Live Execution Status:   ${liveResult.run.status.toUpperCase()}`);
+      console.log(`  Acceptance Test Passed:  ${liveResult.run.acceptance.status.toUpperCase()}`);
+      console.log(`  Observed Input Tokens:   ${liveIn}`);
+      console.log(`  Observed Output Tokens:  ${liveOut}`);
+      console.log(`  Session Duration:        ${liveDur}`);
+      console.log(`  Estimated Cost:          ${liveCost}`);
+      console.log(`  Simulation Flag:         ${liveResult.run.reproducibility.simulated ? 'SIMULATED' : 'GENUINE LIVE (FALSE)'}`);
+      console.log(`  Trace Events (${liveResult.trace.events.length}):`);
+      for (const ev of liveResult.trace.events) {
+        console.log(`    [${ev.type.toUpperCase()}] ${ev.message}`);
+      }
+
+      liveRuns.push({
+        taskId: taskSpec.id,
+        taskTitle: taskSpec.title,
+        model: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+        provider: 'ollama (via Maxim Bifrost v2.4.0)',
+        run: liveResult.run,
+        report: liveResult.report,
+        traceSummary: liveResult.trace.events.map((e) => `[${e.type}] ${e.message}`),
+      });
+    }
+
+    demonstrationEvidence.liveDemonstration = {
+      model: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+      provider: 'ollama (via Maxim Bifrost v2.4.0)',
+      gatewayUrl: 'http://127.0.0.1:8089',
+      virtualKey: liveVirtualKey.slice(0, 10) + '...',
+      runs: liveRuns,
+    };
+
+    // Live Comparative Benchmark on Task 1
+    console.log('\n[LIVE BENCHMARK] Evaluating Task 1 efficiency with live Bifrost...');
     const task1JsonPath = path.join(tasksDir, 'task-1-fix-failing-func', 'task.json');
     const task1Raw = await fs.readFile(task1JsonPath, 'utf8');
     const task1Spec = TaskSpec.parse(JSON.parse(task1Raw));
 
-    const liveClient = new BifrostClient({
-      mode: 'live',
-      gatewayUrl: 'http://127.0.0.1:8089',
-      virtualKey: 'sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e',
-      userBudgetLimitUsd: 5.0,
-    });
-
-    const liveAgent = new ProofBenchAgent({
-      bifrostClient: liveClient,
-      primaryModel: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
-      enableM1ContextBounding: true,
-      enableM2StagnationBreaker: true,
-      enableM3aAutopsyEscalation: true,
-      enableTavilyDocumentation: true,
-    });
-
-    console.log(`[LIVE RUN] Dispatching task ${task1Spec.id} to live agent runtime...`);
-    const liveResult = await liveAgent.runTask(task1Spec, Date.now());
-
-    const liveIn = liveResult.run.usage.inputTokens.status === 'known' ? `${liveResult.run.usage.inputTokens.value} tokens` : liveResult.run.usage.inputTokens.status;
-    const liveOut = liveResult.run.usage.outputTokens.status === 'known' ? `${liveResult.run.usage.outputTokens.value} tokens` : liveResult.run.usage.outputTokens.status;
-    const liveDur = liveResult.run.usage.duration.status === 'known' ? `${liveResult.run.usage.duration.value} ms` : liveResult.run.usage.duration.status;
-    const liveCost = (liveResult.run.usage.cost.status === 'known' || liveResult.run.usage.cost.status === 'estimated')
-      ? `$${liveResult.run.usage.cost.value} (${liveResult.run.usage.cost.status})`
-      : liveResult.run.usage.cost.status;
-
-    console.log(`  Live Execution Status:   ${liveResult.run.status.toUpperCase()}`);
-    console.log(`  Acceptance Test Passed:  ${liveResult.run.acceptance.status.toUpperCase()}`);
-    console.log(`  Observed Input Tokens:   ${liveIn}`);
-    console.log(`  Observed Output Tokens:  ${liveOut}`);
-    console.log(`  Session Duration:        ${liveDur}`);
-    console.log(`  Estimated Cost:          ${liveCost}`);
-    console.log(`  Simulation Flag:         ${liveResult.run.reproducibility.simulated ? 'SIMULATED' : 'GENUINE LIVE (FALSE)'}`);
-    console.log(`  Trace Events (${liveResult.trace.events.length}):`);
-    for (const ev of liveResult.trace.events) {
-      console.log(`    [${ev.type.toUpperCase()}] ${ev.message}`);
-    }
-
-    demonstrationEvidence.liveDemonstration = {
-      taskId: 'task-1-fix-failing-func',
-      model: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
-      provider: 'ollama (via Maxim Bifrost v2.4.0)',
-      run: liveResult.run,
-      report: liveResult.report,
-      traceSummary: liveResult.trace.events.map((e) => `[${e.type}] ${e.message}`),
-    };
-
-    // Live Comparative Benchmark
-    console.log('\n[LIVE BENCHMARK] Evaluating Task 1 efficiency with live Bifrost...');
+    process.env.BIFROST_VIRTUAL_KEY = liveVirtualKey;
     const liveComparison = await ComparativeBenchmarkSuite.compareTaskEfficiency(task1Spec, {
       mode: 'live',
       primaryModel: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
     });
     console.log(`  Baseline Total Tokens:     ${liveComparison.baseline.totalTokens}`);
     console.log(`  Experimental Total Tokens: ${liveComparison.experimental.totalTokens}`);
-    console.log(`  Token Savings:             ${liveComparison.tokenSavingsPercent.toFixed(1)}%`);
+    console.log(`  Token Savings:             ${liveComparison.tokenSavingsPercent !== null ? `${liveComparison.tokenSavingsPercent.toFixed(1)}%` : 'N/A'}`);
     console.log(`  Summary:                   ${liveComparison.evidenceSummary}`);
     demonstrationEvidence.liveComparativeBenchmark = liveComparison;
   }
@@ -135,7 +160,7 @@ async function main() {
     const taskSpec = TaskSpec.parse(JSON.parse(taskRaw));
 
     console.log(`\n[SIMULATED RUN] Executing on Task: ${taskSpec.title} (${taskSpec.id})`);
-    const agent = new ProofBenchAgent();
+    const agent = new ProofBenchAgent({ approvalHandler });
     const { run, trace, report } = await agent.runTask(taskSpec, Date.now());
 
     const inVal = run.usage.inputTokens.status === 'known' ? `${run.usage.inputTokens.value} (${run.usage.inputTokens.source})` : run.usage.inputTokens.status;
@@ -173,8 +198,8 @@ async function main() {
 
     console.log(`  Baseline Total Tokens:     ${comparison.baseline.totalTokens}`);
     console.log(`  Experimental Total Tokens: ${comparison.experimental.totalTokens}`);
-    console.log(`  Token Savings:             ${comparison.tokenSavingsPercent.toFixed(1)}%`);
-    console.log(`  Cost Savings:              ${comparison.costSavingsPercent.toFixed(1)}%`);
+    console.log(`  Token Savings:             ${comparison.tokenSavingsPercent !== null ? `${comparison.tokenSavingsPercent.toFixed(1)}%` : 'N/A'}`);
+    console.log(`  Cost Savings:              ${comparison.costSavingsPercent !== null ? `${comparison.costSavingsPercent.toFixed(1)}%` : 'N/A'}`);
     console.log(`  Summary: ${comparison.evidenceSummary}`);
 
     (demonstrationEvidence.simulatedComparisons as unknown[]).push(comparison);

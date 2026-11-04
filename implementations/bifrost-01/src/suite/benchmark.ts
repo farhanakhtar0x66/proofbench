@@ -1,16 +1,17 @@
 import { TaskSpec } from '../../../../packages/contracts/src/index';
 import { ProofBenchAgent } from '../runtime/agent';
 import { EmbeddedBifrostGateway } from '../gateway/embedded';
+import { createWorkspaceApprovalHandler } from '../governance/approval';
 
 export interface BenchmarkMeasurement {
   arm: 'baseline_unbounded' | 'experimental_governed';
   taskTitle: string;
   passed: boolean;
-  inputTokens: number;
-  outputTokens: number;
-  totalTokens: number;
-  durationMs: number;
-  costUsd: number;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  durationMs: number | null;
+  costUsd: number | null;
   turns: number;
   routingProvider: string;
 }
@@ -20,9 +21,31 @@ export interface ComparativeEfficiencyReport {
   taskTitle: string;
   baseline: BenchmarkMeasurement;
   experimental: BenchmarkMeasurement;
-  tokenSavingsPercent: number;
-  costSavingsPercent: number;
+  tokenSavingsPercent: number | null;
+  costSavingsPercent: number | null;
+  comparable: boolean;
+  reason?: string;
   evidenceSummary: string;
+}
+
+export interface ComparativeSuiteSummary {
+  totalTasks: number;
+  baselinePassed: number;
+  baselineSuccessRatePercent: number;
+  experimentalPassed: number;
+  experimentalSuccessRatePercent: number;
+  comparableTasks: number;
+  comparisons: ComparativeEfficiencyReport[];
+  averageTokenSavingsPercent: number | null;
+  evidenceSummary: string;
+}
+
+function extractObservation(obs?: { status: string; value?: number }): number | null {
+  if (!obs) return null;
+  if ((obs.status === 'known' || obs.status === 'estimated') && typeof obs.value === 'number') {
+    return obs.value;
+  }
+  return null;
 }
 
 export class ComparativeBenchmarkSuite {
@@ -32,10 +55,12 @@ export class ComparativeBenchmarkSuite {
   ): Promise<ComparativeEfficiencyReport> {
     const isLive = options.mode === 'live' || process.env.BIFROST_MODE === 'live';
     const embeddedGateway = isLive ? undefined : new EmbeddedBifrostGateway();
+    const approvalHandler = createWorkspaceApprovalHandler();
 
     // 1. Baseline Arm: Unbounded raw file reads, unguided loop control
     const baselineAgent = new ProofBenchAgent({
       embeddedGateway,
+      approvalHandler,
       primaryModel: options.primaryModel,
       enableM1ContextBounding: false,
       enableM2StagnationBreaker: false,
@@ -44,10 +69,11 @@ export class ComparativeBenchmarkSuite {
     });
 
     const baselineResult = await baselineAgent.runTask(task, 1);
-    const bIn = (baselineResult.run.usage.inputTokens.status === 'known' || baselineResult.run.usage.inputTokens.status === 'estimated') ? baselineResult.run.usage.inputTokens.value : 0;
-    const bOut = (baselineResult.run.usage.outputTokens.status === 'known' || baselineResult.run.usage.outputTokens.status === 'estimated') ? baselineResult.run.usage.outputTokens.value : 0;
-    const bDuration = (baselineResult.run.usage.duration.status === 'known' || baselineResult.run.usage.duration.status === 'estimated') ? baselineResult.run.usage.duration.value : 0;
-    const bCost = (baselineResult.run.usage.cost.status === 'known' || baselineResult.run.usage.cost.status === 'estimated') ? baselineResult.run.usage.cost.value : 0;
+    const bIn = extractObservation(baselineResult.run.usage.inputTokens);
+    const bOut = extractObservation(baselineResult.run.usage.outputTokens);
+    const bDuration = extractObservation(baselineResult.run.usage.duration);
+    const bCost = extractObservation(baselineResult.run.usage.cost);
+    const bTotal = (bIn !== null && bOut !== null) ? (bIn + bOut) : null;
 
     const baseline: BenchmarkMeasurement = {
       arm: 'baseline_unbounded',
@@ -55,7 +81,7 @@ export class ComparativeBenchmarkSuite {
       passed: baselineResult.run.acceptance.status === 'passed',
       inputTokens: bIn,
       outputTokens: bOut,
-      totalTokens: bIn + bOut,
+      totalTokens: bTotal,
       durationMs: bDuration,
       costUsd: bCost,
       turns: baselineResult.trace.events.filter((e) => e.message.includes('Dispatching turn')).length,
@@ -65,6 +91,7 @@ export class ComparativeBenchmarkSuite {
     // 2. Experimental Arm: M1 Deterministic Context Bounding + M2 Stagnation Breaker + M3a Evidence Autopsy
     const expAgent = new ProofBenchAgent({
       embeddedGateway,
+      approvalHandler,
       primaryModel: options.primaryModel,
       enableM1ContextBounding: true,
       enableM2StagnationBreaker: true,
@@ -73,10 +100,11 @@ export class ComparativeBenchmarkSuite {
     });
 
     const expResult = await expAgent.runTask(task, 2);
-    const expIn = (expResult.run.usage.inputTokens.status === 'known' || expResult.run.usage.inputTokens.status === 'estimated') ? expResult.run.usage.inputTokens.value : 0;
-    const expOut = (expResult.run.usage.outputTokens.status === 'known' || expResult.run.usage.outputTokens.status === 'estimated') ? expResult.run.usage.outputTokens.value : 0;
-    const expDuration = (expResult.run.usage.duration.status === 'known' || expResult.run.usage.duration.status === 'estimated') ? expResult.run.usage.duration.value : 0;
-    const expCost = (expResult.run.usage.cost.status === 'known' || expResult.run.usage.cost.status === 'estimated') ? expResult.run.usage.cost.value : 0;
+    const expIn = extractObservation(expResult.run.usage.inputTokens);
+    const expOut = extractObservation(expResult.run.usage.outputTokens);
+    const expDuration = extractObservation(expResult.run.usage.duration);
+    const expCost = extractObservation(expResult.run.usage.cost);
+    const expTotal = (expIn !== null && expOut !== null) ? (expIn + expOut) : null;
 
     const experimental: BenchmarkMeasurement = {
       arm: 'experimental_governed',
@@ -84,30 +112,93 @@ export class ComparativeBenchmarkSuite {
       passed: expResult.run.acceptance.status === 'passed',
       inputTokens: expIn,
       outputTokens: expOut,
-      totalTokens: expIn + expOut,
+      totalTokens: expTotal,
       durationMs: expDuration,
       costUsd: expCost,
       turns: expResult.trace.events.filter((e) => e.message.includes('Dispatching turn')).length,
       routingProvider: isLive ? 'bifrost.live' : 'bifrost.simulation',
     };
 
-    const tokenSavings = baseline.totalTokens > 0
-      ? ((baseline.totalTokens - experimental.totalTokens) / baseline.totalTokens) * 100
-      : 0;
+    // Truthful efficiency evaluation:
+    // Only report efficiency savings when BOTH arms successfully passed and have valid token telemetry.
+    let tokenSavingsPercent: number | null = null;
+    let costSavingsPercent: number | null = null;
+    let comparable = false;
+    let reason: string | undefined;
 
-    const costSavings = baseline.costUsd > 0
-      ? ((baseline.costUsd - experimental.costUsd) / baseline.costUsd) * 100
-      : 0;
+    if (!baseline.passed || !experimental.passed) {
+      comparable = false;
+      reason = `Incomparable efficiency: baseline passed=${baseline.passed}, experimental passed=${experimental.passed}. Both arms must succeed to compare efficiency.`;
+    } else if (baseline.totalTokens === null || experimental.totalTokens === null) {
+      comparable = false;
+      reason = 'Incomparable efficiency: token telemetry missing from one or both arms.';
+    } else if (baseline.totalTokens <= 0) {
+      comparable = false;
+      reason = 'Incomparable efficiency: baseline consumed 0 or invalid tokens.';
+    } else {
+      comparable = true;
+      tokenSavingsPercent = Number(
+        (((baseline.totalTokens - experimental.totalTokens) / baseline.totalTokens) * 100).toFixed(2)
+      );
+      if (baseline.costUsd !== null && experimental.costUsd !== null && baseline.costUsd > 0) {
+        costSavingsPercent = Number(
+          (((baseline.costUsd - experimental.costUsd) / baseline.costUsd) * 100).toFixed(2)
+        );
+      }
+    }
 
-    const evidenceSummary = `Task '${task.title}': Experimental M1/M2/M3a agent consumed ${experimental.totalTokens} tokens vs ${baseline.totalTokens} tokens for baseline (${tokenSavings.toFixed(1)}% token reduction). Acceptance: Baseline=${baseline.passed ? 'PASSED' : 'FAILED'}, Experimental=${experimental.passed ? 'PASSED' : 'FAILED'}.`;
+    const evidenceSummary = comparable
+      ? `Task '${task.title}': Experimental agent consumed ${experimental.totalTokens} tokens vs ${baseline.totalTokens} for baseline (${tokenSavingsPercent?.toFixed(1)}% reduction). Acceptance: Baseline=PASSED, Experimental=PASSED.`
+      : `Task '${task.title}': Incomparable efficiency (${reason}). Acceptance: Baseline=${baseline.passed ? 'PASSED' : 'FAILED'}, Experimental=${experimental.passed ? 'PASSED' : 'FAILED'}.`;
 
     return {
       taskId: task.id,
       taskTitle: task.title,
       baseline,
       experimental,
-      tokenSavingsPercent: Number(tokenSavings.toFixed(2)),
-      costSavingsPercent: Number(costSavings.toFixed(2)),
+      tokenSavingsPercent,
+      costSavingsPercent,
+      comparable,
+      reason,
+      evidenceSummary,
+    };
+  }
+
+  static async evaluateTaskSuite(
+    tasks: TaskSpec[],
+    options: { mode?: 'live' | 'simulation'; primaryModel?: string } = {}
+  ): Promise<ComparativeSuiteSummary> {
+    const comparisons: ComparativeEfficiencyReport[] = [];
+    let baselinePassed = 0;
+    let experimentalPassed = 0;
+
+    for (const task of tasks) {
+      const report = await this.compareTaskEfficiency(task, options);
+      comparisons.push(report);
+      if (report.baseline.passed) baselinePassed++;
+      if (report.experimental.passed) experimentalPassed++;
+    }
+
+    const totalTasks = tasks.length;
+    const baselineSuccessRatePercent = totalTasks > 0 ? Number(((baselinePassed / totalTasks) * 100).toFixed(1)) : 0;
+    const experimentalSuccessRatePercent = totalTasks > 0 ? Number(((experimentalPassed / totalTasks) * 100).toFixed(1)) : 0;
+
+    const comparableReports = comparisons.filter((c) => c.comparable && c.tokenSavingsPercent !== null);
+    const averageTokenSavingsPercent = comparableReports.length > 0
+      ? Number((comparableReports.reduce((acc, c) => acc + (c.tokenSavingsPercent ?? 0), 0) / comparableReports.length).toFixed(1))
+      : null;
+
+    const evidenceSummary = `Evaluated ${totalTasks} task(s). Success Rates: Baseline=${baselinePassed}/${totalTasks} (${baselineSuccessRatePercent}%), Experimental=${experimentalPassed}/${totalTasks} (${experimentalSuccessRatePercent}%). Comparable Tasks: ${comparableReports.length}/${totalTasks}. Average Token Savings on passing tasks: ${averageTokenSavingsPercent !== null ? `${averageTokenSavingsPercent}%` : 'N/A'}.`;
+
+    return {
+      totalTasks,
+      baselinePassed,
+      baselineSuccessRatePercent,
+      experimentalPassed,
+      experimentalSuccessRatePercent,
+      comparableTasks: comparableReports.length,
+      comparisons,
+      averageTokenSavingsPercent,
       evidenceSummary,
     };
   }

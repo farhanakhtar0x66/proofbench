@@ -5,7 +5,11 @@ import {
   BifrostClient,
   createDefaultPolicy,
   validateModelAgainstPolicy,
+  isLocalDestination,
+  TRUSTED_LOCAL_PROVIDERS,
+  KNOWN_CLOUD_PROVIDERS,
   HostApprovalEngine,
+  createWorkspaceApprovalHandler,
   M1ContextSelector,
   M2StagnationDetector,
   M3aFailureAutopsyBuilder,
@@ -197,7 +201,94 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       });
 
       expect(selfApprovalAttempt.approved).toBe(false);
-      expect(selfApprovalAttempt.reason).toContain('No host approval handler configured');
+      expect(selfApprovalAttempt.reason).toContain('without explicit host approval handler');
+    });
+
+    it('default-denies shell commands and git mutations even with workspace write approval', async () => {
+      const handler = createWorkspaceApprovalHandler();
+      const policy = createDefaultPolicy();
+      const approvalEngine = new HostApprovalEngine(policy, handler);
+
+      const cmdApproval = await approvalEngine.evaluateAction({
+        id: 'act-cmd-1',
+        tool: 'run_command',
+        parameters: { command: 'cargo build' },
+        category: 'command',
+      });
+      expect(cmdApproval.approved).toBe(false);
+      expect(cmdApproval.reason).toContain('Host explicit policy denied');
+
+      const gitApproval = await approvalEngine.evaluateAction({
+        id: 'act-git-1',
+        tool: 'git_checkout',
+        parameters: { branch: 'main' },
+        category: 'git',
+      });
+      expect(gitApproval.approved).toBe(false);
+      expect(gitApproval.reason).toContain('Host explicit policy denied');
+    });
+
+    it('default-denies writes with path traversal attempts', async () => {
+      const handler = createWorkspaceApprovalHandler();
+      const policy = createDefaultPolicy();
+      const approvalEngine = new HostApprovalEngine(policy, handler);
+
+      const traversalAttempt = await approvalEngine.evaluateAction({
+        id: 'act-trav-1',
+        tool: 'write_file',
+        parameters: { path: '../../etc/passwd', content: 'hacked' },
+        category: 'write',
+      });
+      expect(traversalAttempt.approved).toBe(false);
+      expect(traversalAttempt.reason).toContain('Host explicit policy denied');
+    });
+
+    it('confidential mode rejects remote destinations even if model is named local', () => {
+      const confidentialPolicy = createDefaultPolicy({ confidential: true });
+
+      const remoteDestinationCheck = validateModelAgainstPolicy('local-deepseek-coder', confidentialPolicy, {
+        destinationUrl: 'https://api.openai.com/v1',
+      });
+      expect(remoteDestinationCheck.valid).toBe(false);
+      expect(remoteDestinationCheck.reason).toContain('remote or external endpoint');
+
+      expect(isLocalDestination('http://127.0.0.1:8089')).toBe(true);
+      expect(isLocalDestination('http://localhost:9931')).toBe(true);
+      expect(isLocalDestination('https://api.openai.com')).toBe(false);
+    });
+
+    it('confidential mode rejects cloud providers even on local destination', () => {
+      expect(TRUSTED_LOCAL_PROVIDERS).toContain('local');
+      expect(KNOWN_CLOUD_PROVIDERS).toContain('openai');
+
+      const confidentialPolicy = createDefaultPolicy({ confidential: true });
+
+      const cloudProviderCheck = validateModelAgainstPolicy('local-deepseek-coder', confidentialPolicy, {
+        destinationUrl: 'http://127.0.0.1:8089',
+        provider: 'openai',
+      });
+      expect(cloudProviderCheck.valid).toBe(false);
+      expect(cloudProviderCheck.reason).toContain('not a trusted local provider');
+
+      const trustedCheck = validateModelAgainstPolicy('local-deepseek-coder', confidentialPolicy, {
+        destinationUrl: 'http://127.0.0.1:8089',
+        provider: 'local',
+      });
+      expect(trustedCheck.valid).toBe(true);
+    });
+
+    it('BifrostClient with confidential=true blocks remote gateway destinations', async () => {
+      const remoteConfidentialClient = new BifrostClient({
+        gatewayUrl: 'https://api.bifrost.io',
+        confidential: true,
+      });
+
+      await expect(
+        remoteConfidentialClient.createChatCompletion({
+          model: 'local-deepseek-coder',
+          messages: [{ role: 'user', content: 'confidential code' }],
+        })
+      ).rejects.toThrow(/Confidential repository policy violation/i);
     });
   });
 
@@ -323,8 +414,29 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
   // 4. End-to-End Task Executions on Real Frozen Fixtures
   // --------------------------------------------------------------------------
   describe('End-to-End Governed Execution on Frozen Tasks', () => {
+    it('halts and default-denies execution when agent has no host approval handler', async () => {
+      const unapprovedAgent = new ProofBenchAgent(); // Default: no approval handler
+      const taskSpec = TaskSpec.parse({
+        version: '1',
+        id: 'task-1-fix-failing-func',
+        title: 'Fix off-by-one bounds bug in sliding window sums',
+        prompt: 'Fix the function sliding_window_sums in src/lib.rs',
+        acceptance: ['cargo test exits with code 0'],
+        fixtureId: 'task-1-v1',
+      });
+
+      const { run, trace } = await unapprovedAgent.runTask(taskSpec, 42);
+
+      expect(run.status).toBe('failed');
+      expect(
+        trace.events.some(
+          (e) => e.type === 'error' && e.message.includes('Action rejected by host approval engine: Default-deny')
+        )
+      ).toBe(true);
+    });
+
     it('executes Task 1 (fix failing sliding window function) and verifies clean pass', async () => {
-      const agent = new ProofBenchAgent();
+      const agent = new ProofBenchAgent({ approvalHandler: createWorkspaceApprovalHandler() });
       const taskSpec = TaskSpec.parse({
         version: '1',
         id: 'task-1-fix-failing-func',
@@ -355,7 +467,7 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
     }, 30000);
 
     it('executes Task 2 (implement exponential backoff) and verifies clean pass', async () => {
-      const agent = new ProofBenchAgent();
+      const agent = new ProofBenchAgent({ approvalHandler: createWorkspaceApprovalHandler() });
       const taskSpec = TaskSpec.parse({
         version: '1',
         id: 'task-2-missing-feature',
@@ -372,7 +484,7 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
     }, 30000);
 
     it('executes Task 3 (multi-file regression across parser & sink) and verifies multi-step resolution', async () => {
-      const agent = new ProofBenchAgent();
+      const agent = new ProofBenchAgent({ approvalHandler: createWorkspaceApprovalHandler() });
       const taskSpec = TaskSpec.parse({
         version: '1',
         id: 'task-3-multi-file-regression',
@@ -413,6 +525,23 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       expect(report.experimental.totalTokens).toBeGreaterThan(0);
       expect(report.evidenceSummary).toContain('Acceptance: Baseline=PASSED, Experimental=PASSED');
     }, 60000);
+
+    it('preserves null for missing tokens and excludes failed tasks from efficiency savings', async () => {
+      const failingTask = TaskSpec.parse({
+        version: '1',
+        id: 'task-nonexistent',
+        title: 'Nonexistent task that fails',
+        prompt: 'Impossible prompt',
+        acceptance: ['cargo test exits with code 0'],
+        fixtureId: 'task-nonexistent',
+      });
+
+      const report = await ComparativeBenchmarkSuite.compareTaskEfficiency(failingTask);
+      expect(report.comparable).toBe(false);
+      expect(report.tokenSavingsPercent).toBeNull();
+      expect(report.costSavingsPercent).toBeNull();
+      expect(report.reason).toContain('Incomparable efficiency');
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -466,6 +595,7 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
     it('live Bifrost mode fails closed without silent fallback to simulation on connection error', async () => {
       const deadClient = new BifrostClient({
         mode: 'live',
+        virtualKey: 'sk-bf-test-key',
         gatewayUrl: 'http://127.0.0.1:59999', // Port with no running service
       });
 
@@ -475,6 +605,16 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
           messages: [{ role: 'user', content: 'test connection' }],
         })
       ).rejects.toThrow();
+    });
+
+    it('live Bifrost mode requires virtual key on construction', () => {
+      const origKey = process.env.BIFROST_VIRTUAL_KEY;
+      delete process.env.BIFROST_VIRTUAL_KEY;
+      try {
+        expect(() => new BifrostClient({ mode: 'live' })).toThrow(/Missing Bifrost virtual key in live mode/i);
+      } finally {
+        if (origKey) process.env.BIFROST_VIRTUAL_KEY = origKey;
+      }
     });
   });
 });

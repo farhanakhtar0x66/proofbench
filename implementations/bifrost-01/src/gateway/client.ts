@@ -4,6 +4,7 @@ import {
   BifrostBudgetExceededError,
 } from './types';
 import { EmbeddedBifrostGateway } from './embedded';
+import { isLocalDestination } from '../governance/policy';
 
 export interface BifrostClientOptions {
   gatewayUrl?: string;
@@ -13,6 +14,7 @@ export interface BifrostClientOptions {
   userBudgetLimitUsd?: number;
   fallbackProviders?: string[];
   mode?: 'live' | 'simulation';
+  confidential?: boolean;
 }
 
 export interface SpendReservation {
@@ -28,15 +30,25 @@ export class BifrostClient {
   public userBudgetLimitUsd: number;
   public userBudgetSpentUsd = 0;
   public mode: 'live' | 'simulation';
+  public confidential: boolean;
   private activeReservations = new Map<string, number>();
   private embeddedGateway?: EmbeddedBifrostGateway;
 
   constructor(options: BifrostClientOptions = {}) {
     this.gatewayUrl = options.gatewayUrl ?? process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
-    this.virtualKey = options.virtualKeyId ?? options.virtualKey ?? process.env.BIFROST_VIRTUAL_KEY ?? 'sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e';
     this.fallbackProviders = options.fallbackProviders ?? ['ollama', 'opencode'];
     this.userBudgetLimitUsd = options.userBudgetLimitUsd ?? 5.0;
+    this.confidential = options.confidential ?? false;
     this.mode = options.mode ?? (process.env.BIFROST_MODE === 'live' ? 'live' : (options.embeddedGateway ? 'simulation' : 'simulation'));
+    
+    // In live mode, read virtual key from env or options. Never use hardcoded keys.
+    this.virtualKey = options.virtualKeyId ?? options.virtualKey ?? process.env.BIFROST_VIRTUAL_KEY ?? (this.mode === 'simulation' ? 'sk-bf-simulation-default' : '');
+    if (this.mode === 'live' && !this.virtualKey) {
+      throw new Error(
+        'Missing Bifrost virtual key in live mode. Please set BIFROST_VIRTUAL_KEY environment variable or pass virtualKey in options.'
+      );
+    }
+
     this.embeddedGateway = options.embeddedGateway ?? (this.mode === 'simulation' ? new EmbeddedBifrostGateway() : undefined);
   }
 
@@ -73,6 +85,14 @@ export class BifrostClient {
     estimatedMaxCostUsd = 0.05
   ): Promise<ChatCompletionResponse> {
     const fallbackProviders = req.fallbackProviders ?? this.fallbackProviders;
+
+    // Confidentiality check: Never dispatch to remote endpoints when confidential mode is active
+    if (this.confidential && !isLocalDestination(this.gatewayUrl)) {
+      throw new Error(
+        `Confidential repository policy violation: gateway URL '${this.gatewayUrl}' is a remote or external endpoint. Only verified local loopback destinations (127.0.0.1 / localhost) are eligible.`
+      );
+    }
+
     // 1. Conservative pre-request spending reservation check
     const reservationId = this.reserveBudget(estimatedMaxCostUsd);
 

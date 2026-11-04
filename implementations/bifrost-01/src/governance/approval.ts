@@ -18,12 +18,10 @@ export type HostApprovalHandler = (action: ProposedToolAction) => Promise<boolea
 export class HostApprovalEngine {
   private policy: GovernancePolicy;
   private customHandler?: HostApprovalHandler;
-  private strict: boolean;
 
-  constructor(policy: GovernancePolicy, customHandler?: HostApprovalHandler, strict = false) {
+  constructor(policy: GovernancePolicy, customHandler?: HostApprovalHandler, _strict = true) {
     this.policy = policy;
     this.customHandler = customHandler;
-    this.strict = strict;
   }
 
   setApprovalHandler(handler: HostApprovalHandler): void {
@@ -37,7 +35,7 @@ export class HostApprovalEngine {
     if (['write_file', 'patch_file', 'delete_file'].includes(toolName)) {
       return 'write';
     }
-    if (['exec_command', 'run_command', 'shell'].includes(toolName)) {
+    if (['exec_command', 'run_command', 'shell', 'bash', 'sh'].includes(toolName)) {
       return 'command';
     }
     if (toolName.startsWith('git')) {
@@ -56,50 +54,58 @@ export class HostApprovalEngine {
       };
     }
 
-    // 2. Check policy settings
-    let requiresApproval = false;
-    if (action.category === 'write' && this.policy.requireApprovalForWrites) {
-      requiresApproval = true;
-    } else if (action.category === 'command' && this.policy.requireApprovalForCommands) {
-      requiresApproval = true;
-    } else if (action.category === 'git') {
-      requiresApproval = true;
-    }
-
-    if (!requiresApproval) {
-      return { actionId: action.id, approved: true };
-    }
-
-    // 3. Delegate to host approval handler
-    if (this.customHandler) {
-      const isApproved = await this.customHandler(action);
-      if (!isApproved) {
-        return {
-          actionId: action.id,
-          approved: false,
-          reason: `Host explicit policy denied ${action.category} action '${action.tool}'. Action halted.`,
-        };
-      }
-      return {
-        actionId: action.id,
-        approved: true,
-        reason: 'Host explicitly approved action',
-      };
-    }
-
-    if (this.strict) {
+    // 2. Mutating actions require explicit host approval.
+    // Default-deny: If no approval handler is registered, all writes, commands, and Git mutations are rejected.
+    if (!this.customHandler) {
       return {
         actionId: action.id,
         approved: false,
-        reason: 'No host approval handler configured to grant permission for mutating action',
+        reason: `Default-deny: Mutating action '${action.tool}' (category: ${action.category}) rejected without explicit host approval handler.`,
       };
     }
 
-    // Default policy: mutating actions are approved if no denying handler is registered
+    // 3. Delegate to host approval handler
+    const isApproved = await this.customHandler(action);
+    if (!isApproved) {
+      return {
+        actionId: action.id,
+        approved: false,
+        reason: `Host explicit policy denied ${action.category} action '${action.tool}'. Action halted.`,
+      };
+    }
+
     return {
       actionId: action.id,
       approved: true,
-      reason: 'Host policy approved mutating action',
+      reason: 'Host explicitly approved action',
     };
   }
+}
+
+/**
+ * Creates a verified host approval handler that approves file writes strictly targeting
+ * the designated workspace, while default-denying path traversals, shell commands, and Git mutations.
+ */
+export function createWorkspaceApprovalHandler(options: {
+  allowCommands?: boolean;
+  allowGit?: boolean;
+} = {}): HostApprovalHandler {
+  return (action: ProposedToolAction) => {
+    if (action.category === 'write') {
+      const targetPath = action.parameters.path as string;
+      if (!targetPath || typeof targetPath !== 'string') return false;
+      // Reject directory traversal, absolute paths, and null bytes
+      if (targetPath.includes('..') || targetPath.startsWith('/') || targetPath.includes('\0')) {
+        return false;
+      }
+      return true;
+    }
+    if (action.category === 'command') {
+      return options.allowCommands ?? false;
+    }
+    if (action.category === 'git') {
+      return options.allowGit ?? false;
+    }
+    return false;
+  };
 }

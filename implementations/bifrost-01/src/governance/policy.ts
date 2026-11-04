@@ -37,23 +37,60 @@ export function createDefaultPolicy(overrides: Partial<GovernancePolicy> = {}): 
   };
 }
 
+export function isLocalDestination(urlOrHost?: string): boolean {
+  if (!urlOrHost) return false;
+  try {
+    const raw = urlOrHost.includes('://') ? urlOrHost : `http://${urlOrHost}`;
+    const parsed = new URL(raw);
+    const hostname = parsed.hostname.toLowerCase();
+    return (
+      hostname === 'localhost' ||
+      hostname === '127.0.0.1' ||
+      hostname === '::1' ||
+      hostname === '0.0.0.0' ||
+      hostname.endsWith('.localhost')
+    );
+  } catch {
+    return false;
+  }
+}
+
+export const TRUSTED_LOCAL_PROVIDERS = ['local', 'ollama'];
+export const KNOWN_CLOUD_PROVIDERS = ['openai', 'anthropic', 'azure', 'cohere', 'bedrock', 'openrouter', 'google'];
+
 export function validateModelAgainstPolicy(
   model: string,
   policy: GovernancePolicy,
-  observedProvider?: string
+  options?: { destinationUrl?: string; provider?: string }
 ): { valid: boolean; reason?: string } {
   if (policy.confidential) {
-    // If repository is confidential, strictly reject cloud models
-    const isCloud = CLOUD_MODELS.some((cm) => model.toLowerCase().includes(cm.toLowerCase())) ||
-      (observedProvider ? ['openai', 'anthropic', 'azure'].includes(observedProvider.toLowerCase()) : false);
-    
-    const isLocal = (observedProvider && ['local', 'ollama'].includes(observedProvider.toLowerCase())) ||
-      LOCAL_MODELS.some((lm) => model.toLowerCase().includes(lm.toLowerCase()));
+    // 1. Verify Destination Endpoint (must be local loopback)
+    if (options?.destinationUrl) {
+      if (!isLocalDestination(options.destinationUrl)) {
+        return {
+          valid: false,
+          reason: `Confidential repository policy violation: destination '${options.destinationUrl}' is a remote or external endpoint. Only verified local loopback endpoints (127.0.0.1 / localhost) are eligible.`,
+        };
+      }
+    }
 
-    if (isCloud || !isLocal) {
+    // 2. Verify Trusted Provider Configuration (not model names alone)
+    if (options?.provider) {
+      const prov = options.provider.toLowerCase();
+      if (KNOWN_CLOUD_PROVIDERS.includes(prov) || !TRUSTED_LOCAL_PROVIDERS.includes(prov)) {
+        return {
+          valid: false,
+          reason: `Confidential repository policy violation: provider '${options.provider}' is not a trusted local provider. Only [${TRUSTED_LOCAL_PROVIDERS.join(', ')}] are eligible.`,
+        };
+      }
+    }
+
+    // 3. Fallback check on model name if no destination or provider is provided
+    const isCloudModel = CLOUD_MODELS.some((cm) => model.toLowerCase().includes(cm.toLowerCase()));
+    if (isCloudModel) {
       return {
         valid: false,
-        reason: `Confidential repository policy violation: model '${model}' is a non-local or cloud model. Only certified local models are eligible: [${LOCAL_MODELS.join(', ')}].`,
+        reason: `Confidential repository policy violation: model '${model}' is a certified cloud model. Only local models and verified loopback providers are eligible.`,
       };
     }
   }

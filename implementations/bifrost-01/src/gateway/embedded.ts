@@ -40,6 +40,42 @@ export class EmbeddedBifrostGateway {
       budgetSpentUsd: 0.0,
     });
 
+    // Rotated active virtual key
+    this.registerVirtualKey({
+      id: 'sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808',
+      name: 'ProofBench Active Rotated Key',
+      allowedProviders: ['local', 'ollama', 'opencode', 'openai-cloud', 'anthropic-cloud'],
+      allowedModels: [
+        'local-qwen-7b',
+        'local-deepseek-coder',
+        'opencode/deepseek-v4.1-flash-free',
+        'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+        'gpt-4o-mini',
+        'claude-3-5-haiku',
+        'escalation-frontier-model',
+      ],
+      budgetLimitUsd: 10.0,
+      budgetSpentUsd: 0.0,
+    });
+
+    // Mock simulation key
+    this.registerVirtualKey({
+      id: 'sk-bf-simulation-default',
+      name: 'ProofBench Simulation Key',
+      allowedProviders: ['local', 'ollama', 'opencode', 'openai-cloud', 'anthropic-cloud'],
+      allowedModels: [
+        'local-qwen-7b',
+        'local-deepseek-coder',
+        'opencode/deepseek-v4.1-flash-free',
+        'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+        'gpt-4o-mini',
+        'claude-3-5-haiku',
+        'escalation-frontier-model',
+      ],
+      budgetLimitUsd: 10.0,
+      budgetSpentUsd: 0.0,
+    });
+
     // Local live test virtual key identifier
     this.registerVirtualKey({
       id: 'sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e',

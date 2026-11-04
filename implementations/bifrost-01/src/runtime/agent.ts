@@ -52,7 +52,11 @@ export class ProofBenchAgent {
     this.bifrostClient = options.bifrostClient ?? new BifrostClient({
       embeddedGateway: options.embeddedGateway,
       userBudgetLimitUsd: this.policy.maxBudgetUsd,
+      confidential: this.policy.confidential,
     });
+    if (this.policy.confidential) {
+      this.bifrostClient.confidential = true;
+    }
     this.primaryModel = options.primaryModel ?? (
       this.bifrostClient.mode === 'live'
         ? (process.env.BIFROST_DEFAULT_MODEL ?? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M')
@@ -100,8 +104,10 @@ export class ProofBenchAgent {
       return this.buildFailureRecord(runId, reportId, createdAt, task, startTime, traceEvents, 'Workspace initialization failure');
     }
 
-    // 2. Validate Model Governance
-    const modelCheck = validateModelAgainstPolicy(this.primaryModel, this.policy);
+    // 2. Validate Model Governance (checking destination endpoint and provider eligibility)
+    const modelCheck = validateModelAgainstPolicy(this.primaryModel, this.policy, {
+      destinationUrl: this.bifrostClient.gatewayUrl,
+    });
     if (!modelCheck.valid) {
       addEvent('error', `Model policy rejection: ${modelCheck.reason}`);
       await workspace.destroy();
@@ -314,7 +320,9 @@ Always output the complete valid file content for the target file.`,
               addEvent('output', `M3a structured autopsy generated (${autopsy.tokenCount} tokens; 0 LLM narrative). Target escalation: ${autopsy.escalationModelTarget}`);
 
               // Check if escalation is permitted by policy
-              const escalationCheck = validateModelAgainstPolicy(autopsy.escalationModelTarget, this.policy);
+              const escalationCheck = validateModelAgainstPolicy(autopsy.escalationModelTarget, this.policy, {
+                destinationUrl: this.bifrostClient.gatewayUrl,
+              });
               if (escalationCheck.valid) {
                 currentModel = autopsy.escalationModelTarget;
                 addEvent('output', `Authorized model escalation to ${currentModel} via Bifrost routing`);
