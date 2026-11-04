@@ -25,12 +25,33 @@ export function completedEventAssessment(claim:string,excerpt:string,publishedAt
  const publication=sourceDate(publishedAt);if(!publication)return;
  const dates=assessSourceDates({published_date:publication,content:excerpt},now);
  if(!dates.eligible&&!dates.reason.startsWith('The publication is older than 30 days;'))return;
- const subject=event.subject.replace(/[.*+?^${}()|[\]\\]/gu,'\\$&').replace(/\s+/gu,'\\s+');
- const pattern=new RegExp(`(?<![\\p{L}\\p{N}])${subject} ${event.event} on (${datePattern})(?![\\p{L}\\p{N}])`,'giu');
- const matches=[...excerpt.matchAll(pattern)];if(!matches.length)return;
- const withoutDates=excerpt.replace(new RegExp(datePattern,'giu'),'');
- if(qualified.test(withoutDates)||/\bmay\b/iu.test(withoutDates))return;
- const datesFound=matches.map(match=>dateValue(match[1]));
+ const escape=(text:string)=>text.replace(/[.*+?^${}()|[\]\\]/gu,'\\$&').replace(/\s+/gu,'\\s+');
+ const subject=new RegExp(`\\b${escape(event.subject.replace(/^the\s+/iu,''))}\\b`,'iu');
+ const acronym=event.subject.match(/\b([A-Z]{3,})$/u)?.[1];
+ const region=event.subject.match(/^(?:The )?([A-Z]{2})\s/u)?.[1];
+ const regionTerms:Record<string,RegExp>={EU:/\b(?:EU|European Union)\b/iu,US:/\b(?:US|United States)\b/iu,UK:/\b(?:UK|United Kingdom)\b/iu};
+ const acronymAlias=!!acronym&&!!region&&!!regionTerms[region]?.test(excerpt);
+ const hasSubject=(text:string)=>{
+  if(subject.test(text))return true;
+  if(!acronymAlias||!new RegExp(`\\b${acronym}\\b`,'u').test(text))return false;
+  const named=[...text.matchAll(new RegExp(`\\b([A-Z]{2})\\s+${acronym}\\b`,'gu'))].map(match=>match[1]);
+  return !named.length||named.includes(region!);
+ };
+ const verb=event.event==='became applicable'?'(?:became (?:directly )?applicable|was put into effect)':escape(event.event);
+ const datesFound:(string|undefined)[]=[];
+ for(const {segment} of new Intl.Segmenter('en',{granularity:'sentence'}).segment(excerpt)){
+  const match=segment.match(new RegExp(`\\b${verb}\\b`,'iu'));if(!match)continue;
+  const pronoun=/^\s*(?:It|The regulation)\b/u.test(segment)&&acronymAlias&&hasSubject(excerpt);
+  if(!hasSubject(segment)&&!pronoun)continue;
+  const withoutDates=segment.replace(new RegExp(datePattern,'giu'),'');
+  if(qualified.test(withoutDates)||/\bmay\b/iu.test(withoutDates))continue;
+  const after=segment.slice(match.index!+match[0].length);
+  const afterDate=after.match(new RegExp(`^\\s+(?:on\\s+)?(${datePattern})`,'iu'));
+  const beforeDates=[...segment.slice(0,match.index).matchAll(new RegExp(datePattern,'giu'))];
+  const date=afterDate?.[1]??beforeDates.at(-1)?.[0];
+  if(date)datesFound.push(dateValue(date));
+ }
+ if(!datesFound.length)return;
  if(datesFound.some(date=>!date||Date.parse(date)>Date.parse(publication))||new Set(datesFound).size!==1)return;
  return {eligible:true,reason:`Completed historical event reported on or after ${datesFound[0]!.slice(0,10)}. Eligible only for the dated event assertion; current freshness is unknown.`};
 }

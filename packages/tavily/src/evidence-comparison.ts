@@ -15,13 +15,13 @@ import {isClaimRestatement,sharedReplacementSentences} from './correction-candid
 import {evidenceFreshness} from './evidence-freshness';
 import {supportedQuantityReason} from './quantity-evidence';
 import {completedEventAssessment,completedEventClaim} from './completed-event';
-import {validPassageBundle} from './source-passages';
+import {validPassageBundle,EXCERPT_LIMIT} from './source-passages';
 import type {ComparisonCache} from './comparison-cache';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
-export const ComparisonOutput=z.object({assessments:z.array(z.object({sourceId,relation,quote:z.string().min(1).max(1200)}).strict()).min(1).max(3),correction:z.object({text:z.string().min(1).max(1200),sourceIds:z.array(sourceId).min(2).max(3)}).strict().nullable()}).strict();
-export const COMPARISON_SCHEMA={type:'object',additionalProperties:false,required:['assessments','correction'],properties:{assessments:{type:'array',minItems:1,maxItems:3,items:{type:'object',additionalProperties:false,required:['sourceId','relation','quote'],properties:{sourceId:{type:'string',pattern:'^S[1-3]$'},relation:{type:'string',enum:relation.options},quote:{type:'string',minLength:1,maxLength:1200}}}},correction:{anyOf:[{type:'null'},{type:'object',additionalProperties:false,required:['text','sourceIds'],properties:{text:{type:'string',minLength:1,maxLength:1200},sourceIds:{type:'array',minItems:2,maxItems:3,items:{type:'string',pattern:'^S[1-3]$'}}}}]}}};
+export const ComparisonOutput=z.object({assessments:z.array(z.object({sourceId,relation,quote:z.string().min(1).max(EXCERPT_LIMIT)}).strict()).min(1).max(3),correction:z.object({text:z.string().min(1).max(1200),sourceIds:z.array(sourceId).min(2).max(3)}).strict().nullable()}).strict();
+export const COMPARISON_SCHEMA={type:'object',additionalProperties:false,required:['assessments','correction'],properties:{assessments:{type:'array',minItems:1,maxItems:3,items:{type:'object',additionalProperties:false,required:['sourceId','relation','quote'],properties:{sourceId:{type:'string',pattern:'^S[1-3]$'},relation:{type:'string',enum:relation.options},quote:{type:'string',minLength:1,maxLength:EXCERPT_LIMIT}}}},correction:{anyOf:[{type:'null'},{type:'object',additionalProperties:false,required:['text','sourceIds'],properties:{text:{type:'string',minLength:1,maxLength:1200},sourceIds:{type:'array',minItems:2,maxItems:3,items:{type:'string',pattern:'^S[1-3]$'}}}}]}}};
 export function comparisonSchemaFor(text:string){
  const context=z.object({claim:z.string(),sources:z.array(z.object({sourceId,excerpt:z.string().min(1).max(1200)})).min(2).max(3)}).parse(JSON.parse(text));
  if(context.sources.some((source,index)=>source.sourceId!==`S${index+1}`))throw new Error('Invalid source sequence');
@@ -50,7 +50,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  const seen=new Set<string>();const overlaps=evidenceOverlapTracker();
  const prepareSources=()=>data.evidence.map((source,index)=>{
   const safe=normalizeSource({url:source.url,content:source.excerpt});
-  if(!safe?.url||!source.excerpt.trim()||source.excerpt.length>1200||!validPassageBundle(source)||source.retrieval!=='tavily'||!source.retrievedAt||Date.parse(source.retrievedAt)>Date.parse(assessedAt))throw new Error('Invalid comparison source');
+  if(!safe?.url||!source.excerpt.trim()||source.excerpt.length>EXCERPT_LIMIT||!validPassageBundle(source)||source.retrieval!=='tavily'||!source.retrievedAt||Date.parse(source.retrievedAt)>Date.parse(assessedAt))throw new Error('Invalid comparison source');
   const url=canonicalUrl(source.url);const repeatedPassage=overlaps(source.excerpt);
   const duplicate=!!source.duplicateOf||seen.has(url)||repeatedPassage;seen.add(url);
   const hostname=new URL(source.url).hostname.toLowerCase().replace(/^www\./u,'');

@@ -42,11 +42,11 @@ it.each([
 });
 it('ignores empty snippets and unsafe URLs, deduplicates tracking variants, and bounds excerpts/results',async()=>{
  const results=[{...result,url:'javascript:alert(1)'},{...result,url:'https://user:pass@example.com/private'},{...result,content:' '},
-  {...result,url:'https://example.com/sports?utm_source=test#part',content:'x'.repeat(1500),title:'y'.repeat(300)},
+  {...result,url:'https://example.com/sports?utm_source=test#part',content:'x'.repeat(3500),title:'y'.repeat(300)},
   {...result,url:'https://example.com/sports'},
   {...result,url:'https://two.example/info'}, {...result,url:'https://three.example/info'}, {...result,url:'https://four.example/info'}];
  const report=await retrieveClaimEvidence(request,{...options,fetch:async()=>Response.json({results})});
- expect(report.evidence).toHaveLength(3);expect(report.evidence[0].excerpt).toHaveLength(1200);expect(report.evidence[0].title).toHaveLength(200);
+ expect(report.evidence).toHaveLength(3);expect(report.evidence[0].excerpt).toHaveLength(2400);expect(report.evidence[0].title).toHaveLength(200);
  expect(report.evidence.every(source=>source.relation==='context')).toBe(true);
 });
 it('keeps publication/retrieval times distinct and retains older evidence with date warnings',async()=>{

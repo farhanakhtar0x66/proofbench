@@ -12,7 +12,7 @@ const packages=Array.from({length:45},(_item,index)=>`purl: pkg:deb/example/pyth
 it('finds a directly scoped paragraph after a long package list without rewriting or fetching a page',()=>{
  const content=`${packages}\n\n${statement}\n\nThis statement refers to upstream support; third-party contracts have separate terms.`;
  const result=selectEvidenceExcerpt(claim,content);
- expect(result.excerpt).toContain(statement);expect(result.excerpt).toContain('third-party contracts');expect(result.excerpt.length).toBeLessThanOrEqual(1200);
+ expect(result.excerpt).toContain(statement);expect(result.excerpt).toContain('third-party contracts');expect(result.excerpt.length).toBeLessThanOrEqual(2400);
  expect(content.slice(result.selection.start,result.selection.end)).toBe(result.excerpt);expect(result.selection.warning).toBeUndefined();
 });
 it('retains all short source text, including denial, conditions, attribution and dates',()=>{
@@ -20,11 +20,11 @@ it('retains all short source text, including denial, conditions, attribution and
  const result=selectEvidenceExcerpt(claim,content);expect(result.excerpt).toBe(content.trim());expect(content.slice(result.selection.start,result.selection.end)).toBe(result.excerpt);
 });
 it('preserves paragraph qualifiers and abstains when the paragraph cannot fit',()=>{
- const content=`Python 2 is supported ${'under separately negotiated conditions '.repeat(40)}only by an independent vendor, not by the upstream project.`;
- const result=selectEvidenceExcerpt(claim,content);expect(result.excerpt).toHaveLength(1200);expect(result.selection.warning).toContain('cuts a paragraph');
+ const content=`Python 2 is supported ${'under separately negotiated conditions '.repeat(90)}only by an independent vendor, not by the upstream project.`;
+ const result=selectEvidenceExcerpt(claim,content);expect(result.excerpt).toHaveLength(2400);expect(result.selection.warning).toContain('cuts a paragraph');
 });
 it('keeps separated opposing passages together with explicit omission metadata',()=>{
- const content=`Python 2 is supported by Vendor A.\n\n${'Unrelated context '.repeat(100)}\n\nPython 2 is not supported upstream.`;
+ const content=`Python 2 is supported by Vendor A.\n\n${'Unrelated context '.repeat(180)}\n\nPython 2 is not supported upstream.`;
  const selected=selectEvidenceExcerpt(claim,content);
  expect(selected.excerpt).toContain('supported by Vendor A');expect(selected.excerpt).toContain('not supported upstream');
  expect(selected.passages).toHaveLength(2);expect(selected.excerpt).toContain('[...]');
@@ -41,7 +41,7 @@ it('selects role evidence without requiring the originally asserted person to ap
  const result=selectEvidenceExcerpt('Alex is captain of Acme FC.',content);expect(result.excerpt).toContain('Taylor is the club captain');expect(result.selection.warning).toBeUndefined();
 });
 it('bounds source inspection and discloses unseen context',()=>{
- const result=selectEvidenceExcerpt(claim,'x'.repeat(210000));expect(result.excerpt).toHaveLength(1200);expect(result.selection.warning).toContain('200,000');
+ const result=selectEvidenceExcerpt(claim,'x'.repeat(210000));expect(result.excerpt).toHaveLength(2400);expect(result.selection.warning).toContain('200,000');
 });
 it('reuses cached raw search text to select a useful passage and sends no additional search',async()=>{
  const content=`${packages}\n\n${statement}`;const now=new Date().toISOString();

@@ -1,5 +1,5 @@
 export const SOURCE_SCAN_LIMIT=200000;
-export const EXCERPT_LIMIT=1200;
+export const EXCERPT_LIMIT=2400;
 export const PASSAGE_SEPARATOR='\n[...]\n';
 export type SourcePassage={start:number;end:number;text:string};
 
@@ -16,15 +16,23 @@ export function selectSourcePassages(content:string,score:(text:string)=>number)
  for(const match of scan.matchAll(/\r?\n|\[\.\.\.\]/gu)){add(start,match.index);start=match.index+match[0].length;}
  add(start,scan.length);
  const boilerplate=(text:string)=>/^\s*(?:purl:|pkg:)|^\s*(?:home|menu|search|subscribe|log in|sign in|skip to content)\s*$/iu.test(text);
- const qualification=(text:string)=>/^\s*(?:however|but|only|unless|if|except|according|this|these|it|they|note|despite|subject to)\b/iu.test(text)||/^[a-z]/u.test(text);
+ const qualification=(text:string)=>/^\s*(?:however|but|only|unless|if|except|according|this|these|it|they|he|she|note|despite|subject to|the (?:role|appointment|company))\b/iu.test(text)||/^[a-z]/u.test(text);
  const candidates=units.map((unit,index)=>{
   const previous=units[index-1],next=units[index+1];
   // Nearby short wrapped lines can carry the subject, value or qualifier.
-  const left=previous&&!boilerplate(scan.slice(previous.start,previous.end))&&(unit.end-previous.start<600||qualification(scan.slice(previous.start,previous.end)))?previous.start:unit.start;
-  const right=next&&!boilerplate(scan.slice(next.start,next.end))&&(next.end-left<900||qualification(scan.slice(next.start,next.end)))?next.end:unit.end;
-  return {start:left,end:right,score:boilerplate(scan.slice(unit.start,unit.end))?0:score(scan.slice(left,right))};
+  const unitText=scan.slice(unit.start,unit.end);
+  const previousText=previous?scan.slice(previous.start,previous.end):'';
+  const nextText=next?scan.slice(next.start,next.end):'';
+  const left=previous&&!boilerplate(previousText)&&(previousText.length<200||!/[.!?]\s*$/u.test(previousText)&&unit.end-previous.start<600||qualification(previousText))?previous.start:unit.start;
+  const right=next&&!boilerplate(nextText)&&(nextText.length<200||!/[.!?]\s*$/u.test(unitText)&&next.end-left<900||qualification(nextText))?next.end:unit.end;
+  const directScore=score(unitText);
+  return {start:left,end:right,score:boilerplate(unitText)?0:directScore<2&&unitText.length>160?directScore:score(scan.slice(left,right))};
  });
- const relevant=candidates.filter(item=>item.score>=2);
+ const seen=new Set<string>();
+ const relevant=candidates.filter(item=>{
+  if(item.score<2)return false;
+  const text=scan.slice(item.start,item.end);if(seen.has(text))return false;seen.add(text);return true;
+ });
  const ordered=[...relevant].sort((a,b)=>b.score-a.score||a.start-b.start);
  const selected:{start:number;end:number}[]=[];let omitted=false;
  const merge=(ranges:{start:number;end:number}[])=>{

@@ -31,3 +31,16 @@ it('allows corroborated old completed-event evidence only with unknown freshness
 it('does not override undated, future-publication, schedule, update conflicts or wrong-entity evidence',()=>{
  for(const [text,published] of [[claim,undefined],[claim,'2027-01-01'],[claim,'2017-01-01'],[`If approved, ${claim}`,'2019-01-01'],[`${claim} Updated on 2017-01-01`,'2019-01-01'],['Another Regulation became applicable on 25 May 2018.','2019-01-01']] as const)expect(completedEventAssessment(claim,text,published,now)).toBeUndefined();
 });
+it('accepts an explicitly jurisdiction-bound acronym and date-first completed wording',()=>{
+ const claim='The EU GDPR became applicable on 25 May 2018.';
+ const quote='On 25 May 2018, the General Data Protection Regulation (GDPR) became applicable across the European Union (EU).';
+ expect(completedEventAssessment(claim,quote,'2020-01-01',now)?.eligible).toBe(true);
+ expect(completedEventAssessment(claim,'The GDPR is a European Union regulation. The GDPR became applicable on 25 May 2018.','2020-01-01',now)?.eligible).toBe(true);
+ expect(completedEventAssessment(claim,'The European Union has separate rules. The UK GDPR became applicable on 1 January 2021.','2022-01-01',now)).toBeUndefined();
+ expect(completedEventAssessment(claim,'The GDPR became applicable on 25 May 2018.','2020-01-01',now)).toBeUndefined();
+});
+it('does not admit an expected/scheduled event or reports predating a dated event through an acronym alias',()=>{
+ const claim='The EU GDPR became applicable on 25 May 2018.';
+ expect(completedEventAssessment(claim,'The European Union GDPR was expected to become applicable on 25 May 2018.','2020-01-01',now)).toBeUndefined();
+ expect(completedEventAssessment(claim,'The EU GDPR became applicable on 25 May 2018.','2016-01-01',now)).toBeUndefined();
+});

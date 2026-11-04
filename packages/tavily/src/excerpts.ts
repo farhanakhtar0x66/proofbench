@@ -1,7 +1,7 @@
 import {roleClaimAnchors} from './evidence-relevance';
 import {supportClaimSubject} from './support-scope';
 import {priceCurrencyEvidenceReason} from './claim-ambiguity';
-import {selectSourcePassages} from './source-passages';
+import {selectSourcePassages,EXCERPT_LIMIT} from './source-passages';
 import {completedEventClaim} from './completed-event';
 import {claimEntity} from './comparison';
 
@@ -16,7 +16,7 @@ export function excerptQualityReason(claim:string,excerpt:string):string|undefin
  const wallSignals=[/\b(?:log[ -]?in|sign in)\b/iu,/\b(?:sign up|create (?:an? |your |new )?account)\b/iu,/\b(?:forgot(?:ten)? (?:password|account)|password reset)\b/iu,/\b(?:log[ -]?in|sign in|subscribe) to (?:continue|read|view|see)\b/iu,/\bsee more on facebook\b/iu].filter(pattern=>pattern.test(excerpt)).length;
  const credentialField=/(?:^|[.\n])\s*(?:email or phone(?: number)?|email address|password)\s*(?:[.\n]|$)/iu.test(excerpt);
  const shortControls=excerpt.length<120&&/^\s*(?:log[ -]?in|sign in|subscribe|create|see more)\b/iu.test(excerpt);
- if(wallSignals>=2&&excerpt.length<=1200&&(credentialField||shortControls))return 'The excerpt appears to be a login or subscription wall, not an accessible article. Fuller readable evidence is required.';
+ if(wallSignals>=2&&excerpt.length<=EXCERPT_LIMIT&&(credentialField||shortControls))return 'The excerpt appears to be a login or subscription wall, not an accessible article. Fuller readable evidence is required.';
  if(/^\s*(?:Image|Photo|Picture)(?:\s+\d+)?\s*:/iu.test(excerpt)&&!excerpt.includes('\n\n')&&excerpt.length<500)return 'The excerpt appears to contain only an image caption; the article context is unavailable.';
  const lines=excerpt.split('\n').filter(line=>line.trim());
  const packageLines=lines.filter(line=>/^\s*(?:purl:|pkg:)/iu.test(line)).length;
@@ -41,12 +41,13 @@ export function selectEvidenceExcerpt(claim:string,content:string){
   if(priceSubject)return phrase(text,priceSubject)&&/\b(?:costs?|prices?|pricing|USD|dollars?|per user|monthly)\b|\$\s*\d/iu.test(text)?10:0;
   if(event){
    const subjects=tokens(event.subject).filter(word=>word.length>2&&word!=='the');
-   return subjects.some(word=>phrase(text,word))&&/\b(?:applicab\w*|appl(?:y|ies|ied|ication)|effect|released?|founded|established)\b/iu.test(text)&&/\b\d{4}\b/u.test(text)?10:0;
+   const target=event.event==='became applicable'?/\b(?:became (?:directly )?applicable|applicable (?:as of|from|on)|application date|put into effect)\b/iu:/\b(?:took effect|was released|was founded|was established)\b/iu;
+   return subjects.some(word=>phrase(text,word))&&target.test(text)&&/\b\d{4}\b/u.test(text)?10:0;
   }
   if(countUnit)return new RegExp(`\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\\s+${countUnit}s?\\b|\\b${countUnit}s?\\b.{0,60}\\b\\d+\\b`,'iu').test(text)?10:0;
   return Math.min(5,anchors.filter(word=>phrase(text,word)).length);
  };
- if(content.trim().length>1200){
+ if(content.trim().length>EXCERPT_LIMIT||/package identifiers/u.test(excerptQualityReason(claim,content)??'')){
   const selected=selectSourcePassages(content,score);
   const first=selected.passages[0];const last=selected.passages.at(-1)!;
   const warning=selected.warning??excerptQualityReason(claim,selected.excerpt);

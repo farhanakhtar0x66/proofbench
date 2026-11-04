@@ -38,7 +38,7 @@ it('retains snippet fallback and can use a raw-only result without fabricating m
  expect(report.evidence[1].excerptSelection?.reason).toContain('returned page text');
 });
 it('keeps full-text date warnings after passage selection omits the date label',async()=>{
- const raw=`Taylor is CEO of Acme.\n\n${'Unrelated housekeeping information. '.repeat(40)}\n\nLast updated on 03/11/2026`;
+ const raw=`Taylor is CEO of Acme.\n\n${'Unrelated housekeeping information. '.repeat(100)}\n\nLast updated on 03/11/2026`;
  const results=[0,1].map(index=>page(`https://source${index}.example`,raw));
  const report=await retrieveClaimEvidence({version:'1',claim,scope:'current'},{...settings,fetch:async()=>Response.json({results})});
  expect(report.evidence[0].dateReason).toContain('could not be parsed');expect(report.evidence[0].excerpt).not.toContain('03/11/2026');

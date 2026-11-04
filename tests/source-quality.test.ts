@@ -27,9 +27,9 @@ it.each([
  `${content} ${'Company operations and products are discussed. '.repeat(20)} Sign in. Create account. Forgot password?`,
 ])('does not reject readable text merely mentioning login, formatting or an accompanying caption',text=>expect(excerptQualityReason(claim,text)).toBeUndefined());
 it('chooses a fitting passage after an equally relevant oversized one but retains the omitted-context warning',()=>{
- const original=`Acme CEO discussion ${'with important qualifications '.repeat(60)}\n\n${content}`;
+ const original=`Acme CEO discussion ${'with important qualifications '.repeat(120)}\n\n${content}`;
  const selected=selectEvidenceExcerpt(claim,original);
- expect(selected.excerpt).toBe(content);expect(selected.selection.start).toBeGreaterThan(1200);
+ expect(selected.excerpt).toBe(content);expect(selected.selection.start).toBeGreaterThan(2400);
  expect(selected.selection.warning).toContain('Other potentially relevant');expect(original.slice(selected.selection.start,selected.selection.end)).toBe(selected.excerpt);
 });
 it('uses one six-candidate Basic search and selects readable scoped evidence without guessing the asserted holder',async()=>{

@@ -14,21 +14,21 @@ it('finds a scoped statement in single-newline text after navigation and beyond 
  expect(selected.selection.warning).toBeUndefined();expect(body.slice(selected.selection.start,selected.selection.end)).toBe(selected.excerpt);
 });
 it('does not omit separated opposing role statements and supplies verifiable exact-block offsets',()=>{
- const body=`Taylor is CEO of Acme.\n${'Unrelated background sentence. '.repeat(60)}\nTaylor is not CEO of Acme; Morgan now holds the role.`;
+ const body=`Taylor is CEO of Acme.\n${'Unrelated background sentence. '.repeat(100)}\nTaylor is not CEO of Acme; Morgan now holds the role.`;
  const selected=selectEvidenceExcerpt(claim,body);
  expect(selected.excerpt).toContain('Taylor is CEO');expect(selected.excerpt).toContain('Taylor is not CEO');expect(selected.passages).toHaveLength(2);
  expect(validPassageBundle({excerpt:selected.excerpt,excerptPassages:selected.passages,excerptSelection:selected.selection})).toBe(true);
  for(const part of selected.passages!)expect(body.slice(part.start,part.end)).toBe(part.text);
- expect(selected.excerpt.length).toBeLessThanOrEqual(1200);
+ expect(selected.excerpt.length).toBeLessThanOrEqual(2400);
 });
 it('retains immediately following wrapped conditions or excludes a qualification too large to carry',()=>{
  const short=`${'Home\n'.repeat(400)}Taylor is CEO of Acme.\nHowever, this applies only if the board approves.\nThe appointment is conditional.`;
  expect(selectEvidenceExcerpt(claim,short).excerpt).toContain('only if the board approves');
- const long=`Taylor is CEO of Acme.\nHowever, ${'the conditions require review '.repeat(70)}before this can be treated as a current appointment.`;
+ const long=`Taylor is CEO of Acme.\nHowever, ${'the conditions require review '.repeat(120)}before this can be treated as a current appointment.`;
  expect(selectEvidenceExcerpt(claim,long).selection.warning).toBeDefined();
 });
 it('includes opposing support blocks in one model input rather than silently selecting a positive passage',async()=>{
- const body=`Python 2 is supported by a commercial vendor.\n${'Unrelated background. '.repeat(100)}\nPython 2 is not supported by the upstream project.`;
+ const body=`Python 2 is supported by a commercial vendor.\n${'Unrelated background. '.repeat(180)}\nPython 2 is not supported by the upstream project.`;
  const source=selectEvidenceExcerpt('Python 2 is currently supported.',body);const stamp=new Date().toISOString();
  const fetched=await retrieveClaimEvidence({version:'1',claim:'Python 2 is currently supported.'},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:async()=>Response.json({results:[0,1].map(index=>({url:`https://source${index}.example`,content:body,published_date:stamp}))})});
  expect(fetched.evidence[0].excerptPassages).toEqual(source.passages);
