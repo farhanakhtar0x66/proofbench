@@ -16,7 +16,7 @@ export class ComparisonCache {
  async compare(identity:object,context:unknown,load:()=>Promise<Report>):Promise<Report>{
   let namespace=this.identities.get(identity);
   if(namespace===undefined){namespace=++this.nextIdentity;this.identities.set(identity,namespace);}
-  const key=createHash('sha256').update(JSON.stringify(['comparison-policy-v7',namespace,context])).digest('hex');
+  const key=createHash('sha256').update(JSON.stringify(['comparison-policy-v8',namespace,context])).digest('hex');
   const now=this.clock();
   for(const [id,entry] of this.entries)if(now<entry.at||now>=entry.expiresAt)this.entries.delete(id);
   const decorate=(entry:Entry,status:'hit'|'miss'|'shared')=>EvidenceComparisonReport.parse({...structuredClone(entry.report),cache:{status,expiresAt:entry.report.method==='llm'?new Date(entry.expiresAt).toISOString():null}});
