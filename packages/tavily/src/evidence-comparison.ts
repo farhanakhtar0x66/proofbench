@@ -58,7 +58,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   const hostname=new URL(source.url).hostname.toLowerCase().replace(/^www\./u,'');
   // Conservative grouping, not a public-suffix or ownership verification service.
   const group=hostname.split('.').slice(-2).join('.');
-  const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},assessedAt);
+  const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt,claim:data.claim},assessedAt);
   const directOfficial=reviewedOfficialDirect(data.claim,source);
   // Publication age is recomputed now. Preserve omitted full-page temporal
   // warnings, rather than freezing an earlier age/future-publication check.

@@ -1,0 +1,15 @@
+# Claim-scoped body dates
+
+General retrieval and comparison now assess body-text “as of” dates in relation to the claim, rather than assuming that every date in an article qualifies every fact.
+
+The English heuristic needs at least two meaningful claim anchors in a source sentence before it can separate another subject's dated statement. It retains dates on matching subjects, standalone date labels, pronouns, references such as “this arrangement” or “the report,” and sentences whose relationship to the claim cannot be safely separated. Unrelated sentences are excluded only from the body-date scope check. Complete original excerpts, including those sentences, remain in citations and model input. This is lexical scope analysis, not semantic proof; aliases and implicit references can remain ambiguous.
+
+Simple “as of today,” “as of yesterday,” and bare weekday references use the source publication calendar date as their anchor. A bare weekday means its most recent occurrence on or before that date. This is an interpretation assumption, not a provider-verified event date. Missing publication dates and modifiers such as “next Friday” or “Friday last year” remain unsupported. Every as-of cue must parse: one valid date no longer hides another unreadable date.
+
+Publication validity, the 30-day publication policy, page-update conflicts and explicit effective dates keep their existing checks. Effective dates are never discarded as unrelated background. The legacy verifier's behavior is preserved unless a caller explicitly supplies claim context. This does not establish factual truth or source independence; evidence comparison and corroboration checks still determine whether a verdict is justified.
+
+Retrieval/comparison cache policy versions changed. Previously saved assessments are immutable, and warnings derived from missing full-page context are not automatically removed from saved excerpts. A new assessment needs freshly evaluated source data. No UI, credentials, billing settings, search limits or provider retries changed.
+
+Offline checks include ownership, pricing, leadership, software and launch statements, plus stale matching claims, ambiguous references, missing/old/future publication metadata, invalid dates and mixed valid/invalid date cues. Model-backed improvement requires a separately bounded real-provider check; offline agreement does not establish broad accuracy.
+
+On November 4, 2026, a controlled Gemini comparison through Bifrost returned `supported` for the saved SpaceX ownership excerpts that previously failed the date gate. Only unchanged complete source text had its body-date reason recomputed; original publication/retrieval times and excerpts were preserved. The comparison used one real model request and zero new Tavily searches. This validates one observed saved-evidence assessment, not a fresh retrieval or general accuracy. A subsequent fresh multi-topic evaluation is still required. All 690 unit/integration checks, 14 general scripted scenarios and 10 topic scripted scenarios passed; their simulated model relations are not measurements of live model understanding.

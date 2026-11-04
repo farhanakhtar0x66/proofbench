@@ -1,4 +1,5 @@
-export type DatedSource={published_date?:string;content?:string;originalContent?:string;contextContent?:string};
+import {claimDateContext} from './claim-date-context';
+export type DatedSource={published_date?:string;content?:string;originalContent?:string;contextContent?:string;claim?:string};
 const monthNames=['january','february','march','april','may','june','july','august','september','october','november','december'];
 const explicitDatePattern='(?:\\d{4}-\\d{2}-\\d{2}|(?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}(?:st|nd|rd|th)?,? \\d{4}|\\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{4})';
 function explicitDate(text:string){
@@ -44,7 +45,20 @@ export function assessSourceDates(source:DatedSource,now:string){
   updates.push(month?`${match[3]}-${String(month).padStart(2,'0')}-${match[2].padStart(2,'0')}`:text);
  }
  const effective=collect(new RegExp(`\\b(?:effective(?: from| on)?|takes effect(?: on)?)\\s*:?\\s*(${explicitDatePattern})\\b`,'giu'),context).map(explicitDate);
- const scopes=collect(new RegExp(`\\b(?:as of|historical as of)\\s*:?\\s*(${explicitDatePattern})\\b`,'giu'),context).map(explicitDate);
+ const scopeContext=claimDateContext(source.claim,context);
+ const scopes:string[]=[];let unparsedScope=false;
+ for(const cue of scopeContext.matchAll(/\bas of\s*:?\s*/giu)){
+  const tail=scopeContext.slice(cue.index+cue[0].length);
+  const exact=tail.match(new RegExp(`^(${explicitDatePattern})\\b`,'iu'));
+  if(exact){scopes.push(explicitDate(exact[1]));continue;}
+  const relative=tail.match(/^(today|yesterday|Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday)\b(?!\s*(?:\d|,\s*\d)|\s+(?:last|next|this|in|of|before|after)\b)/iu);
+  if(relative&&publishedAt){
+   const day=new Date(`${publishedAt.slice(0,10)}T00:00:00Z`);
+   const term=relative[1].toLowerCase();const weekday=['sunday','monday','tuesday','wednesday','thursday','friday','saturday'].indexOf(term);
+   const back=term==='today'?0:term==='yesterday'?1:(day.getUTCDay()-weekday+7)%7;
+   day.setUTCDate(day.getUTCDate()-back);scopes.push(day.toISOString().slice(0,10));
+  }else unparsedScope=true;
+ }
  const updatedAt=new Set(updates).size===1?sourceDate(updates[0]):undefined;
  const effectiveAt=effective.length===1?sourceDate(effective[0]):undefined;
  const age=publishedAt?Date.parse(now)-Date.parse(publishedAt):NaN;
@@ -55,7 +69,7 @@ export function assessSourceDates(source:DatedSource,now:string){
  if([...updates,...effective,...scopes].some(value=>!sourceDate(value)))reason='An explicit source date is invalid.';
  if(/\b(?:last updated(?: on)?|updated on)\s*:?\s*(?:[A-Za-z]+\s+\d|\d)/iu.test(content)&&!updates.length)reason='An explicit update date could not be parsed; its publication relationship is uncertain.';
  const effectiveCue=/\b(?:effective (?:from|on)|takes effect)\b|\beffective\s*:?\s*(?:\d|next\b|tomorrow\b|immediately\b|(?:January|February|March|April|May|June|July|August|September|October|November|December)\b)/iu.test(context);
- if(effectiveCue&&effective.length===0||/\bas of\b/iu.test(context)&&scopes.length===0)reason='An explicit effective or as-of date could not be parsed; its temporal scope is uncertain.';
+ if(effectiveCue&&effective.length===0||unparsedScope)reason='An explicit effective or as-of date could not be parsed; its temporal scope is uncertain.';
  if(new Set(updates).size>1||new Set(effective).size>1||new Set(scopes).size>1)reason='Multiple explicit source dates cannot be safely assigned to the fact.';
  if(updatedAt&&(Date.parse(updatedAt)>Date.parse(now)||publishedAt&&updatedAt.slice(0,10)<publishedAt.slice(0,10)))reason='The update date conflicts with publication or current time.';
  if(effectiveAt&&Date.parse(effectiveAt)>Date.parse(now))reason='The stated effective date is in the future; this fact is not established as current.';
