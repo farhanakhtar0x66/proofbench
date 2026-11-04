@@ -6,8 +6,9 @@ import {retrieveClaimEvidence} from './general-retrieval';
 import {compareClaimEvidence} from './evidence-comparison';
 import type {LanguageInterpreter} from './interpretation';
 import {currencyAmbiguityReason} from './claim-ambiguity';
+import type {ComparisonCache} from './comparison-cache';
 
-type Options={tavilyMode:string;budget:SearchBudget;interpreter?:LanguageInterpreter;extractionMode:'rules'|'llm';comparisonMode:'rules'|'llm'};
+type Options={tavilyMode:string;budget:SearchBudget;interpreter?:LanguageInterpreter;extractionMode:'rules'|'llm';comparisonMode:'rules'|'llm';comparisonCache?:ComparisonCache;comparisonIdentity?:LanguageInterpreter};
 
 export async function compareGeneralClaim(input:unknown,options:Options){
  const request=EvidenceRetrievalRequest.parse(input);const {interpreter,comparisonMode}=options;
@@ -15,7 +16,7 @@ export async function compareGeneralClaim(input:unknown,options:Options){
  const available=!ambiguity&&comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
  const reason=ambiguity??(comparisonMode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made.':!interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':!available?interpreter.unavailableReason?.()??'The model is temporarily unavailable. No model request was made.':undefined);
  const retrieval=await retrieveClaimEvidence(request,{mode:options.tavilyMode,budget:options.budget,cacheOnly:!available});
- const comparison=await compareClaimEvidence(retrieval,{mode:available?'llm':'rules',interpreter,unavailableReason:reason});
+ const comparison=await compareClaimEvidence(retrieval,{mode:comparisonMode,interpreter,unavailableReason:reason,comparisonCache:options.comparisonCache,comparisonIdentity:options.comparisonIdentity,scope:request.scope});
  return {retrieval,comparison};
 }
 
@@ -40,7 +41,7 @@ export async function analyzeAnswer(input:unknown,options:Options){
  const results=[];
  // Sequential processing shares server budgets, cache and inference cooldown.
  for(const claim of selected){
-  const result=await compareGeneralClaim({version:'1',claim:claim.text,scope:request.scope},{...options,interpreter});
+  const result=await compareGeneralClaim({version:'1',claim:claim.text,scope:request.scope},{...options,interpreter,comparisonIdentity:options.comparisonIdentity??options.interpreter});
   results.push({claim,...result});
  }
  return AnalysisReport.parse({version:'1',id:randomUUID(),mode:options.tavilyMode,createdAt,text:request.text,scope:request.scope??'as_stated',status:!results.length?'no_claims':omittedClaims||extraction.method==='rules_fallback'||results.some(result=>result.comparison.method!=='llm')?'partial':'complete',extraction,omittedClaims,results,limits:{maxClaims:3,maxModelAttempts:4},limitations:['At most three distinct extracted claims are processed, in source order. Repeated identical statements share one result; exact original offsets are retained. Extraction can omit statements.', 'Complete means all selected comparisons returned validated model assessments; inconclusive remains a valid outcome. Partial results are not a confirmed factual verdict.', 'At most four inference attempts and three claim searches per analysis; shared server limits can be lower. Model catalog requests are separate and are not counted by these inference limits.', 'Rules-only mode remains available without a model. This endpoint does not invent live evidence, general rules-based verdicts, calibrated freshness scores or corrections.']});

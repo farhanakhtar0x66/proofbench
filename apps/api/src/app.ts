@@ -10,12 +10,14 @@ import {createLanguageInterpreter} from '../../../packages/tavily/src/language-p
 import {extractFactualClaims} from '../../../packages/tavily/src/claim-extraction';
 import {retrieveClaimEvidence} from '../../../packages/tavily/src/general-retrieval';
 import {analyzeAnswer,compareGeneralClaim} from '../../../packages/tavily/src/analysis';
+import {ComparisonCache} from '../../../packages/tavily/src/comparison-cache';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
  if(!['mock','live'].includes(tavilyMode))throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const tavilyBudget=new SearchBudget();
+ const comparisonCache=new ComparisonCache();
  const interpreter=createLanguageInterpreter();
  const extractionMode=z.enum(['rules','llm']).parse(process.env.CLAIM_EXTRACTION_MODE??'rules');
  const comparisonMode=z.enum(['rules','llm']).parse(process.env.EVIDENCE_COMPARISON_MODE??'rules');
@@ -42,11 +44,11 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  });
  app.post('/api/claims/retrieve',async(request)=>retrieveClaimEvidence(EvidenceRetrievalRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget}));
  app.post('/api/claims/compare',async(request)=>{
-  const result=await compareGeneralClaim(request.body,{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode});
+  const result=await compareGeneralClaim(request.body,{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode,comparisonCache});
   return result.comparison;
  });
  app.post('/api/analysis',async(request,reply)=>{
-  const result=await analyzeAnswer(AnalysisRequest.parse(request.body),{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode});
+  const result=await analyzeAnswer(AnalysisRequest.parse(request.body),{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode,comparisonCache});
   await store.put('analysis',result.id,result);return reply.code(201).send(result);
  });
  app.get('/api/analysis/status',async()=>AnalysisStatus.parse({version:'1',mode:tavilyMode,extractionMode,comparisonMode,modelReady:comparisonMode==='llm'&&!!interpreter?.compareEvidence&&interpreter.canRequest?.()===true,modelDescription:interpreter?.description??null}));

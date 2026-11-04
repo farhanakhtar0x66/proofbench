@@ -1,0 +1,25 @@
+# General evidence-comparison cache
+
+One in-memory cache per Fastify app now serves both `POST /api/analysis` and `POST /api/claims/compare`. A repeated comparison can reuse an earlier **fully validated model-assisted report**, including a valid inconclusive result. This saves comparison requests, not every kind of provider request. Claim extraction is not cached; `CLAIM_EXTRACTION_MODE=llm` can still make a new extraction request for a repeated answer. Tavily's separate five-minute search cache remains unchanged. Legacy verification and benchmark calls without an explicitly supplied comparison cache remain unchanged.
+
+## Matching and expiry
+
+The key hashes the exact claim, requested scope, actual query/window, retrieval time, complete retained evidence/metadata and freshly prepared eligibility/scope/date/group state. Different claim wording, source content/order/URLs/dates, retrieval times or scope miss. Cache identity is tied to the original interpreter instance, whose provider, model, endpoint, request settings and credential readiness are captured at startup. Per-analysis budget wrappers retain that original identity; separate adapters/apps never share entries. Changing provider configuration requires the existing restart, which clears the cache. The cache stores no API keys and writes no cache files to disk.
+
+Before looking up an entry, the comparator reruns existing URL, source-date, overlap, metadata, scope, relevance, context-quality and corroboration gates. Disabled comparison/rules mode, offline evidence, ambiguous currency or instruction-like text cannot reuse a model verdict. Changed prepared gate state misses; fewer than two eligible groups abstain before lookup. This also prevents a supported report from bypassing an age limit crossed during its TTL.
+
+Entries last **five minutes after comparison completion**, with no sliding refresh. A backward clock change invalidates entries. At most 100 completed entries are retained; the oldest inserted entry is evicted at capacity. Up to 100 pending operations are tracked for coalescing; additional distinct work follows normal model caps without expanding that pending map. Concurrent identical tracked comparisons share one attempt. Model/transport/schema/grounding failures and deterministic fallback reports are not stored. A later user submission may try again only if existing request/cooldown gates permit; the cache adds no retry or fallback provider.
+
+A hit can be served while the model allowance is exhausted or in cooldown, but only if matching Tavily evidence is still available through the existing search cache. The backend does not launch a new search merely to recover a cached comparison while the model is unavailable. A miss in that situation stays inconclusive. Once search evidence expires, this is not an offline verdict archive. Restarts clear both caches and reset existing process budgets; do not restart to bypass an agreed allowance.
+
+## Response and website
+
+An optional `cache` object records `status: miss | hit | shared` and `expiresAt`. An uncacheable fallback has no reusable expiry; early abstentions may omit this object entirely. `shared` means the request joined an in-flight attempt, which may itself fail; it is not a claim of a successful cache hit. A miss does not prove a model request occurred: remaining gates can block it.
+
+Reuse preserves the original `assessedAt`, citations, correction and freshness score. It does not pretend a new model assessment happened or refresh source retrieval/publication dates. The website displays cache reuse/expiry and the assessment time. Reading a saved report never triggers revalidation. A new analysis still gets its own report ID and original text/claim offsets; it embeds the reused per-claim comparison.
+
+The optional field extends the shared strict v1 response contract. Deploy the API and web client together; separately built clients must update their contract. Requests, provider output schemas and request caps are unchanged. The cache is process-local, bounded prototype storage, not shared persistent quotas, multi-user access control or a guarantee that a cached assessment is factually correct. It does not resolve the real-source coverage blocker.
+
+## Validation
+
+On November 4, 2026, all 549 unit/API tests passed, including 18 new cache tests. The fake-transport app test made one simulated search and one simulated model comparison across two analyses and the standalone comparison route, retaining hit reuse after the one-request allowance was exhausted. Tests also cover coalescing, failures, valid inconclusive results, timestamp/score preservation, defensive copies, expiry, clock changes, changed claims/scopes/evidence/adapters, temporal/context guards and eviction. All six affected desktop/mobile browser checks, lint, TypeScript, production build, six offline fixture regressions and compiled offline deployment smoke passed. No real Gemini/Tavily requests were made and saved `.env` was unchanged. No live accuracy or real-provider request-saving measurement is claimed.

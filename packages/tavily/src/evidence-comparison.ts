@@ -13,6 +13,7 @@ import {historicalSupportAssessment} from './historical-support';
 import {currencyAmbiguityReason} from './claim-ambiguity';
 import {isClaimRestatement,sharedReplacementSentences} from './correction-candidates';
 import {evidenceFreshness} from './evidence-freshness';
+import type {ComparisonCache} from './comparison-cache';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
@@ -35,7 +36,7 @@ export function sourceScopeReason(claim:string,excerpt:string):string|undefined{
  if(captainClaimScope(claim)==='appointment'&&captainEvidenceHint(excerpt)==='match_only')return 'Match-specific or temporary captaincy does not establish an unqualified ongoing captain appointment. More directly scoped evidence is required.';
 }
 
-export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'llm';interpreter?:LanguageInterpreter;unavailableReason?:string}={}){
+export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'llm';interpreter?:LanguageInterpreter;unavailableReason?:string;comparisonCache?:ComparisonCache;comparisonIdentity?:object;scope?:'as_stated'|'current'}={}){
  const data=EvidenceRetrievalReport.parse(input);const assessedAt=new Date().toISOString();
  let fallbackCitations:z.infer<typeof EvidenceComparisonReport>['citations']=[];
  const limitations=['Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. The conservative 30-day date policy can abstain on valid historical or timeless facts. Freshness is not a calibrated probability.'];
@@ -61,10 +62,14 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  let sources:ReturnType<typeof prepareSources>;
  try{sources=prepareSources();}catch{return fallback('Source URLs, excerpts or retrieval metadata are invalid. No model request was made.');}
  fallbackCitations=sources.map(source=>({sourceId:source.sourceId,url:source.url,quote:source.excerpt,relation:'insufficient',eligible:source.eligible,dateReason:source.dateReason,scopeReason:source.scopeReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt}));
- if(unavailable)return fallback(unavailable);
+ // Disabled modes and ambiguous claims never reuse a model verdict. A depleted
+ // allowance/cooldown may reuse one after the current evidence gates below.
+ if(unavailable&&(options.mode!=='llm'||!options.interpreter?.compareEvidence||currencyAmbiguityReason(data.claim)))return fallback(unavailable);
  if(new Set(sources.filter(source=>source.eligible).map(source=>source.group)).size<2)return fallback('Fewer than two distinct source groups pass date, duplication and claim-scope checks. Review the source warnings. No model request was made.');
  const payload=JSON.stringify({claim:data.claim,assessedAt,sources:sources.map(({sourceId,url,excerpt,publishedAt,retrievedAt})=>({sourceId,url,excerpt,publishedAt,retrievedAt}))});
  if(payload.length>10000)return fallback('Comparison input exceeds the bounded model context. No model request was made.');
+ const execute=async()=>{
+ if(unavailable)return fallback(unavailable);
  let timer:ReturnType<typeof setTimeout>|undefined;
  try{
   const raw=await Promise.race([options.interpreter!.compareEvidence!(payload),new Promise<never>((_resolve,reject)=>{timer=setTimeout(()=>reject(new Error('Comparison timeout')),interpretationDeadline(options.interpreter));timer.unref();})]);
@@ -110,4 +115,8 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   return fallback(`${reason??options.interpreter?.unavailableReason?.()??'Evidence comparison failed, was blocked, or returned unsupported structure.'} No retry or correction was used.`);
  }
  finally{clearTimeout(timer);}
+ };
+ // Prepared eligibility/scope/date state participates in the key, so a temporal
+ // gate change cannot reuse an older verdict. Original assessment time is kept.
+ return options.comparisonCache&&options.interpreter?options.comparisonCache.compare(options.comparisonIdentity??options.interpreter,{claim:data.claim,scope:options.scope??'as_stated',mode:data.mode,query:data.query,searchScope:data.searchScope,searchWindow:data.searchWindow,retrievedAt:data.retrievedAt,evidence:data.evidence,prepared:sources},execute):execute();
 }

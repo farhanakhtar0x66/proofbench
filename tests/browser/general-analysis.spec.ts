@@ -28,7 +28,7 @@ test('shows per-claim verdicts, source warnings and corrections from a validated
    const now=new Date().toISOString();
    result.retrieval.status='retrieved';result.retrieval.mode='live';result.retrieval.evidence=[0,1].map(sourceIndex=>({url:`https://source${index}-${sourceIndex}.example/notice`,title:`Simulated notice ${index}-${sourceIndex}`,excerpt:'Replacement statement.',retrievedAt:now,publishedAt:now,relation:'context',retrieval:'tavily'}));
    comparison.citations=result.retrieval.evidence.map((source,sourceIndex)=>({sourceId:`S${sourceIndex+1}`,url:source.url,quote:source.excerpt,relation:index===2?'insufficient':index===1?'contradicts':'supports',eligible:index!==2,dateReason:'Simulated recent date.',scopeReason:index===2?'Wrong role context.':undefined,publishedAt:now,retrievedAt:now}));
-   if(index===0){comparison.method='llm';comparison.freshness='current';comparison.freshnessScore=50;comparison.freshnessScoreReason='Simulated evidence recency only, not truth confidence.';}
+   if(index===0){comparison.method='llm';comparison.freshness='current';comparison.freshnessScore=50;comparison.freshnessScoreReason='Simulated evidence recency only, not truth confidence.';comparison.cache={status:'hit',expiresAt:new Date(Date.now()+300000).toISOString()};}
    if(index===1)comparison.correction={text:'Replacement statement.',sourceIds:['S1','S2']};
   });
   await route.fulfill({status:201,json:AnalysisReport.parse(report)});
@@ -39,6 +39,7 @@ test('shows per-claim verdicts, source warnings and corrections from a validated
  for(const verdict of ['supported','contradicted','inconclusive'])await expect(page.getByText(verdict,{exact:true})).toBeVisible();
  await expect(page.getByText('Freshness score: 50/100 (evidence recency)',{exact:false})).toBeVisible();
  await expect(page.getByText('Simulated evidence recency only, not truth confidence.',{exact:true})).toBeVisible();
+ await expect(page.getByText('Reused cached comparison',{exact:false})).toBeVisible();
  await expect(page.getByText('Evidence-backed correction',{exact:true})).toBeVisible();
  await expect(page.getByText('Wrong role context.',{exact:true}).first()).toBeVisible();
  await expect(page.getByText('1 additional distinct extracted claim(s)',{exact:false})).toBeVisible();

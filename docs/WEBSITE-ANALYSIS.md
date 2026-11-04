@@ -1,5 +1,7 @@
 # General analysis in the website
 
+The general flow now discloses [five-minute comparison-cache reuse](COMPARISON-CACHE.md), expiry and original assessment time. A repeated request can avoid another comparison call; optional LLM claim extraction is not cached.
+
 Run `npm run dev` to start the Fastify backend and Vite website together. Open the local website, select **Freshness verifier**, keep **General claim analysis**, and enter factual assertions. The page submits one `POST /api/analysis`, not separate client-orchestrated searches or comparisons. Up to three distinct extracted statements are processed; omitted claims and fallback extraction are disclosed.
 
 The **Evidence scope** selector defaults to current evidence. Most current queries use the existing 30-day publication filter; [recognized support-status claims](SUPPORT-SEARCH.md) retrieve older documentation without that filter. Per-result search-window text discloses which plan ran. **Search the statement as written** selects `as_stated`; neither option disables comparison's existing date checks. General analysis is the default. **Legacy verifier / fixture demo** preserves the older `/api/verify` flow, including labeled offline fixture demonstrations such as Python 2. In live server mode that legacy route uses its existing live controls; selecting it does not force the server offline.

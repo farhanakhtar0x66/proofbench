@@ -34,6 +34,8 @@ For teammate setup, command explanations, current validation limits and producti
 
 General supported current assessments now include an [evidence-recency freshness score](docs/EVIDENCE-FRESHNESS.md). It measures the oldest qualifying supporting publication within the existing 30-day policy, not truth confidence. Contradicted, inconclusive, historical and offline results remain unscored.
 
+The general flow also [caches validated comparisons for five minutes](docs/COMPARISON-CACHE.md), rechecking evidence gates before reuse. A hit avoids another comparison request and preserves the original assessment time; optional model extraction may still make a request.
+
 Quick offline checks: `npm run smoke:api` exercises the API without server ports, and `npm run demo:verifier` demonstrates all three verdicts with simulated evidence. See the [API testing guide](docs/API-TESTING.md) and [demo guide](docs/DEMO-GUIDE.md) for commands, expected results, error behavior and presentation notes. Neither command loads .env or makes live requests.
 
 `npm run evaluate:general` runs [14 cross-topic combined-API regression scenarios](docs/GENERAL-EVALUATION.md) with simulated search/model responses. It checks pipeline behavior and abstention with zero provider requests; its passing rate is not a model accuracy estimate.
