@@ -1,5 +1,7 @@
 # Focused retrieval recheck preparation
 
+The separately authorized live recheck has now run: [all four targets failed](FOCUSED-RECHECK-RESULTS.md), with four Basic searches and zero Gemini comparisons. The command below remains preparation-only; its `prepared_not_run` output describes that command, not the historical status of the separately recorded live run.
+
 The full ten-case batch is not repeated. This selects three actual misses and one historical control from the original live baseline, preserving exact statements and reference labels from `fixtures/topic-validation/v1.json`. Selection and baseline outcomes are tracked separately in `fixtures/topic-validation/focused-recheck-v1.json`.
 
 | Statement | Original live result | Target |

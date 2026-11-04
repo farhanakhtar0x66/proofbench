@@ -1,5 +1,7 @@
 # Retrieval coverage: page text, relevance and completed events
 
+Subsequent live evidence: the [focused recheck failed all four targets](FOCUSED-RECHECK-RESULTS.md). Page text arrived, but context/scan exclusions blocked comparison and the historical control regressed. Offline success below did not translate into demonstrated live coverage improvement.
+
 This follows the [ten-case live batch](LIVE-TOPIC-RESULTS.md), which left six known facts inconclusive. Implementation and validation here were offline; no new Tavily/Gemini requests or saved `.env` edits were made. The same website `/api/analysis` flow uses these improvements.
 
 ## Fuller text within one search

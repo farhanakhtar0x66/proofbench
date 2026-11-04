@@ -50,6 +50,8 @@ The [first real ten-case topic batch](docs/LIVE-TOPIC-RESULTS.md) used eight Bas
 
 `npm run evaluate:focused:prepare` prepares [four focused recheck cases](docs/FOCUSED-RECHECK.md), including original live baselines and strict future request ceilings. Preparation makes no API requests; the separately gated live runner is not enabled by this command.
 
+The [focused live recheck](docs/FOCUSED-RECHECK-RESULTS.md) subsequently returned inconclusive for all four cases, using four Basic searches and zero Gemini comparisons. Plain-text segmentation, bounded context and source eligibility blocked comparison; the historical control regressed. Improved live coverage is not established.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |
