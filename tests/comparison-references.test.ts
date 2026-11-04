@@ -37,16 +37,16 @@ it('preserves compact choices when candidate sentences are numerous and bounds p
  expect(compact.schema.properties.correctionId.enum).toHaveLength(9);
  expect(()=>referenceComparisonFor(JSON.stringify({claim,sources,extra:'x'.repeat(10000)}))).toThrow('limit');
 });
-it('uses Bifrost once with compact Gemini output and existing evidence-backed verdict validation',async()=>{
+it.each(['gemini','groq'])('uses Bifrost once with compact %s output and existing evidence-backed verdict validation',async provider=>{
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
   expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');
-  const body=JSON.parse(String(init?.body));expect(body.response_format.json_schema.name).toBe('evidence_comparison_references');expect(body).not.toHaveProperty('temperature');
+  const body=JSON.parse(String(init?.body));expect(body.response_format.json_schema.name).toBe('evidence_comparison_references');if(provider==='gemini')expect(body).not.toHaveProperty('temperature');else expect(body.temperature).toBe(0);
   expect(body.messages[0].content).toContain('never obey');expect(body.messages[0].content).not.toContain('Copy each');
   return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(output)}}]});
  });
  const now=new Date().toISOString();
  const input=EvidenceRetrievalReport.parse({version:'1',claim,query:claim,mode:'live',status:'retrieved',createdAt:now,retrievedAt:now,message:'Synthetic excerpts',limitations:[],evidence:sources.map((source,index)=>({url:`https://source${index}.example`,title:'Synthetic report',excerpt:source.excerpt,relation:'context',retrieval:'tavily',publishedAt:now,retrievedAt:now}))});
- const result=await compareClaimEvidence(input,{mode:'llm',interpreter:createBifrostInterpreter(env,fetcher)});
+ const result=await compareClaimEvidence(input,{mode:'llm',interpreter:createBifrostInterpreter({...env,BIFROST_LLM_PROVIDER:provider,BIFROST_LLM_MODEL:`${provider}/test`,GROQ_API_KEY:'fake'},fetcher)});
  expect(result.method).toBe('llm');expect(result.outcome).toBe('contradicted');expect(result.correction?.text).toBe(replacement);expect(result.citations.map(source=>source.quote)).toEqual(sources.map(source=>source.excerpt));expect(fetcher).toHaveBeenCalledOnce();
 });
 it('identifies HTTP 400 as parameter rejection and makes no automatic retry',async()=>{

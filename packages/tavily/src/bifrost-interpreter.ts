@@ -22,7 +22,7 @@ export function hostedReadiness(env:NodeJS.ProcessEnv,settings=bifrostSettings(e
 }
 // Mirrors the strict Zod object; wire-schema parity is covered by tests.
 export const INTERPRETATION_JSON_SCHEMA={type:'object',additionalProperties:false,required:['entity','kind','value','currency','period','time','region','tier'],properties:{entity:{type:'string',minLength:1,maxLength:100},kind:{type:'string',enum:['price','ceo','version']},value:{type:'string',minLength:1,maxLength:100},...Object.fromEntries(['currency','period','time','region','tier'].map(key=>[key,{type:['string','null']}]))}};
-const ChatEnvelope=z.object({error:z.never().optional(),choices:z.array(z.object({finish_reason:z.literal('stop'),message:z.object({role:z.literal('assistant'),content:z.string().min(1).max(16000),tool_calls:z.never().optional(),function_call:z.never().optional(),refusal:z.null().optional()})})).length(1)});
+const ChatEnvelope=z.object({error:z.null().optional(),choices:z.array(z.object({finish_reason:z.literal('stop'),message:z.object({role:z.literal('assistant'),content:z.string().min(1).max(16000),tool_calls:z.array(z.unknown()).length(0).nullish(),function_call:z.null().optional(),refusal:z.null().optional()})})).length(1)});
 
 async function readBounded(response:Response):Promise<unknown>{
  if(!response.body)throw new Error('Empty gateway response');
@@ -63,8 +63,12 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
    throw new Error('Gateway failure');
   }
   failure='The model returned an invalid or incomplete structured response. No factual verdict was accepted.';
+  failure='The model gateway returned an invalid chat response envelope. No assessment was accepted.';
   const envelope=ChatEnvelope.parse(await readBounded(response));
-  return parse(JSON.parse(envelope.choices[0].message.content));
+  failure='The model returned invalid JSON. No assessment was accepted.';
+  const output=JSON.parse(envelope.choices[0].message.content);
+  failure='The model output failed structured schema validation. No assessment was accepted.';
+  return parse(output);
   }catch(error){lastFailure=error instanceof Error&&error.name==='TimeoutError'?'The model request timed out at the client.':failure;unavailableUntil=Date.now()+60000;throw new Error('Bifrost interpretation unavailable; rules-only fallback');}
  }
  return {description:`Bifrost → ${settings.model}`,
@@ -87,7 +91,7 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   interpret:text=>request(text,INTERPRETATION_PROMPT,'claim_interpretation',INTERPRETATION_JSON_SCHEMA,value=>Interpretation.parse(value)),
   extractClaims:text=>request(text,EXTRACTION_PROMPT,'claim_extraction',EXTRACTION_SCHEMA,value=>ExtractionOutput.parse(value)),
   compareEvidence:text=>{
-   if(settings.provider==='gemini'){
+   if(settings.provider==='gemini'||settings.provider==='groq'){
     const references=referenceComparisonFor(text);
     if(references.useCompact)return request(references.text,REFERENCE_COMPARISON_PROMPT,'evidence_comparison_references',references.schema,value=>ComparisonOutput.parse(references.parse(value)),2048);
    }

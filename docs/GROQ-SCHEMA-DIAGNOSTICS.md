@@ -1,0 +1,17 @@
+# Groq smoke-check diagnostics
+
+The first manual Groq schema check returned a generic failure even though gateway metadata recorded a successful response in approximately 1.3 seconds. Content logging was disabled, so that log alone could not identify the application's rejected field or check.
+
+The checker now reports the failing stage: configuration, gateway preflight, response/schema validation or source/meaning validation. A safe stage report is saved separately in `.local/bifrost-benchmark/schema-check-last.json`. Raw responses, credentials and routing/key metadata are not included. A failed attempt does not overwrite an earlier successful provider schema artifact.
+
+The chat envelope accepts legitimate no-tool metadata: `error: null`, `tool_calls: null` or an empty array, and `function_call: null`. Nonempty tool calls, function calls, refusals, malformed JSON and invalid structured fields remain rejected. This improves OpenAI-compatible response handling; it does not establish that empty metadata caused the original failure.
+
+A user-authorized single retry reached `source_validation`: schema-valid fields were accepted, but exact source-span or expected-meaning validation failed. The synthetic input and expected interpretation were unchanged. The check remains failed; no guard was weakened to force success. That attempt made one Groq request, zero Tavily searches and no retries. It does not establish that the website's evidence-comparison flow succeeds or fails, because that flow uses a different structured task.
+
+Current production-style setup uses rules claim extraction plus model evidence comparison. Optional narrow price/CEO/version interpretation remains a separate capability. The next separately authorized check should exercise comparison on saved evidence rather than assume that a language-normalization smoke check measures the full verifier. Provider suitability still requires meaningful quality and latency evaluation, not merely a successful HTTP response.
+
+The first separately approved comparison exposed HTTP 400 `json_validate_failed`: a generated long quote did not match the schema's exact excerpt enum. Compact source-reference output, previously used for Gemini, now also applies to Groq when quotes make the direct schema too large. The model returns only source IDs, relations and bounded correction IDs. The backend restores the unchanged source text and retains the existing citation, corroboration, date, scope and correction checks.
+
+One additional approved comparison of the same saved sources succeeded in approximately 1.7 seconds, returning a validated supported assessment with all original source quotes restored. It made one Groq request and zero Tavily searches. This is one observed saved-evidence success, not a full fresh retrieval test or a broad model benchmark. The three assistant-run checks used three explicitly approved Groq requests in total and no Tavily searches; the user's original manual smoke check was separate.
+
+Use `npm run bifrost:schema:comparison` to smoke-test the main evidence-comparison task with synthetic sources. It performs at most one model request and zero Tavily searches. `npm run bifrost:schema` continues to test optional narrow interpretation and has not been established to pass for this Groq model. Its failed source-span check was not relaxed or hidden. Both commands now report their task and validation stage in local artifacts; success for one task does not certify the other. No UI or saved `.env` settings changed.

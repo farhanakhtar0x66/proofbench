@@ -42,7 +42,7 @@ it.each(['http','network','timeout','invalid-json','wrong-schema','truncated','t
   if(failure==='http')return new Response('secret provider error',{status:503});
   if(failure==='invalid-json')return new Response('not-json');
   if(failure==='oversized')return new Response('x'.repeat(33000));
-  if(failure==='tool-call')return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(fact),tool_calls:[]}}]});
+  if(failure==='tool-call')return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(fact),tool_calls:[{id:'call1',type:'function',function:{name:'unexpected',arguments:'{}'}}]}}]});
   return Response.json(envelope(failure==='wrong-schema'?JSON.stringify({...fact,verdict:'supported'}):JSON.stringify(fact),failure==='truncated'?'length':'stop'));
  };
  const session=interpretationSession(createBifrostInterpreter(local,fetcher));

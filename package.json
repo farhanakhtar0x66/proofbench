@@ -44,6 +44,7 @@
     "bifrost:start": "node --env-file-if-exists=.env --import tsx scripts/start-bifrost.ts",
     "bifrost:models": "node --env-file-if-exists=.env --import tsx scripts/provider-models.ts",
     "bifrost:schema": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-schema.ts",
+    "bifrost:schema:comparison": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-schema.ts --comparison",
     "bifrost:check:claims": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-claims.ts",
     "bifrost:check:comparison": "node --env-file-if-exists=.env --import tsx scripts/check-bifrost-comparison.ts",
     "verify:check:live": "node --env-file-if-exists=.env --import tsx scripts/check-general-flow.ts",

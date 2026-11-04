@@ -1,15 +1,17 @@
 import {mkdir,writeFile} from 'node:fs/promises';
-import {bifrostSettings,createBifrostInterpreter} from '../packages/tavily/src/bifrost-interpreter';
-import {checkBifrostStack} from '../packages/tavily/src/bifrost-status';
-import {canonicalInterpretation} from '../packages/tavily/src/interpretation';
+import {checkGatewaySchema} from './schema-check-lib';
 
-// Exactly one inference attempt, synthetic text only; no Tavily requests.
-try{
- const settings=bifrostSettings();await checkBifrostStack();
- const text='Subscribers pay twenty USD monthly for Acme Pro.';
- const result=await createBifrostInterpreter().interpret(text);
- if(canonicalInterpretation(text,result)!=='Acme Pro costs USD 20 per month.')throw new Error('Interpretation failed exact-span/meaning checks');
- await mkdir('.local/bifrost-benchmark',{recursive:true});
- await writeFile(`.local/bifrost-benchmark/schema-${settings.provider}.json`,JSON.stringify({model:settings.model,passed:true,createdAt:new Date().toISOString(),notice:'One real gateway response passed strict Zod and source-span validation. This is not a universal schema guarantee or proof of Bifrost challenge completion.'},null,2));
- console.log('Gateway structured-response smoke check passed. One inference attempt, zero Tavily calls.');
-}catch{console.error('Gateway schema check blocked or failed. Rules-only remains available; no retries or alternative provider were used.');process.exitCode=1;}
+// At most one inference attempt, synthetic text only; no Tavily requests.
+const task=process.argv.includes('--comparison')?'comparison':'interpretation';
+const report=await checkGatewaySchema(process.env,fetch,task);
+await mkdir('.local/bifrost-benchmark',{recursive:true});
+await writeFile('.local/bifrost-benchmark/schema-check-last.json',JSON.stringify(report,null,2));
+if(report.passed){
+ await writeFile(`.local/bifrost-benchmark/${task==='comparison'?'comparison-schema':'schema'}-${report.provider}.json`,JSON.stringify({...report,notice:'One observed synthetic gateway response passed validation, not a universal schema guarantee or proof of Bifrost challenge completion.'},null,2));
+ console.log(`Gateway ${task} structured-response smoke check passed. One inference attempt, zero Tavily calls.`);
+}else{
+ console.error(`Gateway schema check failed at ${report.phase}: ${report.message}`);
+ if(task==='interpretation')console.error('This command tests optional narrow claim interpretation. The main rules-extraction flow uses evidence comparison; npm run bifrost:schema:comparison checks that task with up to one additional model request.');
+ console.error('Rules-only remains available; no retries, Tavily searches or alternative provider were used.');
+ process.exitCode=1;
+}
