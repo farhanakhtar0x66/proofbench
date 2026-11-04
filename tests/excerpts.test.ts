@@ -9,6 +9,13 @@ const claim='Python 2 is currently supported.';
 const statement='Python 2.7 reached end of life on January 1, 2020. It is no longer supported upstream.';
 const packages=Array.from({length:45},(_item,index)=>`purl: pkg:deb/example/python3.${index}`).join('\n');
 
+it('selects readable role passages instead of page navigation while retaining scope checks',()=>{
+ const text=`Skip to main content\n${'Navigation item\n'.repeat(180)}\nThe President of the United States is Jordan Taylor.\nThe statement was published today.`;
+ const result=selectEvidenceExcerpt('Alex is President of USA.',text);
+ expect(result.excerpt).toContain('The President of the United States is Jordan Taylor.');
+ expect(result.excerpt).not.toContain('Skip to main content');
+});
+
 it('finds a directly scoped paragraph after a long package list without rewriting or fetching a page',()=>{
  const content=`${packages}\n\n${statement}\n\nThis statement refers to upstream support; third-party contracts have separate terms.`;
  const result=selectEvidenceExcerpt(claim,content);

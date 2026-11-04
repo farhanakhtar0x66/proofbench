@@ -3,6 +3,13 @@ import {roleClaimAnchors,sourceRelevanceReason} from '../packages/tavily/src/evi
 import {compareClaimEvidence} from '../packages/tavily/src/evidence-comparison';
 import {EvidenceRetrievalReport} from '../packages/contracts/src/index';
 
+it('recognizes country aliases without treating the word us as a country',()=>{
+ const claim='Alex is President of USA.';
+ expect(sourceRelevanceReason(claim,'The President of the United States is Jordan.')).toBeUndefined();
+ expect(sourceRelevanceReason(claim,'The U.S. President is Jordan.')).toBeUndefined();
+ expect(sourceRelevanceReason(claim,'The club president spoke to us.')).toBeDefined();
+});
+
 it.each([
  ['Alex is captain of Acme FC.','Acme FC',['captain','captains','captaincy']],
  ['Alex is not currently the club captain of Acme FC.','Acme FC',['captain','captains','captaincy']],

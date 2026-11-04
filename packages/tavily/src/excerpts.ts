@@ -1,4 +1,4 @@
-import {roleClaimAnchors} from './evidence-relevance';
+import {roleClaimAnchors,roleEntityMentioned} from './evidence-relevance';
 import {supportClaimSubject} from './support-scope';
 import {priceCurrencyEvidenceReason} from './claim-ambiguity';
 import {selectSourcePassages,EXCERPT_LIMIT} from './source-passages';
@@ -38,7 +38,12 @@ export function selectEvidenceExcerpt(claim:string,content:string,sourceUrl?:str
   const quality=excerptQualityReason(claim,text);
   if(quality&&/package identifiers|encoded images|login or subscription|image caption/u.test(quality))return -1;
   if(subject)return phrase(text,subject)&&supportTerms.test(text)?10:0;
-  if(role)return phrase(text,role.entity)&&role.roles.some(word=>phrase(text,word))||!!sourceUrl&&reviewedOfficialDirect(claim,{url:sourceUrl,excerpt:text})?10:0;
+  if(role){
+   const rolePresent=role.roles.some(word=>phrase(text,word));
+   if(rolePresent&&roleEntityMentioned(text,role.entity)||!!sourceUrl&&reviewedOfficialDirect(claim,{url:sourceUrl,excerpt:text}))return 10;
+   // Keep a potentially useful passage for review, but do not waive the comparison scope checks.
+   return rolePresent&&!/^\s*#/u.test(text)?2:0;
+  }
   if(priceSubject)return phrase(text,priceSubject)&&/\b(?:costs?|prices?|pricing|USD|dollars?|per user|monthly)\b|\$\s*\d/iu.test(text)?10:0;
   if(event){
    const subjects=tokens(event.subject).filter(word=>word.length>2&&word!=='the');
