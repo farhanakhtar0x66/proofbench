@@ -36,9 +36,10 @@ Verification input: `{ "version":"1", "text":"arbitrary answer", "claims":[{"tex
 
 Bifrost #01 records usage telemetry under `bifrost.gateway` provenance:
 
-- `inputTokens`: `tokens` unit, source `bifrost.gateway.prompt_tokens`, scope `proofbench_agent_turns_cumulative`.
-- `outputTokens`: `tokens` unit, source `bifrost.gateway.completion_tokens`, scope `proofbench_agent_turns_cumulative`.
+- `inputTokens`: `tokens` unit, source `bifrost.gateway.prompt_tokens`, scope `proofbench_agent_turns_cumulative`. Marked `status: 'known'` when observed from gateway/provider telemetry, or `status: 'missing'` with reason.
+- `outputTokens`: `tokens` unit, source `bifrost.gateway.completion_tokens`, scope `proofbench_agent_turns_cumulative`. Marked `status: 'known'` when observed from gateway/provider telemetry, or `status: 'missing'` with reason.
 - `duration`: `ms` unit, source `performance.now`, scope `total agent session duration`.
-- `cost`: `USD` unit, source `bifrost.virtual_key_accounting`, scope `bifrost virtual key debits`.
+- `cost`: `USD` unit, `status: 'estimated'`, method `pricing_model_v1`, source `bifrost.gateway`, scope `bifrost virtual key debits`. Truthful estimation based on model pricing tiers ($0.15/1M input, $0.60/1M output), never labeled as an invoice-level known measurement.
+- `reproducibility.simulated`: Boolean flag strictly distinguishing offline embedded simulation (`simulated: true`) from genuine live Maxim Bifrost gateway operations (`simulated: false`).
 
-Missing or unobservable telemetry is preserved as `{ status: 'missing', reason: '...' }` per Contracts v1 without zero-fabrication. Model execution fallback events (`x-bf-fallback-providers`), virtual key debits, and M1/M2/M3a loop control decisions are explicitly recorded as structured events in `ExecutionTrace`.
+Missing or unobservable telemetry is preserved as `{ status: 'missing', reason: '...' }` per Contracts v1 without zero-fabrication. Model execution fallback events (`x-bf-fallback-providers`), virtual key debits, and M1/M2/M3a loop control decisions are explicitly recorded as structured events in `ExecutionTrace`. Evaluator reference solutions remain isolated in `fixtures/coding-tasks/*/solution/` and are strictly inaccessible to the agent execution runtime.

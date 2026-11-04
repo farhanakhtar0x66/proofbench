@@ -13,6 +13,8 @@ export const LOCAL_MODELS = [
   'opencode/deepseek-v4.1-flash-free',
   'ollama/llama3',
   'local-default',
+  'qwen',
+  'ollama',
 ];
 
 export const CLOUD_MODELS = [
@@ -35,11 +37,20 @@ export function createDefaultPolicy(overrides: Partial<GovernancePolicy> = {}): 
   };
 }
 
-export function validateModelAgainstPolicy(model: string, policy: GovernancePolicy): { valid: boolean; reason?: string } {
+export function validateModelAgainstPolicy(
+  model: string,
+  policy: GovernancePolicy,
+  observedProvider?: string
+): { valid: boolean; reason?: string } {
   if (policy.confidential) {
-    // If repository is confidential, strictly reject cloud models regardless of prompt instructions
-    const isCloud = CLOUD_MODELS.some((cm) => model.toLowerCase().includes(cm.toLowerCase()));
-    if (isCloud || !LOCAL_MODELS.some((lm) => model.toLowerCase().includes(lm.toLowerCase()))) {
+    // If repository is confidential, strictly reject cloud models
+    const isCloud = CLOUD_MODELS.some((cm) => model.toLowerCase().includes(cm.toLowerCase())) ||
+      (observedProvider ? ['openai', 'anthropic', 'azure'].includes(observedProvider.toLowerCase()) : false);
+    
+    const isLocal = (observedProvider && ['local', 'ollama'].includes(observedProvider.toLowerCase())) ||
+      LOCAL_MODELS.some((lm) => model.toLowerCase().includes(lm.toLowerCase()));
+
+    if (isCloud || !isLocal) {
       return {
         valid: false,
         reason: `Confidential repository policy violation: model '${model}' is a non-local or cloud model. Only certified local models are eligible: [${LOCAL_MODELS.join(', ')}].`,

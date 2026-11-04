@@ -26,12 +26,17 @@ export interface ComparativeEfficiencyReport {
 }
 
 export class ComparativeBenchmarkSuite {
-  static async compareTaskEfficiency(task: TaskSpec): Promise<ComparativeEfficiencyReport> {
-    const embeddedGateway = new EmbeddedBifrostGateway();
+  static async compareTaskEfficiency(
+    task: TaskSpec,
+    options: { mode?: 'live' | 'simulation'; primaryModel?: string } = {}
+  ): Promise<ComparativeEfficiencyReport> {
+    const isLive = options.mode === 'live' || process.env.BIFROST_MODE === 'live';
+    const embeddedGateway = isLive ? undefined : new EmbeddedBifrostGateway();
 
     // 1. Baseline Arm: Unbounded raw file reads, unguided loop control
     const baselineAgent = new ProofBenchAgent({
       embeddedGateway,
+      primaryModel: options.primaryModel,
       enableM1ContextBounding: false,
       enableM2StagnationBreaker: false,
       enableM3aAutopsyEscalation: false,
@@ -39,10 +44,10 @@ export class ComparativeBenchmarkSuite {
     });
 
     const baselineResult = await baselineAgent.runTask(task, 1);
-    const bIn = baselineResult.run.usage.inputTokens.status === 'known' ? baselineResult.run.usage.inputTokens.value : 0;
-    const bOut = baselineResult.run.usage.outputTokens.status === 'known' ? baselineResult.run.usage.outputTokens.value : 0;
-    const bDuration = baselineResult.run.usage.duration.status === 'known' ? baselineResult.run.usage.duration.value : 0;
-    const bCost = baselineResult.run.usage.cost.status === 'known' ? baselineResult.run.usage.cost.value : 0;
+    const bIn = (baselineResult.run.usage.inputTokens.status === 'known' || baselineResult.run.usage.inputTokens.status === 'estimated') ? baselineResult.run.usage.inputTokens.value : 0;
+    const bOut = (baselineResult.run.usage.outputTokens.status === 'known' || baselineResult.run.usage.outputTokens.status === 'estimated') ? baselineResult.run.usage.outputTokens.value : 0;
+    const bDuration = (baselineResult.run.usage.duration.status === 'known' || baselineResult.run.usage.duration.status === 'estimated') ? baselineResult.run.usage.duration.value : 0;
+    const bCost = (baselineResult.run.usage.cost.status === 'known' || baselineResult.run.usage.cost.status === 'estimated') ? baselineResult.run.usage.cost.value : 0;
 
     const baseline: BenchmarkMeasurement = {
       arm: 'baseline_unbounded',
@@ -54,12 +59,13 @@ export class ComparativeBenchmarkSuite {
       durationMs: bDuration,
       costUsd: bCost,
       turns: baselineResult.trace.events.filter((e) => e.message.includes('Dispatching turn')).length,
-      routingProvider: 'bifrost',
+      routingProvider: isLive ? 'bifrost.live' : 'bifrost.simulation',
     };
 
     // 2. Experimental Arm: M1 Deterministic Context Bounding + M2 Stagnation Breaker + M3a Evidence Autopsy
     const expAgent = new ProofBenchAgent({
       embeddedGateway,
+      primaryModel: options.primaryModel,
       enableM1ContextBounding: true,
       enableM2StagnationBreaker: true,
       enableM3aAutopsyEscalation: true,
@@ -67,10 +73,10 @@ export class ComparativeBenchmarkSuite {
     });
 
     const expResult = await expAgent.runTask(task, 2);
-    const expIn = expResult.run.usage.inputTokens.status === 'known' ? expResult.run.usage.inputTokens.value : 0;
-    const expOut = expResult.run.usage.outputTokens.status === 'known' ? expResult.run.usage.outputTokens.value : 0;
-    const expDuration = expResult.run.usage.duration.status === 'known' ? expResult.run.usage.duration.value : 0;
-    const expCost = expResult.run.usage.cost.status === 'known' ? expResult.run.usage.cost.value : 0;
+    const expIn = (expResult.run.usage.inputTokens.status === 'known' || expResult.run.usage.inputTokens.status === 'estimated') ? expResult.run.usage.inputTokens.value : 0;
+    const expOut = (expResult.run.usage.outputTokens.status === 'known' || expResult.run.usage.outputTokens.status === 'estimated') ? expResult.run.usage.outputTokens.value : 0;
+    const expDuration = (expResult.run.usage.duration.status === 'known' || expResult.run.usage.duration.status === 'estimated') ? expResult.run.usage.duration.value : 0;
+    const expCost = (expResult.run.usage.cost.status === 'known' || expResult.run.usage.cost.status === 'estimated') ? expResult.run.usage.cost.value : 0;
 
     const experimental: BenchmarkMeasurement = {
       arm: 'experimental_governed',
@@ -82,7 +88,7 @@ export class ComparativeBenchmarkSuite {
       durationMs: expDuration,
       costUsd: expCost,
       turns: expResult.trace.events.filter((e) => e.message.includes('Dispatching turn')).length,
-      routingProvider: 'bifrost',
+      routingProvider: isLive ? 'bifrost.live' : 'bifrost.simulation',
     };
 
     const tokenSavings = baseline.totalTokens > 0

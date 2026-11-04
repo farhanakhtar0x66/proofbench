@@ -74,7 +74,9 @@ export interface ChatCompletionResponse {
     fallback_invoked: boolean;
     cost_usd: number;
     latency_ms: number;
+    cost_estimated?: boolean;
   };
+  extra_fields?: Record<string, unknown>;
 }
 
 export class BifrostBudgetExceededError extends Error {

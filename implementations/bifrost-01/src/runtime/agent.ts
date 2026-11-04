@@ -21,7 +21,7 @@ import { M1ContextSelector } from '../context/m1-selector';
 import { M2StagnationDetector } from '../progress/m2-stagnation';
 import { M3aFailureAutopsyBuilder } from '../handoff/m3a-autopsy';
 import { TavilyDocumentationVerifier } from '../tavily/verifier';
-import { TaskWorkspace, getCodingTasksDir } from './workspace';
+import { TaskWorkspace } from './workspace';
 
 export interface ProofBenchAgentOptions {
   bifrostClient?: BifrostClient;
@@ -53,7 +53,11 @@ export class ProofBenchAgent {
       embeddedGateway: options.embeddedGateway,
       userBudgetLimitUsd: this.policy.maxBudgetUsd,
     });
-    this.primaryModel = options.primaryModel ?? (this.policy.confidential ? 'local-deepseek-coder' : 'opencode/deepseek-v4.1-flash-free');
+    this.primaryModel = options.primaryModel ?? (
+      this.bifrostClient.mode === 'live'
+        ? (process.env.BIFROST_DEFAULT_MODEL ?? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M')
+        : (this.policy.confidential ? 'local-deepseek-coder' : 'opencode/deepseek-v4.1-flash-free')
+    );
     this.enableM1 = options.enableM1ContextBounding ?? true;
     this.enableM2 = options.enableM2StagnationBreaker ?? true;
     this.enableM3a = options.enableM3aAutopsyEscalation ?? true;
@@ -163,7 +167,13 @@ export class ProofBenchAgent {
         const messages = [
           {
             role: 'system' as const,
-            content: `You are an expert Rust coding agent. Fix the bug or implement the feature to satisfy acceptance tests. Propose a single file edit using the write_file tool.`,
+            content: `You are an expert Rust coding agent. Fix the bug or implement the feature to satisfy acceptance tests.
+You may output file modifications via write_file tool calls or formatted markdown code blocks:
+// File: <relative-path>
+\`\`\`rust
+<complete file content>
+\`\`\`
+Always output the complete valid file content for the target file.`,
           },
           {
             role: 'user' as const,
@@ -194,59 +204,78 @@ export class ProofBenchAgent {
           }
         }
 
-        // Step 4: Propose Action (apply fix)
-        // In real execution, apply patch. In test/mock mode or real provider, apply appropriate patch:
-        let proposedPatch = '';
-        let targetFile = 'src/lib.rs';
-
-        // Check if task solution exists
-        const tasksDir = getCodingTasksDir();
-        const solutionDir = path.join(tasksDir, task.id, 'solution');
-        const solutionFiles: { rel: string; content: string }[] = [];
-        try {
-          const entries = await fs.readdir(solutionDir, { recursive: true });
-          for (const ent of entries) {
-            const rel = ent.toString();
-            const fullPath = path.join(solutionDir, rel);
-            const st = await fs.stat(fullPath);
-            if (st.isFile()) {
-              const content = await fs.readFile(fullPath, 'utf8');
-              solutionFiles.push({ rel, content });
+        // Step 4: Parse Real Model Action(s) — No solution copying!
+        const proposedModifications = this.parseModelActions(gatewayResponse);
+        if (proposedModifications.length === 0) {
+          addEvent('error', `Turn ${attempt}: No actionable file modifications or code blocks found in model response.`);
+          if (this.enableM2) {
+            const stagnation = m2Detector.recordAttempt({
+              patch: '',
+              rawError: 'No code modifications proposed by model',
+              exitCode: 1,
+            });
+            if (stagnation.shouldHalt) {
+              addEvent('error', `M2 Loop Breaker: ${stagnation.message}`);
+              break;
             }
           }
-        } catch {
-          // No solution dir
+          continue;
         }
 
-        solutionFiles.sort((a, b) => a.rel.localeCompare(b.rel));
+        // Step 5 & 6: Validate, Approve & Apply each modification inside workspace
+        let allApproved = true;
+        let lastAppliedPatch = '';
 
-        if (solutionFiles.length > 0) {
-          const picked = solutionFiles[(attempt - 1) % solutionFiles.length];
-          targetFile = picked.rel;
-          proposedPatch = picked.content;
-        } else {
-          proposedPatch = '// No solution found';
+        for (let modIdx = 0; modIdx < proposedModifications.length; modIdx++) {
+          const mod = proposedModifications[modIdx];
+          const normalizedRelPath = path.normalize(mod.path).replace(/^[/\\]+/, '');
+
+          // Safety check 1: Path traversal protection
+          if (
+            normalizedRelPath.startsWith('..') ||
+            path.isAbsolute(normalizedRelPath) ||
+            normalizedRelPath.includes('\0')
+          ) {
+            addEvent('error', `Security rejection: path traversal attempt detected in target path '${mod.path}'`);
+            allApproved = false;
+            break;
+          }
+
+          // Safety check 2: Workspace boundary containment
+          const targetAbsPath = path.resolve(workspace.workspacePath, normalizedRelPath);
+          if (!targetAbsPath.startsWith(path.resolve(workspace.workspacePath))) {
+            addEvent('error', `Security rejection: path escapes workspace boundaries: '${mod.path}'`);
+            allApproved = false;
+            break;
+          }
+
+          // Safety check 3: Host Approval Check
+          const action: ProposedToolAction = {
+            id: `act-${attempt}-${modIdx + 1}`,
+            tool: 'write_file',
+            parameters: { path: normalizedRelPath, content: mod.content },
+            category: 'write',
+          };
+
+          const approval = await this.approvalEngine.evaluateAction(action);
+          if (!approval.approved) {
+            addEvent('error', `Action rejected by host approval engine: ${approval.reason}`);
+            allApproved = false;
+            break;
+          }
+
+          addEvent('output', `Host approval granted for action: ${action.tool} on ${normalizedRelPath}`);
+
+          // Execute Approved Action inside workspace
+          await fs.mkdir(path.dirname(targetAbsPath), { recursive: true });
+          await fs.writeFile(targetAbsPath, mod.content, 'utf8');
+          addEvent('output', `Wrote updated content to ${normalizedRelPath} (${mod.content.length} bytes)`);
+          lastAppliedPatch = mod.content;
         }
 
-        const action: ProposedToolAction = {
-          id: `act-${attempt}`,
-          tool: 'write_file',
-          parameters: { path: targetFile, content: proposedPatch },
-          category: 'write',
-        };
-
-        // Step 5: Host Approval Check
-        const approval = await this.approvalEngine.evaluateAction(action);
-        if (!approval.approved) {
-          addEvent('error', `Action rejected by host approval engine: ${approval.reason}`);
+        if (!allApproved) {
           break;
         }
-        addEvent('output', `Host approval granted for action: ${action.tool} on ${targetFile}`);
-
-        // Step 6: Execute Approved Action
-        const targetAbsPath = path.join(workspace.workspacePath, targetFile);
-        await fs.writeFile(targetAbsPath, proposedPatch, 'utf8');
-        addEvent('output', `Wrote updated content to ${targetFile}`);
 
         // Step 7: Independent Test Verification
         const testResult = await workspace.runAcceptanceTests();
@@ -263,7 +292,7 @@ export class ProofBenchAgent {
         // Step 8: Progress & Loop Control (M2)
         if (this.enableM2) {
           const stagnation = m2Detector.recordAttempt({
-            patch: proposedPatch,
+            patch: lastAppliedPatch,
             rawError: testResult.output,
             exitCode: testResult.exitCode,
           });
@@ -320,20 +349,30 @@ export class ProofBenchAgent {
 
       const usage = UsageRecord.parse({
         version: '1',
-        inputTokens: {
-          status: 'known',
-          value: totalPromptTokens,
-          unit: 'tokens',
-          source: 'bifrost.gateway.prompt_tokens',
-          scope: 'proofbench_agent_turns_cumulative',
-        },
-        outputTokens: {
-          status: 'known',
-          value: totalCompletionTokens,
-          unit: 'tokens',
-          source: 'bifrost.gateway.completion_tokens',
-          scope: 'proofbench_agent_turns_cumulative',
-        },
+        inputTokens: totalPromptTokens > 0
+          ? {
+              status: 'known',
+              value: totalPromptTokens,
+              unit: 'tokens',
+              source: 'bifrost.gateway.prompt_tokens',
+              scope: 'proofbench_agent_turns_cumulative',
+            }
+          : {
+              status: 'missing',
+              reason: 'Zero prompt tokens recorded',
+            },
+        outputTokens: totalCompletionTokens > 0
+          ? {
+              status: 'known',
+              value: totalCompletionTokens,
+              unit: 'tokens',
+              source: 'bifrost.gateway.completion_tokens',
+              scope: 'proofbench_agent_turns_cumulative',
+            }
+          : {
+              status: 'missing',
+              reason: 'Zero completion tokens recorded',
+            },
         duration: {
           status: 'known',
           value: Math.max(1, Math.round(performance.now() - startTime)),
@@ -342,10 +381,11 @@ export class ProofBenchAgent {
           scope: 'total agent session duration',
         },
         cost: {
-          status: 'known',
+          status: 'estimated',
           value: Number(totalCostUsd.toFixed(6)),
           unit: 'USD',
-          source: 'bifrost.virtual_key_accounting',
+          source: 'bifrost.gateway',
+          method: 'pricing_model_v1',
           scope: 'bifrost virtual key debits',
         },
       });
@@ -378,7 +418,7 @@ export class ProofBenchAgent {
           adapterRevision: '0.1.0',
           fixtureRevision: task.fixtureId ?? 'unknown',
           environment: `proofbench-bifrost01-${process.platform}`,
-          simulated: false,
+          simulated: this.bifrostClient.mode === 'simulation',
         },
       });
 
@@ -399,7 +439,14 @@ export class ProofBenchAgent {
         verification: null,
         limitations: [
           'Independent acceptance test execution verified through cargo test.',
-          this.policy.confidential ? 'Confidential repository mode enforced: cloud model routing and external Tavily requests strictly blocked.' : 'Public mode: Tavily documentation claims verified against reference sources.',
+          'M1 context selection utilizes regex/brace scanning for symbol extraction, not Tree-sitter or verified LSP.',
+          'M2 stagnation detection utilizes SHA-256 patch and error output hashes, not full structural AST progress control.',
+          'M3a failure autopsy utilizes character-ratio token approximations rather than exact model tokenizer profiles.',
+          'Workspace isolation uses temporary directory creation and sanitized process environments; not a hardware virtual-machine sandbox.',
+          'Model costs are estimated using standard pricing tier calculations ($0.15/1M input, $0.60/1M output) rather than direct billing invoices.',
+          this.policy.confidential
+            ? 'Confidential repository mode enforced: cloud model routing and external Tavily requests strictly blocked.'
+            : 'Public mode: Tavily documentation claims verified against reference sources.',
         ],
       });
 
@@ -407,6 +454,72 @@ export class ProofBenchAgent {
     } finally {
       await workspace.destroy();
     }
+  }
+
+  /**
+   * Parses model-proposed file modifications from tool calls or formatted markdown blocks.
+   * Does NOT read from reference solutions or answer keys.
+   */
+  public parseModelActions(
+    response: { choices?: Array<{ message?: { content?: string | null; tool_calls?: Array<{ type: string; function?: { name?: string; arguments?: string | Record<string, unknown> } }> } }> },
+    defaultFile = 'src/lib.rs'
+  ): Array<{ path: string; content: string }> {
+    const results: Array<{ path: string; content: string }> = [];
+    const choice = response.choices?.[0];
+    if (!choice) return results;
+
+    // 1. Tool call format: write_file
+    if (choice.message?.tool_calls && choice.message.tool_calls.length > 0) {
+      for (const tc of choice.message.tool_calls) {
+        if (tc.type === 'function' && tc.function?.name === 'write_file') {
+          try {
+            const rawArgs = tc.function.arguments;
+            const args = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
+            if (args && typeof args.path === 'string' && typeof args.content === 'string') {
+              results.push({ path: args.path.trim(), content: args.content });
+            }
+          } catch {
+            // Ignore parse errors on malformed arguments
+          }
+        }
+      }
+      if (results.length > 0) {
+        return results;
+      }
+    }
+
+    // 2. Structured markdown code blocks in content
+    const text = choice.message?.content ?? '';
+    if (!text) return results;
+
+    const codeBlockRegex = /(?:(?:\/\/\s*File:\s*([^\r\n]+)|\/\*\s*File:\s*([^\r\n*]+)\*\/|File:\s*([^\r\n]+))\s*)?```(?:rust|rs)?\s*\n([\s\S]*?)```/gi;
+
+    let match: RegExpExecArray | null;
+    while ((match = codeBlockRegex.exec(text)) !== null) {
+      let filePath = (match[1] || match[2] || match[3] || '').trim();
+      const content = match[4];
+
+      if (!filePath) {
+        const firstLineMatch = content.match(/^(?:\/\/\s*File:\s*([^\r\n]+)|\/\*\s*File:\s*([^\r\n*]+)\*\/)/i);
+        if (firstLineMatch) {
+          filePath = (firstLineMatch[1] || firstLineMatch[2] || '').trim();
+        }
+      }
+
+      results.push({
+        path: filePath || defaultFile,
+        content,
+      });
+    }
+
+    if (results.length === 0 && (text.includes('fn ') || text.includes('pub ') || text.includes('impl '))) {
+      results.push({
+        path: defaultFile,
+        content: text.trim(),
+      });
+    }
+
+    return results;
   }
 
   private buildFailureRecord(
@@ -446,7 +559,14 @@ export class ProofBenchAgent {
         source: 'performance.now',
         scope: 'aborted session duration',
       },
-      cost: { status: 'missing', reason: 'Zero external cost incurred' },
+      cost: {
+        status: 'estimated',
+        value: 0,
+        unit: 'USD',
+        source: 'bifrost.gateway',
+        method: 'pricing_model_v1',
+        scope: 'zero external cost incurred',
+      },
     });
 
     const run = RunRecord.parse({
@@ -465,7 +585,7 @@ export class ProofBenchAgent {
         adapterRevision: '0.1.0',
         fixtureRevision: task.fixtureId ?? 'unknown',
         environment: `proofbench-bifrost01-${process.platform}`,
-        simulated: false,
+        simulated: this.bifrostClient.mode === 'simulation',
       },
     });
 

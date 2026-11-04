@@ -338,9 +338,13 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
 
       expect(run.status).toBe('completed');
       expect(run.acceptance.status).toBe('passed');
-      expect(run.usage.cost.status).toBe('known');
+      expect(run.usage.cost.status).toBe('estimated');
+      if (run.usage.cost.status === 'estimated') {
+        expect(run.usage.cost.method).toBe('pricing_model_v1');
+      }
       expect(run.usage.inputTokens.status).toBe('known');
       expect(run.usage.outputTokens.status).toBe('known');
+      expect(run.reproducibility.simulated).toBe(true);
 
       expect(trace.events.length).toBeGreaterThan(0);
       expect(trace.events.some((e) => e.type === 'start')).toBe(true);
@@ -409,5 +413,68 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       expect(report.experimental.totalTokens).toBeGreaterThan(0);
       expect(report.evidenceSummary).toContain('Acceptance: Baseline=PASSED, Experimental=PASSED');
     }, 60000);
+  });
+
+  // --------------------------------------------------------------------------
+  // 6. Model Output Parsing & Live Gateway Security
+  // --------------------------------------------------------------------------
+  describe('Model Output Parsing & Fail-Closed Gateways', () => {
+    it('parses tool calls and formatted code blocks without reading solution files', () => {
+      const agent = new ProofBenchAgent();
+
+      // Case 1: write_file tool call
+      const toolCallResponse = {
+        choices: [
+          {
+            message: {
+              content: null,
+              tool_calls: [
+                {
+                  id: 'call_1',
+                  type: 'function',
+                  function: {
+                    name: 'write_file',
+                    arguments: JSON.stringify({ path: 'src/lib.rs', content: 'pub fn test() {}' }),
+                  },
+                },
+              ],
+            },
+          },
+        ],
+      };
+      const mods1 = agent.parseModelActions(toolCallResponse as Parameters<typeof agent.parseModelActions>[0]);
+      expect(mods1).toHaveLength(1);
+      expect(mods1[0].path).toBe('src/lib.rs');
+      expect(mods1[0].content).toBe('pub fn test() {}');
+
+      // Case 2: Markdown code block with file comment
+      const markdownResponse = {
+        choices: [
+          {
+            message: {
+              content: 'Fix:\n\n```rust\n// File: src/parser.rs\npub fn parse() {}\n```',
+            },
+          },
+        ],
+      };
+      const mods2 = agent.parseModelActions(markdownResponse as Parameters<typeof agent.parseModelActions>[0]);
+      expect(mods2).toHaveLength(1);
+      expect(mods2[0].path).toBe('src/parser.rs');
+      expect(mods2[0].content).toContain('pub fn parse() {}');
+    });
+
+    it('live Bifrost mode fails closed without silent fallback to simulation on connection error', async () => {
+      const deadClient = new BifrostClient({
+        mode: 'live',
+        gatewayUrl: 'http://127.0.0.1:59999', // Port with no running service
+      });
+
+      await expect(
+        deadClient.createChatCompletion({
+          model: 'local-deepseek-coder',
+          messages: [{ role: 'user', content: 'test connection' }],
+        })
+      ).rejects.toThrow();
+    });
   });
 });
