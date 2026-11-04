@@ -26,12 +26,15 @@ export function selectSourcePassages(content:string,score:(text:string)=>number)
   const left=previous&&!boilerplate(previousText)&&(previousText.length<200||!/[.!?]\s*$/u.test(previousText)&&unit.end-previous.start<600||qualification(previousText))?previous.start:unit.start;
   const right=next&&!boilerplate(nextText)&&(nextText.length<200||!/[.!?]\s*$/u.test(unitText)&&next.end-left<900||qualification(nextText))?next.end:unit.end;
   const directScore=score(unitText);
-  return {start:left,end:right,score:boilerplate(unitText)?0:directScore<2&&unitText.length>160?directScore:score(scan.slice(left,right))};
+  const coveredByNeighbor=directScore<2&&(score(previousText)>=2||score(nextText)>=2);
+  const extra=`${scan.slice(left,unit.start)} ${scan.slice(unit.end,right)}`;
+  const plainHeadings=extra.trim().length<300&&!/[.!?\d]|\b(?:not|no|never|however|but|unless|if|except|only|former|previous|disputed|withdrawn|revoked|replaced|correction|this|these|it|they|according|as of|effective)\b/iu.test(extra);
+  return {start:left,end:right,dedup:plainHeadings?`core:${unitText}`:`range:${scan.slice(left,right)}`,score:boilerplate(unitText)||coveredByNeighbor?0:directScore<2&&unitText.length>160?directScore:score(scan.slice(left,right))};
  });
  const seen=new Set<string>();
  const relevant=candidates.filter(item=>{
   if(item.score<2)return false;
-  const text=scan.slice(item.start,item.end);if(seen.has(text))return false;seen.add(text);return true;
+  if(seen.has(item.dedup))return false;seen.add(item.dedup);return true;
  });
  const ordered=[...relevant].sort((a,b)=>b.score-a.score||a.start-b.start);
  const bestScore=ordered[0]?.score??0;

@@ -5,6 +5,7 @@ import {selectSourcePassages,EXCERPT_LIMIT} from './source-passages';
 import {completedEventClaim} from './completed-event';
 import {claimEntity} from './comparison';
 import {reviewedOfficialDirect} from './reviewed-official';
+import {relationshipPassageScore} from './relationship-passages';
 
 const tokens=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/([\p{L}])(?=\d)/gu,'$1 ').match(/[\p{L}\p{N}]+/gu)??[];
 const phrase=(text:string,term:string)=>` ${tokens(text).join(' ')} `.includes(` ${tokens(term).join(' ')} `);
@@ -45,6 +46,8 @@ export function selectEvidenceExcerpt(claim:string,content:string,sourceUrl?:str
    return rolePresent&&!/^\s*#/u.test(text)?2:0;
   }
   if(priceSubject)return phrase(text,priceSubject)&&/\b(?:costs?|prices?|pricing|USD|dollars?|per user|monthly)\b|\$\s*\d/iu.test(text)?10:0;
+  const relationshipScore=relationshipPassageScore(claim,text);
+  if(relationshipScore!==undefined)return relationshipScore;
   if(event){
    const subjects=tokens(event.subject).filter(word=>word.length>2&&word!=='the');
    const target=event.event==='became applicable'?/\b(?:became (?:directly )?applicable|applicable (?:as of|from|on)|application date|put into effect)\b/iu:/\b(?:took effect|was released|was founded|was established)\b/iu;
