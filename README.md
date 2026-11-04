@@ -46,6 +46,8 @@ Quick offline checks: `npm run smoke:api` exercises the API without server ports
 
 The [first real ten-case topic batch](docs/LIVE-TOPIC-RESULTS.md) used eight Basic searches and seven Gemini comparisons: four reference matches, six inconclusive known facts and no observed wrong decisive final verdicts. Review led to lifecycle-query, currency-scope, numeric-count and update-date fixes. Offline replay tightened rejection and reduced reference matches to three; it does not establish improved live coverage. The revised behavior still needs a bounded live recheck.
 
+[Retrieval coverage improvements](docs/RETRIEVAL-COVERAGE.md) request page text within the same Basic search, rank relevant subject/website candidates and distinguish explicitly dated completed events from current claims. Offline tests cover context recovery and historical corroboration; no new API calls or improved live-accuracy claim accompanied this change.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |

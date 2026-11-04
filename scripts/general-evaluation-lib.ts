@@ -37,7 +37,7 @@ export async function evaluateGeneralScenarios(scenarios:Scenario[]=generalScena
    globalThis.fetch=async(url,init)=>{
     if(String(url)==='https://api.tavily.com/search'){
      searches++;const body=JSON.parse(String(init?.body));
-     if(body.search_depth!=='basic'||body.auto_parameters!==false||body.include_answer!==false||body.include_raw_content!==false)throw new Error('Unexpected search parameters');
+     if(body.search_depth!=='basic'||body.auto_parameters!==false||body.include_answer!==false||body.include_raw_content!=='text')throw new Error('Unexpected search parameters');
      return Response.json({results:scenario.sources.map((source,index)=>({url:source.url??`https://source${index}.example/notice`,title:'SIMULATED source',content:source.text,published_date:source.published??new Date(Date.now()-86400000).toISOString()}))});
     }
     if(String(url)==='http://127.0.0.1:8080/v1/chat/completions'){

@@ -35,7 +35,7 @@ it('chooses a fitting passage after an equally relevant oversized one but retain
 it('uses one six-candidate Basic search and selects readable scoped evidence without guessing the asserted holder',async()=>{
  const raw=[svg,login,caption,content,`${content} A separate publication records this appointment.`,content].map((text,index)=>({url:`https://source${index}.example/notice`,title:'Unreviewed source',content:text,...(index===5?{}:{published_date:recent})}));
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
-  const body=JSON.parse(String(init?.body));expect(body.max_results).toBe(6);expect(body.search_depth).toBe('basic');expect(body.auto_parameters).toBe(false);expect(body.include_raw_content).toBe(false);expect(body.exclude_domains).toEqual(['facebook.com']);
+  const body=JSON.parse(String(init?.body));expect(body.max_results).toBe(6);expect(body.search_depth).toBe('basic');expect(body.auto_parameters).toBe(false);expect(body.include_raw_content).toBe('text');expect(body.exclude_domains).toEqual(['facebook.com']);
   return Response.json({results:raw});
  });
  const settings={...options,fetch:fetcher,budget:new SearchBudget()};

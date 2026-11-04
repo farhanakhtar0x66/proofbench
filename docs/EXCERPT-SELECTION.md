@@ -1,5 +1,7 @@
 # Relevant source passages and quality warnings
 
+The subsequent [retrieval coverage change](RETRIEVAL-COVERAGE.md) requests returned page text in the same Basic search, with an explicit snippet fallback. Offsets refer to the representation named in `excerptSelection.reason`. Earlier snippet-only notes below describe previous behavior; scan/excerpt exclusion bounds remain.
+
 The later [source-quality update](SOURCE-QUALITY.md) adds login/markup/caption checks, fixes fitting-paragraph selection and requests six candidates within one Basic search. The API still retains at most three excerpts; earlier three-result request notes below describe the previous search profile.
 
 General retrieval previously sent the first 1,200 characters of each Tavily result. It now selects a continuous passage within returned text using conservative claim anchors. This is local text processing: no extra search, page fetch, extraction inference or provider fallback is introduced. The existing basic-search cap, cache, three-result limit and model budgets remain unchanged.

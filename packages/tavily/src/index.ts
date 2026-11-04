@@ -13,8 +13,8 @@ import {interpretationSession,type LanguageInterpreter,type InterpretationStats}
 export {SearchBudget} from './budget';
 const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
-export type TavilyResult={title?:string;url?:string;content?:string;score?:number;published_date?:string;originalContent?:string};
-const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
+export type TavilyResult={title?:string;url?:string;content?:string;raw_content?:string;score?:number;published_date?:string;originalContent?:string};
+const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),raw_content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
 type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy;interpreter?:LanguageInterpreter;interpretationStats?:InterpretationStats};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
@@ -29,17 +29,24 @@ const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,polic
  return {url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group};
 });
 export async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch,options:{includePublishedDate?:boolean;dateWindow?:{startDate:string;endDate:string};qualityCandidates?:boolean}={}):Promise<TavilyResult[]> {
- const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',auto_parameters:false,max_results:options.qualityCandidates?6:3,...(options.qualityCandidates?{exclude_domains:['facebook.com']}:{}),include_raw_content:false,include_answer:false,...(options.includePublishedDate?{include_published_date:true}:{}),...(options.dateWindow?{start_date:options.dateWindow.startDate,end_date:options.dateWindow.endDate,filter_by_published_date:true}:{})})});
+ const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',redirect:'error',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',auto_parameters:false,max_results:options.qualityCandidates?6:3,...(options.qualityCandidates?{exclude_domains:['facebook.com']}:{}),include_raw_content:options.qualityCandidates?'text':false,include_answer:false,...(options.includePublishedDate?{include_published_date:true}:{}),...(options.dateWindow?{start_date:options.dateWindow.startDate,end_date:options.dateWindow.endDate,filter_by_published_date:true}:{})})});
  if(!response.ok){
   const reason=response.status===401||response.status===403?'Tavily rejected server credentials. Ask the backend owner to check the key and permissions.':response.status===429?'Tavily reported a rate or account limit. Check account usage before authorizing more requests.':'Tavily is unavailable or returned an unsuccessful response.';
   throw new TavilyRetrievalError(`${reason} No retry was made; the attempted search counts toward the server budget.`);
  }
  let data:z.infer<typeof TavilyResponse>;
- try{data=TavilyResponse.parse(await response.json());}catch(error){
+ try{
+  if(!response.body)throw new Error('Missing response');
+  const reader=response.body.getReader();const parts:Uint8Array[]=[];let size=0;
+  try{while(true){const {done,value}=await reader.read();if(done)break;size+=value.byteLength;if(size>2*1024*1024){await reader.cancel();throw new Error('Search response exceeds bound');}parts.push(value);}}
+  finally{reader.releaseLock();}
+  const bytes=new Uint8Array(size);let offset=0;for(const part of parts){bytes.set(part,offset);offset+=part.length;}
+  data=TavilyResponse.parse(JSON.parse(new TextDecoder().decode(bytes)));
+ }catch(error){
   if(error instanceof Error&&['AbortError','TimeoutError'].includes(error.name))throw error;
   throw new TavilyRetrievalError('Tavily returned invalid evidence or an unreadable response. No retry was made; the attempted search counts toward the server budget.');
  }
- return data.results.map(result=>({...result,title:result.title??undefined,content:result.content??undefined,published_date:result.published_date??undefined}));
+ return data.results.map(result=>({...result,title:result.title??undefined,content:result.content??undefined,raw_content:result.raw_content??undefined,published_date:result.published_date??undefined}));
 }
 function mockVerification(text:string,asOf:string|undefined,now:string){
  const fixture=asOf?undefined:cases.find(candidate=>candidate.statement===text.trim());

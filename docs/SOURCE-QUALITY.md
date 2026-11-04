@@ -1,5 +1,7 @@
 # General retrieval source quality
 
+The subsequent [retrieval coverage change](RETRIEVAL-COVERAGE.md) adds returned page text, relevance/identity ranking hints and dated completed-event handling. The snippet-only search profile discussed below describes the earlier implementation.
+
 The November 4 live demo returned Facebook login/feed text and encoded SVG in two of three result slots. It also exposed overly narrow source coverage and incomplete paragraphs. This update improves local screening and candidate selection without loosening corroboration, date, quotation, scope or context checks. It does not establish a recovered three-verdict live demo.
 
 ## One search, a larger candidate pool
