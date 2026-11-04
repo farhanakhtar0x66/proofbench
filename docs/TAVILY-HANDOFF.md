@@ -1,5 +1,7 @@
 # Tavily backend handoff
 
+For the current combined website/API flow and deployment checks, start with [TEAM-RUNNING-GUIDE.md](TEAM-RUNNING-GUIDE.md). The legacy `/api/verify` notes below describe the original narrower implementation. General `/api/analysis` is now connected to the website, with unavailable numeric freshness scores and separately recorded live-source limitations. The browser tests now use isolated ports; closing normal developer servers is unnecessary.
+
 Entry point: packages/tavily/src/index.ts. The existing POST /api/verify route accepts a whole answer plus optional explicit claims. GET /api/verify/:id reads the saved report. Shared runtime schemas remain in packages/contracts. The frontend already consumes this API; numeric-score display and its offline-only labels remain frontend follow-up work.
 
 Example request (mock mode is the default):

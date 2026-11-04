@@ -1,5 +1,7 @@
 # Three-minute offline demo
 
+This is the original simulated CLI demo. For current website startup and deployment, see [the team running guide](TEAM-RUNNING-GUIDE.md). Ollama is deferred; optional Gemini is integrated through Bifrost, but [the latest real-source three-verdict demo remains unvalidated](LIVE-DEMO-VALIDATION.md). The old Ollama reminder below is historical, not a required next step.
+
 1. Explain the problem: an AI answer may repeat a price, leader or version that changed.
 2. Run `npm run demo:verifier`. The command requires no server, key, model or .env. It checks all three expected outcomes and exits unsuccessfully if behavior regresses.
 3. Explain the first case: claim USD 20/month and both simulated sources USD 20/month gives supported/current, score 100.
