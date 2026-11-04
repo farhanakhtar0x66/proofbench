@@ -27,9 +27,9 @@ export function validatePreparedBenchmark(input:unknown,latest:{datasetHash:stri
  return snapshot;
 }
 
-type Row={id:string;expected:z.infer<typeof outcome>;outcome:z.infer<typeof outcome>|null;status:'completed'|'precheck_abstained'|'failed'|'not_run';correct:boolean|null;falseDecisive:boolean;latencyMs:number;modelRequests:number;explanation:string;comparison?:z.infer<typeof EvidenceComparisonReport>};
-export async function runPreparedComparisons(snapshot:Snapshot,interpreter:LanguageInterpreter,counter:()=>number,onProgress?:(rows:Row[])=>Promise<void>){
- const rows:Row[]=[];let stopped=false;
+export type BenchmarkRow={id:string;expected:z.infer<typeof outcome>;outcome:z.infer<typeof outcome>|null;status:'completed'|'precheck_abstained'|'failed'|'not_run';correct:boolean|null;falseDecisive:boolean;latencyMs:number;modelRequests:number;explanation:string;comparison?:z.infer<typeof EvidenceComparisonReport>};
+export async function runPreparedComparisons(snapshot:Snapshot,interpreter:LanguageInterpreter,counter:()=>number,onProgress?:(rows:BenchmarkRow[])=>Promise<void>){
+ const rows:BenchmarkRow[]=[];let stopped=false;
  for(const item of snapshot.cases){
   if(stopped){rows.push({id:item.id,expected:item.expected,outcome:null,status:'not_run',correct:null,falseDecisive:false,latencyMs:0,modelRequests:0,explanation:'Stopped after the first inference failure; no retry or cooldown wait.'});continue;}
   const before=counter();const start=performance.now();
@@ -39,6 +39,10 @@ export async function runPreparedComparisons(snapshot:Snapshot,interpreter:Langu
   rows.push({id:item.id,expected:item.expected,outcome:result.outcome,status,correct:failed?null:result.outcome===item.expected,falseDecisive:!failed&&result.outcome!=='inconclusive'&&result.outcome!==item.expected,latencyMs:performance.now()-start,modelRequests:requests,explanation:result.explanation,comparison:result});
   stopped=failed;await onProgress?.(rows);
  }
+ return summarizeBenchmarkRows(rows,counter());
+}
+
+export function summarizeBenchmarkRows(rows:BenchmarkRow[],requests:number){
  const evaluated=rows.filter(row=>row.correct!==null);const completed=rows.filter(row=>row.status==='completed');
- return {status:rows.some(row=>row.status==='failed'||row.status==='not_run')?'incomplete':'completed',rows,summary:{totalCases:rows.length,evaluatedCases:evaluated.length,matchedExpected:evaluated.filter(row=>row.correct).length,matchRate:evaluated.length?evaluated.filter(row=>row.correct).length/evaluated.length:null,falseDecisive:evaluated.filter(row=>row.falseDecisive).length,inconclusiveRate:evaluated.length?evaluated.filter(row=>row.outcome==='inconclusive').length/evaluated.length:null,completedModelComparisons:completed.length,modelFailures:rows.filter(row=>row.status==='failed').length,notRun:rows.filter(row=>row.status==='not_run').length,modelRequests:counter(),meanCompletedInferenceMs:completed.length?completed.reduce((sum,row)=>sum+row.latencyMs,0)/completed.length:null},notice:'Fixed fictional evidence, not live search or a holdout. Failed/unrun cases are excluded from verdict-match rates and reported separately. Precheck abstentions are pipeline results, not model inferences. Do not compare partial rates as a complete benchmark.'};
+ return {status:rows.some(row=>row.status==='failed'||row.status==='not_run')?'incomplete':'completed',rows,summary:{totalCases:rows.length,evaluatedCases:evaluated.length,matchedExpected:evaluated.filter(row=>row.correct).length,matchRate:evaluated.length?evaluated.filter(row=>row.correct).length/evaluated.length:null,falseDecisive:evaluated.filter(row=>row.falseDecisive).length,inconclusiveRate:evaluated.length?evaluated.filter(row=>row.outcome==='inconclusive').length/evaluated.length:null,completedModelComparisons:completed.length,modelFailures:rows.filter(row=>row.status==='failed').length,notRun:rows.filter(row=>row.status==='not_run').length,modelRequests:requests,meanCompletedInferenceMs:completed.length?completed.reduce((sum,row)=>sum+row.latencyMs,0)/completed.length:null},notice:'Fixed fictional evidence, not live search or a holdout. Failed/unrun cases are excluded from verdict-match rates and reported separately. Precheck abstentions are pipeline results, not model inferences. Do not compare partial rates as a complete benchmark.'};
 }

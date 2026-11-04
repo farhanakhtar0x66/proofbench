@@ -1,0 +1,11 @@
+# Dollar-currency ambiguity
+
+The general verifier now detects bare numeric dollar amounts in common pricing statements before comparison. For example, `Acme Pro costs $20/month` requests an explicit currency such as USD/CAD/AUD and returns inconclusive with no correction. Evidence cannot silently supply the missing currency, and a location alone does not identify it. Each dollar amount must state its own currency; an explicitly coded second price does not disambiguate the first.
+
+Recognized explicit forms include `USD $20`, `US$20`, `$20 USD` and `$20/month (CAD)`. The implemented ISO-code set is USD, CAD, AUD, NZD, HKD, SGD and MXN, with adjacent US/CA/AU/NZ/HK/SG/MX symbol prefixes. Unsupported currency layouts and unrecognized phrasing may still abstain. This is a limited ambiguity guard, not a general currency converter or an exchange-rate checker.
+
+The standalone comparison function preserves supplied source citations while returning the ambiguity explanation before invoking any model. The combined analysis/comparison API uses cache-only retrieval for an ambiguous claim, so it does not spend a new search allowance. Existing matching cached evidence can still be shown. Optional LLM extraction, if deliberately enabled separately, is not disabled by this later comparison guard; the default/test rules extractor makes no inference call.
+
+The strict correction validator is unchanged. The fix prevents an unresolved dollar amount from reaching the model rather than accepting the unsupported correction seen in the original benchmark. Source dates, scope, quote and corroboration checks retain their existing behavior for other claims.
+
+On November 4, 2026, validation passed all 502 tests across 41 files using one worker, lint, TypeScript, six fixture regressions, production build and API smoke checks. Twelve currency-specific cases cover explicit versus bare amounts, per-amount ambiguity, location separation, retained citations and zero-request API analysis. Two continuation tests validate the remaining four-call budget and reject changed evidence/counts/failure boundaries. Offline readiness selects five unrun cases and up to four model calls. These implementation checks made zero Gemini/Tavily requests and did not change saved `.env`.

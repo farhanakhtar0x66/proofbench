@@ -10,6 +10,7 @@ import {evidenceOverlapTracker} from './evidence-overlap';
 import {sourceRelevanceReason} from './evidence-relevance';
 import {excerptQualityReason} from './excerpts';
 import {historicalSupportAssessment} from './historical-support';
+import {currencyAmbiguityReason} from './claim-ambiguity';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
 const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
@@ -38,7 +39,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  let fallbackCitations:z.infer<typeof EvidenceComparisonReport>['citations']=[];
  const limitations=['Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. The conservative 30-day date policy can abstain on valid historical or timeless facts. Freshness is not a calibrated probability.'];
  const fallback=(explanation:string)=>EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'rules_fallback',outcome:'inconclusive',freshness:'unknown',freshnessScore:null,assessedAt,explanation,citations:fallbackCitations,correction:null,limitations});
- const unavailable=options.unavailableReason??(options.mode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made; the existing deterministic verifier remains separate.':!options.interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':undefined);
+ const unavailable=currencyAmbiguityReason(data.claim)??options.unavailableReason??(options.mode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made; the existing deterministic verifier remains separate.':!options.interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':undefined);
  if(data.mode!=='live'||data.status!=='retrieved'||!data.evidence.length)return fallback(unavailable??'Usable live-retrieval evidence is unavailable. No model request was made.');
  if(suspicious.test(data.claim)||data.evidence.some(source=>suspicious.test(source.excerpt)))return fallback('Instruction-like text in claim or source data requires review. No model request was made.');
  const seen=new Set<string>();const overlaps=evidenceOverlapTracker();

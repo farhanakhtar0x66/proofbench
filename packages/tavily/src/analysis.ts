@@ -5,13 +5,15 @@ import {extractFactualClaims} from './claim-extraction';
 import {retrieveClaimEvidence} from './general-retrieval';
 import {compareClaimEvidence} from './evidence-comparison';
 import type {LanguageInterpreter} from './interpretation';
+import {currencyAmbiguityReason} from './claim-ambiguity';
 
 type Options={tavilyMode:string;budget:SearchBudget;interpreter?:LanguageInterpreter;extractionMode:'rules'|'llm';comparisonMode:'rules'|'llm'};
 
 export async function compareGeneralClaim(input:unknown,options:Options){
  const request=EvidenceRetrievalRequest.parse(input);const {interpreter,comparisonMode}=options;
- const available=comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
- const reason=comparisonMode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made.':!interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':!available?interpreter.unavailableReason?.()??'The model is temporarily unavailable. No model request was made.':undefined;
+ const ambiguity=currencyAmbiguityReason(request.claim);
+ const available=!ambiguity&&comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
+ const reason=ambiguity??(comparisonMode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made.':!interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':!available?interpreter.unavailableReason?.()??'The model is temporarily unavailable. No model request was made.':undefined);
  const retrieval=await retrieveClaimEvidence(request,{mode:options.tavilyMode,budget:options.budget,cacheOnly:!available});
  const comparison=await compareClaimEvidence(retrieval,{mode:available?'llm':'rules',interpreter,unavailableReason:reason});
  return {retrieval,comparison};
