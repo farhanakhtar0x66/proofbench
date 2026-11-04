@@ -12,6 +12,7 @@ function configure(){
 const cases=[{id:'first',claim:'Acme Pro costs USD 20/month.',expected:'supported' as const},{id:'second',claim:'Acme Pro costs USD 25/month.',expected:'contradicted' as const}];
 function simulatedFetch(modelStatus=200,invalid=false):typeof fetch{
  return async(input,init)=>{
+  if(String(input)==='http://127.0.0.1:8080/health')return Response.json({status:'ok'});
   if(String(input)==='https://api.tavily.com/search')return Response.json({results:[0,1].map(index=>({url:`https://source${index}.example/notice`,title:'SIMULATED',content:`Acme Pro costs USD 20/month. Source notice ${index}.`,published_date:new Date(Date.now()-86400000).toISOString()}))});
   expect(String(input)).toBe('http://127.0.0.1:8080/v1/chat/completions');
   if(modelStatus!==200)return Response.json({error:'Do not expose this provider message'},{status:modelStatus});
@@ -53,5 +54,5 @@ it('captures successful search payloads from a clone without consuming the verif
  const {report}=await run(upstream,{tavily:9,model:9},capture);
  expect(report.status).toBe('completed');expect(capture).toHaveBeenCalledTimes(report.attempts.tavily);
  expect(capture.mock.calls[0][0]).toMatchObject({results:expect.any(Array)});
- expect(upstream.mock.calls.length).toBe(report.attempts.tavily+report.attempts.model);
+ expect(upstream.mock.calls.filter(([url])=>!String(url).endsWith('/health')).length).toBe(report.attempts.tavily+report.attempts.model);
 });

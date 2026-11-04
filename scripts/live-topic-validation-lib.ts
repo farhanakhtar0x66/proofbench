@@ -27,7 +27,8 @@ export async function runLiveTopicBatch(options:{cases:Case[];dataDir:string;end
  try{
   await save();
   globalThis.fetch=async(input,init)=>{
-   const url=String(input);const kind=url==='https://api.tavily.com/search'?'tavily':url===new URL('/v1/chat/completions',options.endpoint).href?'model':null;
+   const url=String(input);if(url===new URL('/health',options.endpoint).href)return upstream(input,{...init,redirect:'error'});
+   const kind=url==='https://api.tavily.com/search'?'tavily':url===new URL('/v1/chat/completions',options.endpoint).href?'model':null;
    if(!kind){stop('Unexpected network destination blocked');throw new Error('Unexpected network destination blocked');}
    if(failed||report.attempts[kind]>=limits[kind]){stop('Attempt ceiling reached; no retry');throw new Error('Attempt ceiling reached');}
    report.attempts[kind]++;await save();

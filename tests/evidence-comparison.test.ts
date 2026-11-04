@@ -99,15 +99,16 @@ it('retrieves evidence server-side and compares it through the shared gateway ad
  const dir=await mkdtemp(join(tmpdir(),'b05-compare-api-'));vi.stubEnv('LANGUAGE_MODE','bifrost');vi.stubEnv('EVIDENCE_COMPARISON_MODE','llm');vi.stubEnv('ALLOW_PAID_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
  for(const [key,value] of Object.entries(hosted))vi.stubEnv(key,value);
  const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async url=>{
+  if(String(url)==='http://127.0.0.1:8080/health')return Response.json({status:'ok'});
   if(String(url)==='https://api.tavily.com/search')return Response.json({results:evidence().evidence.map(s=>({url:s.url,title:s.title,content:s.excerpt,published_date:s.publishedAt}))});
   if(String(url)==='http://127.0.0.1:8080/v1/chat/completions')return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(proposal())}}]});
   throw new Error('Unexpected destination');
  });
  const app=await createApp({implementation:'mock',tavilyMode:'live',dataDir:dir});
  try{
-  const response=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim}});expect(response.statusCode).toBe(200);expect(response.json().outcome).toBe('contradicted');expect(response.json().correction.text).toBe(correction);expect(fetcher).toHaveBeenCalledTimes(2);
+  const response=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim}});expect(response.statusCode).toBe(200);expect(response.json().outcome).toBe('contradicted');expect(response.json().correction.text).toBe(correction);expect(fetcher).toHaveBeenCalledTimes(3);
   expect((await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim,evidence:[]}})).statusCode).toBe(400);
-  const blocked=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim:'Another claim.'}});expect(blocked.json().outcome).toBe('inconclusive');expect(fetcher).toHaveBeenCalledTimes(2);
+  const blocked=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim:'Another claim.'}});expect(blocked.json().outcome).toBe('inconclusive');expect(fetcher).toHaveBeenCalledTimes(3);
  }finally{await app.close();await rm(dir,{recursive:true,force:true});}
 },20000);
 it.each([{GEMINI_API_KEY:''},{BIFROST_FREE_TIER_CONFIRMED:'false'},{BIFROST_LLM_MAX_REQUESTS:'0'}])('avoids spending search credit when model readiness fails: %j',async patch=>{

@@ -3,7 +3,7 @@ import {claimEntity} from './comparison';
 
 // All strings are exact source spans. Null means absent, never inferred.
 export const Interpretation=z.object({entity:z.string().min(1).max(100),kind:z.enum(['price','ceo','version']),value:z.string().min(1).max(100),currency:z.string().nullable(),period:z.string().nullable(),time:z.string().nullable(),region:z.string().nullable(),tier:z.string().nullable()}).strict();
-export interface LanguageInterpreter {interpret(text:string):Promise<unknown>;extractClaims?(text:string):Promise<unknown>;compareEvidence?(text:string):Promise<unknown>;canRequest?():boolean;unavailableReason?():string|undefined;timeoutMs?:number;description?:string}
+export interface LanguageInterpreter {interpret(text:string):Promise<unknown>;extractClaims?(text:string):Promise<unknown>;compareEvidence?(text:string):Promise<unknown>;canRequest?():boolean;checkReady?():Promise<boolean>;unavailableReason?():string|undefined;timeoutMs?:number;description?:string}
 export function interpretationDeadline(adapter:LanguageInterpreter|undefined){
  const timeout=adapter?.timeoutMs;
  return typeof timeout==='number'&&Number.isInteger(timeout)&&timeout>=100&&timeout<=30000?timeout+1000:10000;

@@ -1,3 +1,4 @@
+import {comparisonReason} from './comparison-reason';
 import {z} from 'zod';
 import {EvidenceRetrievalReport,EvidenceComparisonReport} from '../../contracts/src/index';
 import {interpretationDeadline,type LanguageInterpreter} from './interpretation';
@@ -44,7 +45,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  const data=EvidenceRetrievalReport.parse(input);const assessedAt=new Date().toISOString();
  let fallbackCitations:z.infer<typeof EvidenceComparisonReport>['citations']=[];
  const limitations=['Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. The conservative 30-day date policy can abstain on valid historical or timeless facts. Freshness is not a calibrated probability.'];
- const fallback=(explanation:string)=>EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'rules_fallback',outcome:'inconclusive',freshness:'unknown',...evidenceFreshness({outcome:'inconclusive',freshness:'unknown',assessedAt,citations:fallbackCitations}),assessedAt,explanation,citations:fallbackCitations,correction:null,limitations});
+ const fallback=(explanation:string)=>EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'rules_fallback',outcome:'inconclusive',freshness:'unknown',...evidenceFreshness({outcome:'inconclusive',freshness:'unknown',assessedAt,citations:fallbackCitations}),assessedAt,explanation,...comparisonReason('inconclusive',explanation,false,data.mode!=='live'&&!options.unavailableReason),citations:fallbackCitations,correction:null,limitations});
  const unavailable=currencyAmbiguityReason(data.claim)??options.unavailableReason??(options.mode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made; the existing deterministic verifier remains separate.':!options.interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':undefined);
  if(data.mode!=='live'||data.status!=='retrieved'||!data.evidence.length)return fallback(unavailable??'Usable live-retrieval evidence is unavailable. No model request was made.');
  if(suspicious.test(data.claim)||data.evidence.some(source=>suspicious.test(source.excerpt)))return fallback('Instruction-like text in claim or source data requires review. No model request was made.');
@@ -113,7 +114,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   const explanation=conflict?'Source assessments conflict; no decisive verdict or correction is justified.':outcome==='inconclusive'?'Fewer than two distinct, nonduplicate source groups have agreeing assessments, eligible dates and matching claim scope. Review the cited excerpts and date warnings.':singleOfficial?`One reviewed official government domain supplied a recent, directly named role passage assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is one source, not independent corroboration; review the cited passage.`:`At least two distinct source groups pass the applicable date and scope policy and were assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is a model-assisted evidence assessment, not independent proof of truth.`;
   const historicalClaim=!!completedEventClaim(data.claim,assessedAt)||!!datedEndOfLifeClaim(data.claim);
   const freshness=outcome==='supported'&&!historicalClaim&&!sources.some(source=>source.historical)?'current':'unknown';
-  return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness,...evidenceFreshness({outcome,freshness,assessedAt,citations}),assessedAt,explanation:explanation+(discardedRestatement?' A source-backed restatement of the original claim was omitted from corrections.':''),citations,correction,limitations});
+  return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness,...evidenceFreshness({outcome,freshness,assessedAt,citations}),assessedAt,...comparisonReason(outcome,explanation,true),explanation:explanation+(discardedRestatement?' A source-backed restatement of the original claim was omitted from corrections.':''),citations,correction,limitations});
  }catch(error){
   const reasons:Record<string,string>={
    'Every source must be assessed':'The model omitted or added source assessments.',

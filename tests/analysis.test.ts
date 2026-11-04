@@ -33,6 +33,7 @@ it.each([false,true])('orchestrates real-shaped sources and gateway output with 
  let searches=0;let inferences=0;
  const envelope=(output:unknown)=>Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(output)}}]});
  vi.spyOn(globalThis,'fetch').mockImplementation(async(url,init)=>{
+  if(String(url)==='http://127.0.0.1:8080/health')return Response.json({status:'ok'});
   if(String(url)==='https://api.tavily.com/search'){
    searches++;const body=JSON.parse(String(init?.body));expect(body.search_depth).toBe('basic');
    return Response.json({results:['first.example','second.example'].map((host,index)=>({url:`https://${host}/${searches}`,content:`${body.query} Notice ${index}.`,published_date:new Date().toISOString()}))});

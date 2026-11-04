@@ -36,11 +36,11 @@ it.each([504,429])('retains cached sources after extraction fails with HTTP %s w
 it('retains retrieved citations when comparison itself times out',async()=>{
  for(const [key,value] of Object.entries(env))vi.stubEnv(key,value);
  const now=new Date().toISOString();
- const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async url=>String(url)==='https://api.tavily.com/search'?Response.json({results:['first.example','second.example'].map(host=>({url:`https://${host}`,content:'Acme Pro costs USD 25/month.',published_date:now}))}):Response.json({error:'private'},{status:504}));
+ const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async url=>String(url)==='http://127.0.0.1:8080/health'?Response.json({status:'ok'}):String(url)==='https://api.tavily.com/search'?Response.json({results:['first.example','second.example'].map(host=>({url:`https://${host}`,content:'Acme Pro costs USD 25/month.',published_date:now}))}):Response.json({error:'private'},{status:504}));
  const dir=await mkdtemp(join(tmpdir(),'b05-comparison-timeout-'));const app=await createApp({implementation:'mock',tavilyMode:'live',dataDir:dir});
  try{
   const response=await app.inject({method:'POST',url:'/api/claims/compare',payload:{version:'1',claim}});
-  expect(response.json().explanation).toContain('timed out');expect(response.json().citations).toHaveLength(2);expect(response.json().outcome).toBe('inconclusive');expect(fetcher).toHaveBeenCalledTimes(2);
+  expect(response.json().explanation).toContain('timed out');expect(response.json().citations).toHaveLength(2);expect(response.json().outcome).toBe('inconclusive');expect(fetcher).toHaveBeenCalledTimes(3);
  }finally{await app.close();await rm(dir,{recursive:true,force:true});}
 },20000);
 

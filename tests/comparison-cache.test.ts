@@ -94,6 +94,7 @@ it('shares the app cache across analyses and comparison route after request-cap 
  for(const [key,value] of Object.entries(env))vi.stubEnv(key,value);
  let searches=0,models=0;
  vi.spyOn(globalThis,'fetch').mockImplementation(async(url,init)=>{
+  if(String(url)==='http://127.0.0.1:8080/health')return Response.json({status:'ok'});
   if(String(url)==='https://api.tavily.com/search'){
    searches++;return Response.json({results:[0,1].map(index=>({url:`https://source${index}.example`,content:`Alex is CEO of Acme. Leadership notice ${index}.`,published_date:new Date(Date.now()-86400000).toISOString()}))});
   }

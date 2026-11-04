@@ -47,16 +47,30 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   if(settings.virtualKey)headers['x-bf-vk']=settings.virtualKey;
   // Gemini's newer models reject sampling overrides; use provider defaults.
   const sampling=settings.provider==='gemini'?{}:{temperature:0};
-  let failure='The model gateway could not complete the request or returned invalid output.';
+  let failure='Cannot connect to Bifrost. Start the local gateway with npm run bifrost:start and keep it running.';
   try{
   const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:maxTokens,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
-  if(!response.ok){failure=response.status===400?'The model gateway rejected the request parameters (HTTP 400). Compatibility requires review.':response.status===429?'The model gateway reported a rate limit.':response.status===504?'The model request timed out at the gateway.':'The model gateway reported an upstream failure.';throw new Error('Gateway failure');}
+  if(!response.ok){failure=response.status===400?'The model gateway rejected the request parameters (HTTP 400). Compatibility requires review.':response.status===401||response.status===403?'The model provider rejected authentication or access. Check the selected provider key and model permissions.':response.status===429?'The model gateway reported a rate limit.':response.status===504?'The model request timed out at the gateway.':'The model gateway reported an upstream failure.';throw new Error('Gateway failure');}
+  failure='The model returned an invalid or incomplete structured response. No factual verdict was accepted.';
   const envelope=ChatEnvelope.parse(await readBounded(response));
   return parse(JSON.parse(envelope.choices[0].message.content));
   }catch(error){lastFailure=error instanceof Error&&error.name==='TimeoutError'?'The model request timed out at the client.':failure;unavailableUntil=Date.now()+60000;throw new Error('Bifrost interpretation unavailable; rules-only fallback');}
  }
  return {description:`Bifrost → ${settings.model}`,
   timeoutMs:settings.timeoutMs,
+  checkReady:async()=>{
+   if(unavailableReason())return false;
+   try{
+    const response=await fetcher(new URL('/health',settings.endpoint),{redirect:'error',signal:AbortSignal.timeout(2000)});
+    await response.body?.cancel();
+    if(!response.ok)throw new Error('Gateway unhealthy');
+    return true;
+   }catch{
+    lastFailure='Cannot connect to Bifrost. Start the local gateway with npm run bifrost:start and keep it running.';
+    unavailableUntil=Date.now()+60000;
+    return false;
+   }
+  },
   canRequest:()=>!blocked&&(settings.provider==='ollama'||requests<settings.maxRequests&&Date.now()>=unavailableUntil),
   unavailableReason,
   interpret:text=>request(text,INTERPRETATION_PROMPT,'claim_interpretation',INTERPRETATION_JSON_SCHEMA,value=>Interpretation.parse(value)),

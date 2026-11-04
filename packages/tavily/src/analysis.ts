@@ -13,7 +13,8 @@ type Options={tavilyMode:string;budget:SearchBudget;interpreter?:LanguageInterpr
 export async function compareGeneralClaim(input:unknown,options:Options){
  const request=EvidenceRetrievalRequest.parse(input);const {interpreter,comparisonMode}=options;
  const ambiguity=currencyAmbiguityReason(request.claim);
- const available=!ambiguity&&comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
+ const configured=!ambiguity&&comparisonMode==='llm'&&!!interpreter?.compareEvidence&&!!interpreter.canRequest?.();
+ const available=configured&&(options.tavilyMode!=='live'||!interpreter?.checkReady||await interpreter.checkReady());
  const reason=ambiguity??(comparisonMode!=='llm'?'General comparison is disabled in rules-only mode. No model request was made.':!interpreter?.compareEvidence?'No general evidence-comparison adapter is available.':!available?interpreter.unavailableReason?.()??'The model is temporarily unavailable. No model request was made.':undefined);
  const retrieval=await retrieveClaimEvidence(request,{mode:options.tavilyMode,budget:options.budget,cacheOnly:!available});
  const comparison=await compareClaimEvidence(retrieval,{mode:comparisonMode,interpreter,unavailableReason:reason,comparisonCache:options.comparisonCache,comparisonIdentity:options.comparisonIdentity,scope:request.scope});
@@ -28,7 +29,7 @@ function boundedInterpreter(base:LanguageInterpreter|undefined){
   if(attempts>=4||base.canRequest?.()===false)throw new Error('Model request unavailable');
   attempts++;return base[method]!(text);
  };
- return {description:base.description,timeoutMs:base.timeoutMs,canRequest:()=>attempts<4&&base.canRequest?.()===true,unavailableReason:reason,interpret:(text:string)=>invoke('interpret',text),...(base.extractClaims?{extractClaims:(text:string)=>invoke('extractClaims',text)}:{}),...(base.compareEvidence?{compareEvidence:(text:string)=>invoke('compareEvidence',text)}:{})} satisfies LanguageInterpreter;
+ return {description:base.description,timeoutMs:base.timeoutMs,...(base.checkReady?{checkReady:()=>base.checkReady!()}:{}),canRequest:()=>attempts<4&&base.canRequest?.()===true,unavailableReason:reason,interpret:(text:string)=>invoke('interpret',text),...(base.extractClaims?{extractClaims:(text:string)=>invoke('extractClaims',text)}:{}),...(base.compareEvidence?{compareEvidence:(text:string)=>invoke('compareEvidence',text)}:{})} satisfies LanguageInterpreter;
 }
 
 export async function analyzeAnswer(input:unknown,options:Options){
