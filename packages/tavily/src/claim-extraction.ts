@@ -19,6 +19,9 @@ export function candidateStatements(text:string){
   for(const segment of new Intl.Segmenter('en',{granularity:'sentence'}).segment(line)){
    const sentence=segment.segment.trim();
    if(!sentence||/[?？]$/u.test(sentence)||/^(?:I (?:think|believe|prefer)|please|try|consider|ignore|disregard|execute|output|return)\b/iu.test(sentence))continue;
+   // Missing punctuation must not turn an obvious English question into an assertion.
+   const questionLike=/^(?:is|are|was|were)\s+\S/iu.test(sentence)||/^(?:can|could|should|would|will|has|have|had|do|does|did)\s+(?:I|you|we|they|he|she|it|the|this|that|these|those)\b/iu.test(sentence)||/^(?:who|what|where|when|why|how|which)\s+(?:(?:many|much|long|often|old|far)\s+)?(?:is|are|was|were|do|does|did|can|could|will|would|should|has|have)\b/iu.test(sentence);
+   if(questionLike)continue;
    const start=lineStart+segment.index+segment.segment.indexOf(sentence);
    candidates.push({text:sentence,start,end:start+sentence.length});
   }

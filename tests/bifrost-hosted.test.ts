@@ -9,6 +9,14 @@ const text='Subscribers pay twenty USD monthly for Acme Pro.';
 const fact={entity:'Acme Pro',kind:'price',value:'twenty',currency:'USD',period:'monthly',time:null,region:null,tier:null};
 const env=(provider='gemini')=>({BIFROST_LLM_PROVIDER:provider,BIFROST_LLM_MODEL:`${provider}/test-model`,BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'10',GEMINI_API_KEY:'fake-gemini',GROQ_API_KEY:'fake-groq'});
 const envelope=(value:unknown=fact)=>Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(value)}}]});
+it.each([503,500,502])('reports provider unavailability clearly without leaking its body or retrying: HTTP %s',async status=>{
+ const fetcher=vi.fn<typeof fetch>(async()=>Response.json({status_code:503,error:{code:503,message:'private provider message',key:'private key'}},{status}));
+ const adapter=createBifrostInterpreter(env(),fetcher);
+ await expect(adapter.interpret(text)).rejects.toThrow('rules-only');
+ expect(adapter.unavailableReason?.()).toContain('temporarily unavailable or busy (HTTP 503)');
+ expect(adapter.unavailableReason?.()).not.toContain('private');
+ await expect(adapter.interpret(text)).rejects.toThrow('cooldown');expect(fetcher).toHaveBeenCalledOnce();
+});
 it('preserves a namespaced Groq model identifier for explicit future provider evaluation',()=>{
  const configured={...env('groq'),BIFROST_LLM_MODEL:'groq/openai/gpt-oss-20b'};
  expect(bifrostSettings(configured).model).toBe('groq/openai/gpt-oss-20b');

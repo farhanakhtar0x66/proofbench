@@ -7,6 +7,16 @@ import {AnalysisReport} from '../packages/contracts/src/index';
 
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();});
 const post=(text:string,extra={})=>({method:'POST' as const,url:'/api/analysis',payload:{version:'1',text,...extra}});
+it('does not spend search or model requests for an unpunctuated question in live mode',async()=>{
+ for(const [key,value] of Object.entries({LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'1',GEMINI_API_KEY:'fake',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'}))vi.stubEnv(key,value);
+ const fetcher=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('No network permitted'));
+ const dir=await mkdtemp(join(tmpdir(),'b05-question-guard-'));const app=await createApp({implementation:'mock',tavilyMode:'live',dataDir:dir});
+ try{
+  const response=await app.inject(post('Is Alex current CEO of Acme'));
+  expect(response.statusCode).toBe(201);expect(response.json()).toMatchObject({status:'no_claims',results:[],text:'Is Alex current CEO of Acme'});
+  expect(fetcher).not.toHaveBeenCalled();
+ }finally{await app.close();await rm(dir,{recursive:true,force:true});}
+});
 
 it('supports offline analysis, exact source spans, claim bounds, deduplication and saved-report lookup without network',async()=>{
  vi.stubEnv('LANGUAGE_MODE','rules');vi.stubEnv('CLAIM_EXTRACTION_MODE','rules');vi.stubEnv('EVIDENCE_COMPARISON_MODE','rules');

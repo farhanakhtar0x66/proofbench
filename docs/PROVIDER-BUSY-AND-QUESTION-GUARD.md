@@ -1,0 +1,9 @@
+# Latest Gemini failure and backend corrections
+
+On November 5, 2026, inspection of the latest saved manual run and Bifrost metadata established an upstream HTTP 503 (`UNAVAILABLE`). The provider reported temporary high demand. The gateway operation took about 5.6 seconds, including about 5.2 seconds upstream. This was a different failure from the earlier 30-second timeout. No new provider calls were made to establish this diagnosis.
+
+The backend now maps a direct HTTP 503, or a numeric upstream 503 inside a bounded 500/502 gateway error envelope, to `reasonCode: provider_busy`, `verificationStatus: failed` and a short “Could not verify” message. Error bodies and routing/key metadata are not exposed. Existing cooldowns, request caps, no-retry behavior and provider selection remain unchanged. Provider availability cannot be repaired by application code, and this change does not establish that a subsequent Gemini call will succeed.
+
+The submitted text was also a yes/no question without a trailing question mark. The assertion extractor previously selected it as a claim. Obvious English auxiliary/WH questions are now skipped even without `?`; source offsets and declarative wording remain unchanged. A live-mode API regression verifies zero search, model or health requests for such input. This is a heuristic input guard, not a complete language parser or question-answering feature. For verification, submit an assertion in the form “Person is the role of Organization,” preserving any intended dates, negation and conditions.
+
+No UI or provider credentials changed. Existing `no_claims` handling applies to question-only input. Frontend owners should use `verificationStatus` and `shortReason` to distinguish provider failures from completed uncertain evidence assessments. The legacy `inconclusive` outcome remains for compatibility and does not imply that a timed-out or unavailable model assessed the claim.

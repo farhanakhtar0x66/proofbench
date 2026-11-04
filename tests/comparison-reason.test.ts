@@ -7,6 +7,7 @@ import {SearchBudget} from '../packages/tavily/src/budget';
 it.each([
  ['Cannot connect to Bifrost. Start the local gateway.','model_unavailable','failed'],
  ['The model gateway reported a rate limit.','rate_limited','failed'],
+ ['The model provider is temporarily unavailable or busy (HTTP 503). No verdict was reached.','provider_busy','failed'],
  ['The model request timed out at the client.','model_timeout','failed'],
  ['The model returned an invalid or incomplete structured response.','invalid_model_response','failed'],
  ['The hosted model request budget is exhausted.','budget_exhausted','blocked'],

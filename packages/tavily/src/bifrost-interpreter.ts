@@ -50,7 +50,18 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   let failure='Cannot connect to Bifrost. Start the local gateway with npm run bifrost:start and keep it running.';
   try{
   const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:maxTokens,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
-  if(!response.ok){failure=response.status===400?'The model gateway rejected the request parameters (HTTP 400). Compatibility requires review.':response.status===401||response.status===403?'The model provider rejected authentication or access. Check the selected provider key and model permissions.':response.status===429?'The model gateway reported a rate limit.':response.status===504?'The model request timed out at the gateway.':'The model gateway reported an upstream failure.';throw new Error('Gateway failure');}
+  if(!response.ok){
+   let status=response.status;
+   // Some gateways wrap an upstream 503 in a generic 500/502 envelope.
+   // Read only a bounded numeric status; never expose provider messages or key metadata.
+   if(status===500||status===502){
+    const body=await readBounded(response).catch(()=>null);
+    const upstream=z.object({status_code:z.number().optional(),error:z.object({code:z.number().optional()}).passthrough().optional()}).passthrough().safeParse(body);
+    if(upstream.success&&(upstream.data.status_code===503||upstream.data.error?.code===503))status=503;
+   }
+   failure=status===400?'The model gateway rejected the request parameters (HTTP 400). Compatibility requires review.':status===401||status===403?'The model provider rejected authentication or access. Check the selected provider key and model permissions.':status===429?'The model gateway reported a rate limit.':status===504?'The model request timed out at the gateway.':status===503?'The model provider is temporarily unavailable or busy (HTTP 503). No verdict was reached.':'The model gateway reported an upstream failure.';
+   throw new Error('Gateway failure');
+  }
   failure='The model returned an invalid or incomplete structured response. No factual verdict was accepted.';
   const envelope=ChatEnvelope.parse(await readBounded(response));
   return parse(JSON.parse(envelope.choices[0].message.content));

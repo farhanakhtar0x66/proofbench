@@ -12,6 +12,16 @@ const science='The Moon is made of cheese.';
 const hosted={BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-test',GEMINI_API_KEY:'fake-test-key',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'2'};
 const reply=(value:unknown)=>Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(value)}}]});
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();vi.useRealTimers();});
+it.each(['Is Alex current CEO of Acme','Is Acme Pro priced at USD 20/month.','Are version 2 updates available','How much does Acme Pro cost','Can you verify this claim','Does the service support version 2'])('skips a question even without a question mark: %s',async text=>{
+ const extractClaims=vi.fn();
+ const result=await extractFactualClaims(text,{mode:'llm',interpreter:{interpret:vi.fn(),extractClaims}});
+ expect(result.claims).toEqual([]);expect(extractClaims).not.toHaveBeenCalled();
+});
+it('preserves declarative statements whose names resemble question auxiliaries',()=>{
+ const text='Will Turner is CEO of Acme. Do Kwon founded Example Labs. Alex is not CEO of Acme.';
+ const statements=candidateStatements(text);
+ expect(statements).toHaveLength(3);for(const statement of statements)expect(text.slice(statement.start,statement.end)).toBe(statement.text);
+});
 
 it('retains exact offsets and full qualifiers across lists, Unicode, CRLF and repeated sentences',()=>{
  const text=`# Notes\r\n- ${sports}\r\n2. पृथ्वी सूर्य के चारों ओर घूमती है।\n${sports}\nIf approved, the rule may apply in India after 2027.`;
