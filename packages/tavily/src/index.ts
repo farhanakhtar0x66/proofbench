@@ -16,7 +16,7 @@ const sharedBudgets=new WeakMap<typeof fetch,SearchBudget>();
 
 export type TavilyResult={title?:string;url?:string;content?:string;raw_content?:string;score?:number;published_date?:string;originalContent?:string};
 const TavilyResponse=z.object({results:z.array(z.object({title:z.string().nullish(),url:z.string(),content:z.string().nullish(),raw_content:z.string().nullish(),score:z.number().optional(),published_date:z.string().nullish()}))});
-type VerifyOptions={mode?:string;allowPaidRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy;interpreter?:LanguageInterpreter;interpretationStats?:InterpretationStats};
+type VerifyOptions={mode?:string;allowLiveRequests?:string;maxRequests?:string|number;apiKey?:string;fetch?:typeof fetch;budget?:SearchBudget;sourcePolicy?:SourcePolicy;interpreter?:LanguageInterpreter;interpretationStats?:InterpretationStats};
 export class TavilyConfigurationError extends Error {statusCode=400;}
 
 const timeSensitivePattern=/\b(current|latest|today|now|price|pricing|cost|plan|version|release|api|ceo|president|prime minister|minister|law|legal|regulation|policy|supported|support|effective|rate|fee|salary|revenue|population|statistics?)\b/iu;
@@ -80,7 +80,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
  const request=VerifyRequest.parse(input);const now=new Date().toISOString();const claims=request.claims??extractClaims(request.text).map(text=>({text,asOf:undefined}));const mode=options.mode??process.env.TAVILY_MODE??'mock';
  if(mode==='mock')return VerificationReport.parse({version:'1',id:randomUUID(),mode:'mock',createdAt:now,text:request.text,claims:claims.map(({text,asOf})=>({...mockVerification(text,asOf,now),freshnessScore:null}))});
  if(mode!=='live')throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
- if((options.allowPaidRequests??process.env.ALLOW_PAID_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. Set ALLOW_PAID_REQUESTS=true only after approving a request budget.');
+ if((options.allowLiveRequests??process.env.ALLOW_LIVE_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. Set ALLOW_LIVE_REQUESTS=true only after approving a request budget.');
  const apiKey=options.apiKey??process.env.TAVILY_API_KEY;if(!apiKey)throw new TavilyConfigurationError('TAVILY_API_KEY is required in live mode.');
  const budget=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);const fetcher=options.fetch??fetch;const verified=[] as ClaimVerification[];
  let shared=options.budget??sharedBudgets.get(fetcher);

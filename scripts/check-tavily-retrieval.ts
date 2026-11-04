@@ -6,7 +6,7 @@ import {createApp} from '../apps/api/src/app';
 import {EvidenceRetrievalReport} from '../packages/contracts/src/index';
 
 // Explicitly metered live smoke check. Run only after approving one search.
-if(process.env.TAVILY_MODE!=='live'||process.env.ALLOW_PAID_REQUESTS!=='true'||process.env.TAVILY_MAX_REQUESTS!=='1'||process.env.LANGUAGE_MODE!=='rules'||process.env.BIFROST_LLM_MAX_REQUESTS!=='0')throw new Error('Check blocked: requires explicit live consent, exactly one Tavily request, rules-only language mode and zero hosted-model allowance.');
+if(process.env.TAVILY_MODE!=='live'||process.env.ALLOW_LIVE_REQUESTS!=='true'||process.env.TAVILY_MAX_REQUESTS!=='1'||process.env.LANGUAGE_MODE!=='rules'||process.env.BIFROST_LLM_MAX_REQUESTS!=='0')throw new Error('Check blocked: requires explicit live consent, exactly one Tavily request, rules-only language mode and zero hosted-model allowance.');
 const upstream=globalThis.fetch;
 let attempts=0;let reportedCredits:number|null=null;
 const checks:{name:string;passed:boolean}[]=[];

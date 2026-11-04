@@ -53,7 +53,7 @@ for(const [arm,adapter] of [['rules',undefined],[candidateName,candidate],['unav
   const interpreter=adapter?{async interpret(text:string){const output=await adapter.interpret(text);const canonical=canonicalInterpretation(text,output);if(canonical)normalized.set(text,canonical);return output;}}:undefined;
   const fetcher:typeof fetch=async()=>{searches++;return Response.json({results:item.evidence.map((content,i)=>({url:`https://fixture${i}.example`,content,published_date:item.old?'2020-01-01T00:00:00Z':new Date().toISOString()}))});};
   const start=performance.now();
-  const report=await verifyAnswer({version:'1',text:item.claim},{mode:'live',allowPaidRequests:'true',apiKey:'offline-placeholder',maxRequests:1,fetch:fetcher,interpreter,interpretationStats:stats});
+  const report=await verifyAnswer({version:'1',text:item.claim},{mode:'live',allowLiveRequests:'true',apiKey:'offline-placeholder',maxRequests:1,fetch:fetcher,interpreter,interpretationStats:stats});
   const outcome=report.claims[0]?.outcome??'inconclusive';
   rows.push({arm,id:item.id,expected:item.expected,outcome,correct:outcome===item.expected,falseVerdict:outcome!=='inconclusive'&&outcome!==item.expected,inconclusive:outcome==='inconclusive',entityExtractionCorrect:(claimEntity(normalized.get(item.claim)??item.claim)??null)===item.entity,latencyMs:performance.now()-start,inferenceCalls:stats.calls,inferenceMs:stats.milliseconds,inferenceFailures:stats.failures,gatewayRequests,tavilyCalls:searches});
  }

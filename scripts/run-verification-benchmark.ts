@@ -14,7 +14,7 @@ if(!process.argv.includes('--live')){
  console.log(`Ready: ${activeSnapshot.cases.length} selected cases, up to ${maxRequests} model comparisons, zero Tavily searches. Model runner not started.`);
  console.log('Live mode requires an explicitly approved allowance, RUN_VERIFICATION_BENCHMARK=true, matching model cap and mock/zero-search settings.');
 }else{
- if(process.env.RUN_VERIFICATION_BENCHMARK!=='true'||process.env.TAVILY_MODE!=='mock'||process.env.ALLOW_PAID_REQUESTS!=='false'||process.env.TAVILY_MAX_REQUESTS!=='0'||process.env.BIFROST_LLM_MAX_REQUESTS!==String(maxRequests))throw new Error('Live benchmark requires explicit confirmation, exactly the planned model cap and zero-search settings.');
+ if(process.env.RUN_VERIFICATION_BENCHMARK!=='true'||process.env.TAVILY_MODE!=='mock'||process.env.ALLOW_LIVE_REQUESTS!=='false'||process.env.TAVILY_MAX_REQUESTS!=='0'||process.env.BIFROST_LLM_MAX_REQUESTS!==String(maxRequests))throw new Error('Live benchmark requires explicit confirmation, exactly the planned model cap and zero-search settings.');
  const settings=bifrostSettings();if(settings.provider==='ollama'||hostedReadiness(process.env,settings))throw new Error('A configured, explicitly confirmed free-tier hosted provider is required.');
  if(continuation&&continuation.previous.model!==settings.model)throw new Error('Continuation must use the original model.');
  await checkBifrostStack();

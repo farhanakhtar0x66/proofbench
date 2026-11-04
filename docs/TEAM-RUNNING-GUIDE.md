@@ -16,7 +16,7 @@ npm ci
 ```env
 BIFROST_IMPLEMENTATION=mock
 TAVILY_MODE=mock
-ALLOW_PAID_REQUESTS=false
+ALLOW_LIVE_REQUESTS=false
 TAVILY_MAX_REQUESTS=0
 LANGUAGE_MODE=rules
 CLAIM_EXTRACTION_MODE=rules
@@ -65,7 +65,7 @@ Normal development needs no gateway. For a deliberately enabled live check, foll
 
 Before enabling live calls, check the selected provider's actual billing-disabled/free-tier account, exact model eligibility and remaining quota. An environment flag cannot disable provider billing. Tavily pay-as-you-go must remain off. Keep keys only in ignored server configuration. Select the provider/model, prepare and start the matching Bifrost gateway, and assign a small process request cap. Gateway startup can make provider model-catalog metadata requests even before verification.
 
-The general model-backed flow requires `LANGUAGE_MODE=bifrost`, `EVIDENCE_COMPARISON_MODE=llm`, an explicit model route, key, free-tier confirmation and positive model cap. Rules extraction can remain enabled to save requests; optional `CLAIM_EXTRACTION_MODE=llm` adds an extraction attempt. Live evidence additionally needs `TAVILY_MODE=live`, the key, positive search cap and the existing `ALLOW_PAID_REQUESTS=true` consent gate. Despite its name, that gate does not verify pricing or authorize paid usage in this project.
+The general model-backed flow requires `LANGUAGE_MODE=bifrost`, `EVIDENCE_COMPARISON_MODE=llm`, an explicit model route, key, free-tier confirmation and positive model cap. Rules extraction can remain enabled to save requests; optional `CLAIM_EXTRACTION_MODE=llm` adds an extraction attempt. Live evidence additionally needs `TAVILY_MODE=live`, the key, positive search cap and the existing `ALLOW_LIVE_REQUESTS=true` consent gate. Despite its name, that gate does not verify pricing or authorize paid usage in this project.
 
 For a single claim, budget up to one Tavily search plus one model comparison; optional model extraction adds another model attempt. Some inputs abstain before calls. A general analysis handles at most three distinct claims and four model attempts. Search caching may avoid a repeated search for five minutes; [comparison caching](COMPARISON-CACHE.md) can avoid a matching repeated comparison. Optional model extraction may still make a request. Caps cover attempts within one API/adapter instance, reset on restart and multiply across processes. Separate check commands have separate counters. Never use a restart as a way around an agreed test budget. No automatic paid or alternate-provider fallback exists.
 

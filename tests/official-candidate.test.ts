@@ -47,7 +47,7 @@ it('uses one injected claim search only and does not report automatic candidates
   calls++;
   return Response.json({results:[{...source,published_date:new Date().toISOString()}]});
  };
- const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',apiKey:'fake-test-key',maxRequests:1,fetch:fetcher});
+ const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',apiKey:'fake-test-key',maxRequests:1,fetch:fetcher});
  expect(calls).toBe(1);expect(report.claims[0].outcome).toBe('inconclusive');
  expect(report.claims[0].evidence[0].sourceTier).toBe('likely_official');
  expect(report.claims[0].uncertainty).toContain('0 reviewed, 1 likely official (unverified)');

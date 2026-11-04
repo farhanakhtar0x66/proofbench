@@ -47,10 +47,10 @@ env BIFROST_FREE_TIER_CONFIRMED=true BIFROST_LLM_MAX_REQUESTS=5 BIFROST_LLM_TIME
 Then start the app:
 
 ```sh
-env LANGUAGE_MODE=bifrost CLAIM_EXTRACTION_MODE=rules EVIDENCE_COMPARISON_MODE=llm BIFROST_FREE_TIER_CONFIRMED=true BIFROST_LLM_MAX_REQUESTS=5 BIFROST_LLM_TIMEOUT_MS=30000 TAVILY_MODE=live ALLOW_PAID_REQUESTS=true TAVILY_MAX_REQUESTS=5 npm run dev
+env LANGUAGE_MODE=bifrost CLAIM_EXTRACTION_MODE=rules EVIDENCE_COMPARISON_MODE=llm BIFROST_FREE_TIER_CONFIRMED=true BIFROST_LLM_MAX_REQUESTS=5 BIFROST_LLM_TIMEOUT_MS=30000 TAVILY_MODE=live ALLOW_LIVE_REQUESTS=true TAVILY_MAX_REQUESTS=5 npm run dev
 ```
 
-Open the Vite project URL, rather than Bifrost's management URL. The five-request limits apply to the API process lifetime; restarting resets them. `ALLOW_PAID_REQUESTS` is the existing application's live-request consent gate and does not alter provider billing. A source search can consume Tavily credits and model comparison can consume Gemini quota. Shut down the services when finished.
+Open the Vite project URL, rather than Bifrost's management URL. The five-request limits apply to the API process lifetime; restarting resets them. `ALLOW_LIVE_REQUESTS` is the existing application's live-request consent gate and does not alter provider billing. A source search can consume Tavily credits and model comparison can consume Gemini quota. Shut down the services when finished.
 
 ## Observed checks
 

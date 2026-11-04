@@ -40,7 +40,7 @@ it('bounds even a hanging custom interpreter',async()=>{
 });
 it('uses interpretation for source paraphrases while retaining original excerpts',async()=>{
  const fetcher:typeof fetch=async()=>Response.json({results:[0,1].map(i=>({url:`https://source${i}.example`,content:text,published_date:new Date().toISOString()}))});
- const report=await verifyAnswer({version:'1',text:'Acme Pro costs USD 20/month.'},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,interpreter:{interpret:async()=>fact}});
+ const report=await verifyAnswer({version:'1',text:'Acme Pro costs USD 20/month.'},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,interpreter:{interpret:async()=>fact}});
  expect(report.claims[0].outcome).toBe('supported');expect(report.claims[0].evidence[0].excerpt).toBe(text);
 });
 it.each(['http','json','schema','timeout'])('handles Ollama %s failures',async kind=>{
@@ -62,7 +62,7 @@ it('validates local configuration and structured chat output',async()=>{
 });
 it('adds language understanding without changing evidence truth requirements or original text',async()=>{
  const fetcher:typeof fetch=async()=>Response.json({results:[0,1].map(i=>({url:`https://source${i}.example`,content:'Acme Pro costs USD 25/month.',published_date:new Date().toISOString()}))});
- const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher};
  const baseline=await verifyAnswer({version:'1',text},options);
  const hybrid=await verifyAnswer({version:'1',text},{...options,interpreter:{interpret:async()=>fact}});
  expect(baseline.claims[0].outcome).toBe('inconclusive');expect(hybrid.claims[0].outcome).toBe('contradicted');expect(hybrid.claims[0].text).toBe(text);

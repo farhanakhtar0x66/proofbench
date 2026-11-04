@@ -20,6 +20,6 @@ it('limits extracted candidates and omits explicit opinions',()=>{
 it('skips ambiguous claims without spending a request',async()=>{
  let calls=0;
  const fetcher:typeof fetch=async()=>{calls++;return Response.json({results:[]});};
- const result=await verifyAnswer({version:'1',text:'The latest release is version 3.'},{mode:'live',allowPaidRequests:'true',maxRequests:1,apiKey:'test-key',fetch:fetcher});
+ const result=await verifyAnswer({version:'1',text:'The latest release is version 3.'},{mode:'live',allowLiveRequests:'true',maxRequests:1,apiKey:'test-key',fetch:fetcher});
  expect(calls).toBe(0);expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].uncertainty).toContain('explicit entity');
 });

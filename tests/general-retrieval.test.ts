@@ -10,7 +10,7 @@ import {createApp} from '../apps/api/src/app';
 const claim='Ronaldo is not the captain of Real Madrid in 2026.';
 const request={version:'1',claim};
 const recent=new Date().toISOString();
-const options={mode:'live',allowPaidRequests:'true',apiKey:'fake-test-key',maxRequests:1};
+const options={mode:'live',allowLiveRequests:'true',apiKey:'fake-test-key',maxRequests:1};
 const result={title:'Example source',url:'https://example.com/sports',content:'An unverified excerpt concerning a sports claim.',published_date:recent};
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();});
 
@@ -36,7 +36,7 @@ it('preserves region, condition and historical scope rather than appending curre
  expect((await retrieveClaimEvidence({version:'1',claim:text},{...options,fetch:fetcher})).status).toBe('empty');
 });
 it.each([
- {allowPaidRequests:'false'}, {apiKey:''}, {maxRequests:0}, {maxRequests:51}, {mode:'wrong'},
+ {allowLiveRequests:'false'}, {apiKey:''}, {maxRequests:0}, {maxRequests:51}, {mode:'wrong'},
 ])('refuses invalid/disabled live setup before a request %j',async patch=>{
  const fetcher=vi.fn();await expect(retrieveClaimEvidence(request,{...options,...patch,fetch:fetcher})).rejects.toThrow();expect(fetcher).not.toHaveBeenCalled();
 });
@@ -85,7 +85,7 @@ it('returns empty rather than implying contradiction when no usable excerpts exi
 });
 it('integrates with Fastify and shares the existing verifier server budget',async()=>{
  const directory=await mkdtemp(join(tmpdir(),'b05-general-evidence-'));
- vi.stubEnv('LANGUAGE_MODE','rules');vi.stubEnv('CLAIM_EXTRACTION_MODE','rules');vi.stubEnv('ALLOW_PAID_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake-test-key');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
+ vi.stubEnv('LANGUAGE_MODE','rules');vi.stubEnv('CLAIM_EXTRACTION_MODE','rules');vi.stubEnv('ALLOW_LIVE_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake-test-key');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
  const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async()=>Response.json({results:[result]}));
  const app=await createApp({dataDir:directory,implementation:'mock',tavilyMode:'live'});
  try{
@@ -96,7 +96,7 @@ it('integrates with Fastify and shares the existing verifier server budget',asyn
  }finally{await app.close();await rm(directory,{recursive:true,force:true});}
 },20000);
 it('serves the offline endpoint without any requests and rejects unapproved live retrieval',async()=>{
- const directory=await mkdtemp(join(tmpdir(),'b05-offline-evidence-'));vi.stubEnv('LANGUAGE_MODE','rules');vi.stubEnv('ALLOW_PAID_REQUESTS','false');
+ const directory=await mkdtemp(join(tmpdir(),'b05-offline-evidence-'));vi.stubEnv('LANGUAGE_MODE','rules');vi.stubEnv('ALLOW_LIVE_REQUESTS','false');
  const fetcher=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('No network allowed'));
  for(const mode of ['mock','live']){
   const app=await createApp({dataDir:directory,implementation:'mock',tavilyMode:mode});

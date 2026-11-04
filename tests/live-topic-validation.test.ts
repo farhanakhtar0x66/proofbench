@@ -6,7 +6,7 @@ import {runLiveTopicBatch} from '../scripts/live-topic-validation-lib';
 
 afterEach(()=>vi.unstubAllEnvs());
 function configure(){
- const values={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-simulation',BIFROST_LLM_ENDPOINT:'http://127.0.0.1:8080',BIFROST_LLM_TIMEOUT_MS:'1000',BIFROST_LLM_VIRTUAL_KEY:'',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'9',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'synthetic-key',GEMINI_API_KEY:'synthetic-key',TAVILY_MAX_REQUESTS:'9'};
+ const values={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-simulation',BIFROST_LLM_ENDPOINT:'http://127.0.0.1:8080',BIFROST_LLM_TIMEOUT_MS:'1000',BIFROST_LLM_VIRTUAL_KEY:'',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'9',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'synthetic-key',GEMINI_API_KEY:'synthetic-key',TAVILY_MAX_REQUESTS:'9'};
  for(const [key,value] of Object.entries(values))vi.stubEnv(key,value);
 }
 const cases=[{id:'first',claim:'Acme Pro costs USD 20/month.',expected:'supported' as const},{id:'second',claim:'Acme Pro costs USD 25/month.',expected:'contradicted' as const}];

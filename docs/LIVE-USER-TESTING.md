@@ -28,12 +28,12 @@ env LANGUAGE_MODE=bifrost \
   BIFROST_LLM_MAX_REQUESTS=5 \
   BIFROST_LLM_TIMEOUT_MS=30000 \
   TAVILY_MODE=live \
-  ALLOW_PAID_REQUESTS=true \
+  ALLOW_LIVE_REQUESTS=true \
   TAVILY_MAX_REQUESTS=5 \
   npm run dev
 ```
 
-`npm run dev` starts Fastify and Vite. The environment overrides apply only to this process tree; `.env` is not rewritten. The existing `ALLOW_PAID_REQUESTS` variable is named awkwardly: here it is the app's request-consent gate, not an instruction to enable provider billing. Provider billing remains disabled at the accounts. `BIFROST_FREE_TIER_CONFIRMED` records the operator's confirmation; it does not inspect or change billing remotely.
+`npm run dev` starts Fastify and Vite. The environment overrides apply only to this process tree; `.env` is not rewritten. The existing `ALLOW_LIVE_REQUESTS` variable is named awkwardly: here it is the app's request-consent gate, not an instruction to enable provider billing. Provider billing remains disabled at the accounts. `BIFROST_FREE_TIER_CONFIRMED` records the operator's confirmation; it does not inspect or change billing remotely.
 
 Open the Vite address, select **Freshness verifier → General claim analysis**, and check that the banner says **LIVE SOURCES SELECTED** with model comparison configured. Enter a factual statement and click **Verify answer**. This is a new analysis; do not use **Load a saved assessment** when you want a fresh check.
 

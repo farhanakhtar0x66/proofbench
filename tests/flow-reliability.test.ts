@@ -60,7 +60,7 @@ it('uses one capped basic current-evidence search, caches it and preserves the o
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
   const body=JSON.parse(String(init?.body));expect(body.query).toBe('Real Madrid current club captains captaincy appointment official sources');expect(body.filter_by_published_date).toBe(true);expect(body.auto_parameters).toBe(false);expect(body.search_depth).toBe('basic');expect(body.max_results).toBe(6);expect(body.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/u);return Response.json({results:[]});
  });
- const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,budget,fetch:fetcher};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,budget,fetch:fetcher};
  const first=await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);expect(first.claim).toBe(claim);expect(first.searchScope).toBe('current');expect(first.status).toBe('empty');
  await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);expect(fetcher).toHaveBeenCalledTimes(1);
  const literal=await retrieveClaimEvidence({version:'1',claim},options);expect(literal.status).toBe('budget_exhausted');expect(fetcher).toHaveBeenCalledTimes(1);

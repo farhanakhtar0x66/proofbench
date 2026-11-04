@@ -6,7 +6,7 @@ import {createApp} from '../apps/api/src/app';
 import {createBifrostInterpreter} from '../packages/tavily/src/bifrost-interpreter';
 import {SearchBudget,CachedEvidenceUnavailable} from '../packages/tavily/src/budget';
 
-const env={LANGUAGE_MODE:'bifrost',EVIDENCE_COMPARISON_MODE:'llm',CLAIM_EXTRACTION_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-test',GEMINI_API_KEY:'fake',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'2',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'};
+const env={LANGUAGE_MODE:'bifrost',EVIDENCE_COMPARISON_MODE:'llm',CLAIM_EXTRACTION_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-test',GEMINI_API_KEY:'fake',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'2',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'};
 const claim='Acme Pro costs USD 20/month.';
 afterEach(()=>{vi.restoreAllMocks();vi.unstubAllEnvs();vi.useRealTimers();});
 

@@ -70,7 +70,7 @@ Identical queries and credentials reuse search results for five minutes, retaini
 
 Restarting the server resets its in-memory budget and cache. Multiple server instances each have their own cap. This is not an account-wide billing limit; keep Tavily account billing controls and live-mode consent configured accordingly.
 
-Live mode requires TAVILY_MODE=live, ALLOW_PAID_REQUESTS=true, a server-side key and a positive cap. Default development remains mock mode.
+Live mode requires TAVILY_MODE=live, ALLOW_LIVE_REQUESTS=true, a server-side key and a positive cap. Default development remains mock mode.
 
 Every new verification result includes freshnessScore. This coarse validity indicator is 100 for supported/current claims with recent corroboration, 0 for contradicted/stale claims with recent corroboration, and null for inconclusive results, missing qualifying evidence or mock fixtures. It is not confidence, a calibrated probability, or an evidence-quality rating. No intermediate values are emitted until evaluation supports a calibrated scale. Evidence recency and agreement are eligibility requirements, rather than arbitrary weighted bonuses.
 

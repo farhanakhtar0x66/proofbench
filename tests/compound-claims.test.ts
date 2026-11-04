@@ -32,7 +32,7 @@ it('verifies extracted facts separately within the shared budget',async()=>{
   return Response.json({results:[0,1].map(i=>({url:`https://source${i}.example/facts`,content,published_date:new Date().toISOString()}))});
  };
  const input={version:'1' as const,text:'Acme Pro costs USD 20/month and Maya Chen is the CEO of Cedar Labs.'};
- const result=await verifyAnswer(input,{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:2,fetch:fetcher});
+ const result=await verifyAnswer(input,{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:2,fetch:fetcher});
  expect(calls).toBe(2);expect(result.claims.map(claim=>claim.outcome)).toEqual(['contradicted','supported']);
 });
 it('does not split caller-provided explicit claims',async()=>{

@@ -96,7 +96,7 @@ it('constrains the wire schema to actual sources, whole quotes and shared correc
  expect(()=>comparisonSchemaFor(JSON.stringify({...context,sources:[{sourceId:'S2',excerpt:claim},{sourceId:'S1',excerpt:claim}]}))).toThrow();
 });
 it('retrieves evidence server-side and compares it through the shared gateway adapter; refuses client citations',async()=>{
- const dir=await mkdtemp(join(tmpdir(),'b05-compare-api-'));vi.stubEnv('LANGUAGE_MODE','bifrost');vi.stubEnv('EVIDENCE_COMPARISON_MODE','llm');vi.stubEnv('ALLOW_PAID_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
+ const dir=await mkdtemp(join(tmpdir(),'b05-compare-api-'));vi.stubEnv('LANGUAGE_MODE','bifrost');vi.stubEnv('EVIDENCE_COMPARISON_MODE','llm');vi.stubEnv('ALLOW_LIVE_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
  for(const [key,value] of Object.entries(hosted))vi.stubEnv(key,value);
  const fetcher=vi.spyOn(globalThis,'fetch').mockImplementation(async url=>{
   if(String(url)==='http://127.0.0.1:8080/health')return Response.json({status:'ok'});

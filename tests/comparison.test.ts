@@ -23,14 +23,14 @@ it.each(['supported','contradicted','inconclusive'] as const)('requires corrobor
  const other='The current CEO of Acme is Bob.';
  const contents=expected==='supported'?[claim,claim]:expected==='contradicted'?[other,other]:[claim,other];
  const fetcher:typeof fetch=async()=>Response.json({results:contents.map((content,i)=>({url:`https://source${i}.example/leadership`,content,published_date:new Date().toISOString()}))});
- const result=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',maxRequests:1,apiKey:'test-key',fetch:fetcher});
+ const result=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',maxRequests:1,apiKey:'test-key',fetch:fetcher});
  expect(result.claims[0].outcome).toBe(expected);
  expect(result.claims[0].freshnessScore).toBe(expected==='supported'?100:expected==='contradicted'?0:null);
 });
 it('duplicate URLs and one hostname do not count as corroboration',async()=>{
  const text='Acme latest version is 2.';
  const fetcher:typeof fetch=async()=>Response.json({results:[1,2].map(i=>({url:`https://example.com/${i}`,content:text,published_date:new Date().toISOString()}))});
- const result=await verifyAnswer({version:'1',text},{mode:'live',allowPaidRequests:'true',maxRequests:1,apiKey:'test-key',fetch:fetcher});
+ const result=await verifyAnswer({version:'1',text},{mode:'live',allowLiveRequests:'true',maxRequests:1,apiKey:'test-key',fetch:fetcher});
  expect(result.claims[0].outcome).toBe('inconclusive');
  expect(result.claims[0].freshnessScore).toBeNull();
 });

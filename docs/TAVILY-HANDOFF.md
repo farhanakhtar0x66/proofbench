@@ -12,7 +12,7 @@ Example request (mock mode is the default):
 
 The response includes version, report id, mode, createdAt, original text and claims. Each claim includes outcome (supported/contradicted/inconclusive), freshness (current/stale/unknown), freshnessScore (100/0/null), uncertainty and evidence. Evidence includes source URL, excerpt, publication date when present, and real retrieval time. Old reports without a score remain readable.
 
-Default local settings: TAVILY_MODE=mock, ALLOW_PAID_REQUESTS=false, TAVILY_MAX_REQUESTS=0. Keys belong only in ignored .env or server secrets. Enabling live mode requires all three safeguards plus a key. Changing settings requires restarting the server. No further live tests are necessary for this handoff.
+Default local settings: TAVILY_MODE=mock, ALLOW_LIVE_REQUESTS=false, TAVILY_MAX_REQUESTS=0. Keys belong only in ignored .env or server secrets. Enabling live mode requires all three safeguards plus a key. Changing settings requires restarting the server. No further live tests are necessary for this handoff.
 
 The request cap covers the running app instance, including failed attempts. Concurrent identical queries share a request. Cached results last five minutes and retain the original retrieval time. Restarting creates a new budget; multiple instances each have a cap. These controls cannot enforce an account-wide monetary limit.
 

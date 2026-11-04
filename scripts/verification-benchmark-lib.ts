@@ -19,7 +19,7 @@ export async function prepareVerificationBenchmark(){
    return Response.json({results:evidence.evidence.map(source=>({url:source.url,title:source.title,content:source.excerpt,published_date:source.publishedAt}))});
   };
   const start=performance.now();
-  const baseline=await verifyAnswer({version:'1',text:item.claim,claims:[{text:item.claim}]},{mode:'live',allowPaidRequests:'true',apiKey:'synthetic-key',maxRequests:1,fetch:fetcher,budget:new SearchBudget()});
+  const baseline=await verifyAnswer({version:'1',text:item.claim,claims:[{text:item.claim}]},{mode:'live',allowLiveRequests:'true',apiKey:'synthetic-key',maxRequests:1,fetch:fetcher,budget:new SearchBudget()});
   const latencyMs=performance.now()-start;const outcome=baseline.claims[0].outcome;
   cases.push({id:item.id,expected:item.expected,rationale:item.rationale,evidence,rules:{outcome,correct:outcome===item.expected,falseDecisive:outcome!=='inconclusive'&&outcome!==item.expected,latencyMs,explanation:baseline.claims[0].uncertainty}});
  }

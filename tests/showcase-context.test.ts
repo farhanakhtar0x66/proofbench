@@ -30,7 +30,7 @@ it('retains immediately following wrapped conditions or excludes a qualification
 it('includes opposing support blocks in one model input rather than silently selecting a positive passage',async()=>{
  const body=`Python 2 is supported by a commercial vendor.\n${'Unrelated background. '.repeat(180)}\nPython 2 is not supported by the upstream project.`;
  const source=selectEvidenceExcerpt('Python 2 is currently supported.',body);const stamp=new Date().toISOString();
- const fetched=await retrieveClaimEvidence({version:'1',claim:'Python 2 is currently supported.'},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:async()=>Response.json({results:[0,1].map(index=>({url:`https://source${index}.example`,content:body,published_date:stamp}))})});
+ const fetched=await retrieveClaimEvidence({version:'1',claim:'Python 2 is currently supported.'},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:async()=>Response.json({results:[0,1].map(index=>({url:`https://source${index}.example`,content:body,published_date:stamp}))})});
  expect(fetched.evidence[0].excerptPassages).toEqual(source.passages);
  // Reject even plausible model labels when a composed quote's metadata is altered.
  fetched.evidence[0].excerptPassages![0].text='X'.repeat(fetched.evidence[0].excerptPassages![0].text.length);

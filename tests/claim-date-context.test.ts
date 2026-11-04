@@ -50,7 +50,7 @@ it.each([undefined,'2020-01-01','2027-01-01','not-a-date'])('does not bypass pub
 it('preserves exact full evidence for model assessment while allowing separate-subject dates',async()=>{
  const claim='Aster owns Harbor.';const content=`${claim} ${background}`;
  const fetcher=vi.fn<typeof fetch>(async()=>Response.json({results:[0,1].map(index=>({url:`https://source${index}.example/notice`,content:`${content} Notice ${index}.`,published_date:new Date().toISOString()}))}));
- const retrieval=await retrieveClaimEvidence({version:'1',claim,scope:'current'},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher});
+ const retrieval=await retrieveClaimEvidence({version:'1',claim,scope:'current'},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher});
  const compareEvidence=vi.fn(async(text:string)=>{
   const context=JSON.parse(text);
   expect(context.sources.every((source:{excerpt:string})=>source.excerpt.includes(background))).toBe(true);
@@ -67,7 +67,7 @@ it.each([
  'Aster owns Harbor. Effective on 2099-01-01.',
 ])('still abstains before inference on unsafe temporal evidence: %s',async content=>{
  const fetcher:typeof fetch=async()=>Response.json({results:[0,1].map(index=>({url:`https://temporal${index}.example`,content:`${content} Notice ${index}.`,published_date:new Date().toISOString()}))});
- const retrieval=await retrieveClaimEvidence({version:'1',claim:'Aster owns Harbor.',scope:'current'},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher});
+ const retrieval=await retrieveClaimEvidence({version:'1',claim:'Aster owns Harbor.',scope:'current'},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher});
  const compareEvidence=vi.fn();
  const result=await compareClaimEvidence(retrieval,{mode:'llm',interpreter:{interpret:vi.fn(),compareEvidence}});
  expect(result.outcome).toBe('inconclusive');expect(compareEvidence).not.toHaveBeenCalled();

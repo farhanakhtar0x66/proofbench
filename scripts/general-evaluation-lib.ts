@@ -27,7 +27,7 @@ export const generalScenarios:Scenario[]=[
 
 // CLI/test utility only: never run concurrently with a production server in this process.
 export async function evaluateGeneralScenarios(scenarios:Scenario[]=generalScenarios){
- const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-simulation',BIFROST_LLM_ENDPOINT:'http://127.0.0.1:8080',BIFROST_LLM_TIMEOUT_MS:'1000',BIFROST_LLM_VIRTUAL_KEY:'',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'4',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'synthetic-key',GEMINI_API_KEY:'synthetic-key',TAVILY_MAX_REQUESTS:'3'};
+ const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-simulation',BIFROST_LLM_ENDPOINT:'http://127.0.0.1:8080',BIFROST_LLM_TIMEOUT_MS:'1000',BIFROST_LLM_VIRTUAL_KEY:'',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'4',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'synthetic-key',GEMINI_API_KEY:'synthetic-key',TAVILY_MAX_REQUESTS:'3'};
  const saved=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));const upstream=globalThis.fetch;
  const results=[];
  try{

@@ -52,7 +52,7 @@ it('runs the verifier through a gateway-shaped fake upstream, preserving evidenc
  let gatewayCalls=0;let evidenceCalls=0;
  const gateway:typeof fetch=async()=>{gatewayCalls++;return Response.json(envelope());};
  const evidence:typeof fetch=async()=>{evidenceCalls++;return Response.json({results:[0,1].map(i=>({url:`https://source${i}.example`,content:'Acme Pro costs USD 25/month.',published_date:new Date().toISOString()}))});};
- const report=await verifyAnswer({version:'1',text},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:evidence,interpreter:createBifrostInterpreter(local,gateway)});
+ const report=await verifyAnswer({version:'1',text},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:evidence,interpreter:createBifrostInterpreter(local,gateway)});
  expect(report.claims[0].outcome).toBe('contradicted');expect(report.claims[0].text).toBe(text);expect(report.claims[0].uncertainty).toContain('Bifrost');expect(gatewayCalls).toBe(1);expect(evidenceCalls).toBe(1);
 });
 it('preflights availability and model presence without inference',async()=>{
@@ -63,7 +63,7 @@ it('preflights availability and model presence without inference',async()=>{
 });
 it('connects the Fastify verify route to the configured gateway adapter without real services',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'b05-gateway-test-'));
- vi.stubEnv('LANGUAGE_MODE','bifrost');vi.stubEnv('BIFROST_LLM_ENDPOINT','http://127.0.0.1:8080');vi.stubEnv('BIFROST_LLM_MODEL','ollama/qwen2.5:3b');vi.stubEnv('ALLOW_PAID_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake-test-key');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
+ vi.stubEnv('LANGUAGE_MODE','bifrost');vi.stubEnv('BIFROST_LLM_ENDPOINT','http://127.0.0.1:8080');vi.stubEnv('BIFROST_LLM_MODEL','ollama/qwen2.5:3b');vi.stubEnv('ALLOW_LIVE_REQUESTS','true');vi.stubEnv('TAVILY_API_KEY','fake-test-key');vi.stubEnv('TAVILY_MAX_REQUESTS','1');
  let gateways=0;let searches=0;
  vi.spyOn(globalThis,'fetch').mockImplementation(async url=>{
   if(String(url)==='http://127.0.0.1:8080/v1/chat/completions'){gateways++;return Response.json(envelope());}

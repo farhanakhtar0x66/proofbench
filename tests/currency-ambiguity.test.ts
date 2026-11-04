@@ -16,7 +16,7 @@ it('retains existing evidence and abstains before invoking an overconfident mode
  expect(result.outcome).toBe('inconclusive');expect(result.correction).toBeNull();expect(result.explanation).toContain('currency');expect(result.citations).toHaveLength(2);expect(compareEvidence).not.toHaveBeenCalled();
 });
 it('makes no new search/model call for ambiguous analysis with live mode configured',async()=>{
- const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'1',GEMINI_API_KEY:'fake',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'};
+ const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'1',GEMINI_API_KEY:'fake',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'};
  for(const [key,value] of Object.entries(env))vi.stubEnv(key,value);
  const network=vi.spyOn(globalThis,'fetch').mockRejectedValue(new Error('Forbidden'));
  const directory=await mkdtemp(join(tmpdir(),'b05-currency-'));const app=await createApp({implementation:'mock',tavilyMode:'live',dataDir:directory});

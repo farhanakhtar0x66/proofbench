@@ -30,6 +30,6 @@ it('keeps original-source temporal qualifiers after model normalization',()=>{
 it('returns temporal notes and does not infer current truth from a recently published historical passage',async()=>{
  const text='Acme costs USD 20/month.';
  const fetcher:typeof fetch=async()=>Response.json({results:[0,1].map(i=>({url:`https://source${i}.example`,content:`As of 2020-01-01. ${text}`,published_date:new Date().toISOString()}))});
- const report=await verifyAnswer({version:'1',text},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher});
+ const report=await verifyAnswer({version:'1',text},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher});
  expect(report.claims[0].outcome).toBe('inconclusive');expect(report.claims[0].freshnessScore).toBeNull();expect(report.claims[0].evidence[0].dateReason).toContain('historical');expect(report.claims[0].uncertainty).toContain('historical');
 });

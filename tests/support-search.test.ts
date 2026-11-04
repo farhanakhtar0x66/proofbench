@@ -51,7 +51,7 @@ it('retrieves older lifecycle announcements with warnings, preserves the claim a
   for(const key of ['start_date','end_date','filter_by_published_date'])expect(body).not.toHaveProperty(key);
   return Response.json({results:raw});
  });
- const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
  const report=await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);
  expect(report.claim).toBe(claim);expect(report.searchScope).toBe('current');expect(report.searchWindow).toBeUndefined();expect(report.evidence).toHaveLength(2);
  expect(report.evidence.every(source=>source.publishedAt==='2020-01-01T00:00:00.000Z'&&source.dateReason?.includes('older than 30 days')&&source.sourceTier==='unreviewed'&&source.relation==='context')).toBe(true);

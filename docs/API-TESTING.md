@@ -9,7 +9,7 @@ npm run smoke:api
 To use curl or Postman, start a local API in a separate terminal with explicit safe process settings (these override .env without editing it):
 
 ```sh
-LANGUAGE_MODE=rules TAVILY_MODE=mock ALLOW_PAID_REQUESTS=false TAVILY_MAX_REQUESTS=0 npm run dev:api
+LANGUAGE_MODE=rules TAVILY_MODE=mock ALLOW_LIVE_REQUESTS=false TAVILY_MAX_REQUESTS=0 npm run dev:api
 ```
 
 These examples assume the default port 3001. Stop the server with Ctrl+C after testing.

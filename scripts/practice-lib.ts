@@ -6,7 +6,7 @@ export async function practiceVerification(claim:string,sources:[string,string])
   url:`https://practice-source-${i}.example/simulated`,title:`Simulated source ${i+1}`,content,published_date:date,
  }))});
  // Explicit dependency injection makes the entire search pipeline offline.
- const report=await verifyAnswer({version:'1',text:claim,claims:[{text:claim}]},{mode:'live',allowPaidRequests:'true',apiKey:'offline-placeholder',maxRequests:1,fetch:fakeFetch,budget:new SearchBudget()});
+ const report=await verifyAnswer({version:'1',text:claim,claims:[{text:claim}]},{mode:'live',allowLiveRequests:'true',apiKey:'offline-placeholder',maxRequests:1,fetch:fakeFetch,budget:new SearchBudget()});
  const result=report.claims[0];
  return {
   simulated:true as const,

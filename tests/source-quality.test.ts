@@ -10,7 +10,7 @@ const login='Create new account. See more on Facebook. Email or phone number. Pa
 const caption='Image: Acme CEO Taylor on stage (Photo by Example photographer).';
 const content='Taylor is CEO of Acme. The company announced the appointment in its leadership notice.';
 const recent=new Date(Date.now()-86400000).toISOString();
-const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1};
+const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1};
 
 it.each([svg,login,caption])('flags unreadable/walled/caption-only text without rewriting it',text=>{
  expect(excerptQualityReason(claim,text)).toBeDefined();

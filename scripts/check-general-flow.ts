@@ -9,7 +9,7 @@ import {checkBifrostStack} from '../packages/tavily/src/bifrost-status';
 
 const resume=process.argv.includes('--resume-extraction');
 const searchScope=process.argv.includes('--current-evidence')?'current':'as_stated';
-if(process.env.TAVILY_MODE!=='live'||process.env.ALLOW_PAID_REQUESTS!=='true'||process.env.TAVILY_MAX_REQUESTS!=='1'||process.env.LANGUAGE_MODE!=='bifrost'||process.env.BIFROST_LLM_MAX_REQUESTS!==(resume?'1':'2')||process.env.CLAIM_EXTRACTION_MODE!=='llm'||process.env.EVIDENCE_COMPARISON_MODE!=='llm')throw new Error('Explicit test settings required: one search, two total model attempts (one remaining for resume), and extraction/comparison enabled.');
+if(process.env.TAVILY_MODE!=='live'||process.env.ALLOW_LIVE_REQUESTS!=='true'||process.env.TAVILY_MAX_REQUESTS!=='1'||process.env.LANGUAGE_MODE!=='bifrost'||process.env.BIFROST_LLM_MAX_REQUESTS!==(resume?'1':'2')||process.env.CLAIM_EXTRACTION_MODE!=='llm'||process.env.EVIDENCE_COMPARISON_MODE!=='llm')throw new Error('Explicit test settings required: one search, two total model attempts (one remaining for resume), and extraction/comparison enabled.');
 const settings=bifrostSettings();
 const claim='Cristiano Ronaldo is captain of Real Madrid.';
 const upstream=globalThis.fetch;

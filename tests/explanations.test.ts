@@ -13,6 +13,6 @@ it.each([
  {name:'unsupported wording',claim:'Acme Pro pricing is affordable.',contents:[text,text],dated:true,reason:'supported English'},
 ])('explains $name',async({claim,contents,dated,reason})=>{
  const fetcher:typeof fetch=async()=>Response.json({results:contents.map((content,i)=>({url:`https://source${i}.example/facts`,content,published_date:dated?new Date().toISOString():undefined}))});
- const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
  expect(report.claims[0].outcome).toBe('inconclusive');expect(report.claims[0].freshnessScore).toBeNull();expect(report.claims[0].uncertainty).toContain(reason);
 });

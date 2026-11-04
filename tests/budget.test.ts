@@ -6,7 +6,7 @@ it('shares the cap across repeated and concurrent verifications',async()=>{
  let calls=0;
  const fetcher:typeof fetch=async()=>{calls++;return Response.json({results:[]});};
  const budget=new SearchBudget();
- const options={mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher,budget};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher,budget};
  const reports=await Promise.all(['Acme latest version is 2.','Acme latest version is 2.','Other latest version is 3.'].map(text=>verifyAnswer({version:'1',text},options)));
  expect(calls).toBe(1);expect(reports[2].claims[0].uncertainty).toContain('budget exhausted');
  await verifyAnswer({version:'1',text:'Acme latest version is 2.'},options);
@@ -43,7 +43,7 @@ it('isolates cache by credential and cannot raise an established cap',async()=>{
 it('does not cache malformed upstream responses',async()=>{
  let calls=0;
  const fetcher:typeof fetch=async()=>{calls++;return Response.json({results:[{url:'https://example.com',content:42}]});};
- const options={mode:'live',allowPaidRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher,budget:new SearchBudget()};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher,budget:new SearchBudget()};
  const request={version:'1' as const,text:'Acme latest version is 2.'};
  const first=await verifyAnswer(request,options);
  expect(first.claims[0].uncertainty).toContain('invalid evidence');

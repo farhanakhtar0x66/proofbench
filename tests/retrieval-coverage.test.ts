@@ -7,7 +7,7 @@ import {retrievalRanking} from '../packages/tavily/src/retrieval-ranking';
 
 const claim='Alex is CEO of Acme.';
 const now=new Date().toISOString();
-const settings={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1};
+const settings={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1};
 const page=(url:string,raw_content:string,content='Image: Alex on stage.')=>({url,title:'Acme leadership',content,raw_content,published_date:now});
 it('recovers complete role passages from page text in one Basic search and reuses the same cache',async()=>{
  const texts=['Taylor is CEO of Acme. This is the current leadership profile.','Acme names Taylor as its current CEO. The appointment is described in this leadership notice.'];

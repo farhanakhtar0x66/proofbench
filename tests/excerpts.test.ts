@@ -53,7 +53,7 @@ it('bounds source inspection and discloses unseen context',()=>{
 it('reuses cached raw search text to select a useful passage and sends no additional search',async()=>{
  const content=`${packages}\n\n${statement}`;const now=new Date().toISOString();
  const fetcher=vi.fn<typeof fetch>(async()=>Response.json({results:[{url:'https://example.com/python',content,published_date:now}]}));
- const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
  const first=await retrieveClaimEvidence({version:'1',claim},options);const cached=await retrieveClaimEvidence({version:'1',claim},{...options,cacheOnly:true});
  expect(fetcher).toHaveBeenCalledOnce();expect(first.evidence).toEqual(cached.evidence);expect(first.evidence[0].excerpt).toBe(statement);
  const selection=first.evidence[0].excerptSelection!;expect(content.slice(selection.start,selection.end)).toBe(statement);

@@ -27,7 +27,7 @@ it('supports offline analysis, exact source spans, claim bounds, deduplication a
 },20000);
 
 it.each([false,true])('orchestrates real-shaped sources and gateway output with shared limits; simulated failure=%s',async fail=>{
- const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:fail?'rules':'llm',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'10',GEMINI_API_KEY:'fake',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'3'};
+ const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:fail?'rules':'llm',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'10',GEMINI_API_KEY:'fake',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'3'};
  for(const [key,value] of Object.entries(env))vi.stubEnv(key,value);
  const claims=['Acme costs USD 20/month.','Beta costs USD 30/month.','Gamma costs USD 40/month.','Delta costs USD 50/month.'];
  let searches=0;let inferences=0;

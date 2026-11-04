@@ -15,7 +15,7 @@ jobs:
     env:
       BIFROST_IMPLEMENTATION: mock
       TAVILY_MODE: mock
-      ALLOW_PAID_REQUESTS: 'false'
+      ALLOW_LIVE_REQUESTS: 'false'
       TAVILY_MAX_REQUESTS: '0'
     steps:
       - uses: actions/checkout@v7

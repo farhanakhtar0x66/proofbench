@@ -14,7 +14,7 @@ import {completedEventAssessment} from './completed-event';
 import {historicalSupportAssessment} from './historical-support';
 import {reviewedOfficialDirect} from './reviewed-official';
 
-type Options={mode?:string;allowPaidRequests?:string;apiKey?:string;maxRequests?:string|number;budget?:SearchBudget;fetch?:typeof fetch;cacheOnly?:boolean};
+type Options={mode?:string;allowLiveRequests?:string;apiKey?:string;maxRequests?:string|number;budget?:SearchBudget;fetch?:typeof fetch;cacheOnly?:boolean};
 const budgets=new WeakMap<typeof fetch,SearchBudget>();
 
 export async function retrieveClaimEvidence(input:unknown,options:Options={}):Promise<ReturnType<typeof EvidenceRetrievalReport.parse>>{
@@ -27,8 +27,8 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  if(request.scope==='current')limitations.push(plan.dateWindow?'Current-evidence search can omit relevant undated or older sources. Its date filter does not establish ownership, truth or current applicability.':'Recognized lifecycle or completed-event search has no publication-date filter. Older dated reports may qualify only for an explicitly completed historical event; current support/applicability and undated evidence still require separate date checks.');
  if(mode==='mock')return EvidenceRetrievalReport.parse({version:'1',claim:request.claim,query,...scope,mode,status:'offline',createdAt,retrievedAt:null,evidence:[],limitations,message:'Offline mode: no Tavily search or LLM request was made.'});
  if(mode!=='live')throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
- if(options.cacheOnly&&((options.allowPaidRequests??process.env.ALLOW_PAID_REQUESTS)!=='true'||!(options.apiKey??process.env.TAVILY_API_KEY)?.trim()))return retrieveClaimEvidence(input,{mode:'mock'});
- if((options.allowPaidRequests??process.env.ALLOW_PAID_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. An explicitly approved request budget is required.');
+ if(options.cacheOnly&&((options.allowLiveRequests??process.env.ALLOW_LIVE_REQUESTS)!=='true'||!(options.apiKey??process.env.TAVILY_API_KEY)?.trim()))return retrieveClaimEvidence(input,{mode:'mock'});
+ if((options.allowLiveRequests??process.env.ALLOW_LIVE_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. An explicitly approved request budget is required.');
  const apiKey=options.apiKey??process.env.TAVILY_API_KEY;
  if(!apiKey?.trim())throw new TavilyConfigurationError('TAVILY_API_KEY is required in live mode.');
  const limit=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);

@@ -7,7 +7,7 @@ import {checkBifrostStack} from '../packages/tavily/src/bifrost-status';
 import {prepareFocusedRecheck,compareFocusedBaseline} from './focused-recheck-lib';
 
 const focused=process.argv.includes('--focused');const limit=focused?4:9;
-const required={RUN_TOPIC_VALIDATION:'true',LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',TAVILY_MODE:'live',ALLOW_PAID_REQUESTS:'true',TAVILY_MAX_REQUESTS:String(limit),BIFROST_LLM_MAX_REQUESTS:String(limit)};
+const required={RUN_TOPIC_VALIDATION:'true',LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',TAVILY_MODE:'live',ALLOW_LIVE_REQUESTS:'true',TAVILY_MAX_REQUESTS:String(limit),BIFROST_LLM_MAX_REQUESTS:String(limit)};
 if(Object.entries(required).some(([key,value])=>process.env[key]!==value))throw new Error(`Explicit live topic-test consent, rules extraction and ${limit}-attempt ceilings required`);
 const settings=bifrostSettings();
 if(settings.provider!=='gemini'||hostedReadiness(process.env,settings))throw new Error('Configured free-tier Gemini model is not ready');

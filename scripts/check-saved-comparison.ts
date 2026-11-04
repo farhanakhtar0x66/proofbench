@@ -16,7 +16,7 @@ const settings=bifrostSettings();assert.equal(settings.model,previous.model);
 if(process.argv.includes('--preflight-only')){
  console.log('PASS saved real-source envelope and previous request counts validated. No network requests made.');
 }else{
- if(process.env.BIFROST_LLM_MAX_REQUESTS!=='1'||process.env.TAVILY_MODE!=='mock'||process.env.ALLOW_PAID_REQUESTS!=='false'||process.env.TAVILY_MAX_REQUESTS!=='0')throw new Error('One new model request and zero Tavily allowance are required for this continuation.');
+ if(process.env.BIFROST_LLM_MAX_REQUESTS!=='1'||process.env.TAVILY_MODE!=='mock'||process.env.ALLOW_LIVE_REQUESTS!=='false'||process.env.TAVILY_MAX_REQUESTS!=='0')throw new Error('One new model request and zero Tavily allowance are required for this continuation.');
  const output='.local/general-flow-check/comparison-resume.json';
  // Reserve this continuation before any inference; never overwrite/repeat silently.
  await writeFile(output,JSON.stringify({status:'reserved',createdAt:new Date().toISOString(),model:settings.model}),{flag:'wx'});

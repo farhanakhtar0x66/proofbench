@@ -46,7 +46,7 @@ it('ranks appointment excerpts first without removing context, changing text or 
   {url:'https://appointment.example/story',title:'Club announcement',content:'Taylor is the club captain for this season.',published_date:now},
  ];
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{const body=JSON.parse(String(init?.body));expect(body.query).toBe(target);expect(body.search_depth).toBe('basic');expect(body.max_results).toBe(6);return Response.json({results:raw});});
- const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
+ const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
  const report=await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);
  expect(report.claim).toBe(claim);expect(report.evidence.map(source=>source.scopeHint)).toEqual(['appointment','unspecified','match_only']);
  expect(report.evidence).toHaveLength(3);expect(report.evidence.every(source=>source.sourceTier==='unreviewed'&&source.relation==='context')).toBe(true);
@@ -57,9 +57,9 @@ it('keeps literal retrieval order and still abstains if all current results conc
  const claim='Alex is captain of Acme FC.';const now=new Date().toISOString();
  const raw=['first.example','second.example'].map((host,i)=>({url:`https://${host}/story`,title:`Source ${i}`,content:`Player ${i} served as captain against Club B.`,published_date:now}));
  const fetcher:typeof fetch=async()=>Response.json({results:raw});
- const literal=await retrieveClaimEvidence({version:'1',claim},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,budget:new SearchBudget()});
+ const literal=await retrieveClaimEvidence({version:'1',claim},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,budget:new SearchBudget()});
  expect(literal.evidence.map(source=>source.url)).toEqual(raw.map(source=>source.url));expect(literal.evidence.every(source=>source.scopeHint===undefined)).toBe(true);
- const current=await retrieveClaimEvidence({version:'1',claim,scope:'current'},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,budget:new SearchBudget()});
+ const current=await retrieveClaimEvidence({version:'1',claim,scope:'current'},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,budget:new SearchBudget()});
  const compareEvidence=vi.fn();const result=await compareClaimEvidence(current,{mode:'llm',interpreter:{interpret:vi.fn(),compareEvidence}});
  expect(result.outcome).toBe('inconclusive');expect(compareEvidence).not.toHaveBeenCalled();expect(result.citations.every(source=>!!source.scopeReason)).toBe(true);
 });

@@ -44,12 +44,12 @@ it('does not assume identical short factual sentences were copied',()=>{
 it('prevents copied passages from producing corroboration and retains evidence labels',async()=>{
  const content='This is a detailed pricing announcement with additional background information about the product and its billing policy for customers reviewing their subscription options. '+claim;
  const fetcher:typeof fetch=async()=>Response.json({results:[source('https://acme.example/pricing',content),source('https://copied.example/post',content)].map(item=>({...item,published_date:new Date().toISOString()}))});
- const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,sourcePolicy:policy});
+ const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,sourcePolicy:policy});
  expect(report.claims[0].outcome).toBe('inconclusive');expect(report.claims[0].freshnessScore).toBeNull();
  expect(report.claims[0].evidence[0].sourceTier).toBe('official_direct');expect(report.claims[0].evidence[1].duplicateOf).toBeDefined();
 });
 it('keeps a contradicting unreviewed source visible even when official sources rank first',async()=>{
  const fetcher:typeof fetch=async()=>Response.json({results:[source('https://acme.example/pricing'),source('https://review.example/post'),source('https://other.example/post','Acme Pro costs USD 25/month.')].map(item=>({...item,published_date:new Date().toISOString()}))});
- const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,sourcePolicy:policy});
+ const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,fetch:fetcher,sourcePolicy:policy});
  expect(report.claims[0].outcome).toBe('inconclusive');expect(report.claims[0].evidence[2].relation).toBe('contradicts');
 });

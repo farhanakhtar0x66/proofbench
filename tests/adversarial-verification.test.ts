@@ -20,6 +20,6 @@ it('does not ignore a source containing both agreeing and contradicting statemen
   {url:'https://second.example/pricing',content:claim},
   {url:'https://third.example/pricing',content:`${claim} Acme Pro costs USD 25/month.`},
  ].map(item=>({...item,published_date:new Date().toISOString()}))});
- const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',apiKey:'fake-key',maxRequests:1,fetch:fetcher});
+ const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',apiKey:'fake-key',maxRequests:1,fetch:fetcher});
  expect(report.claims[0].outcome).toBe('inconclusive');expect(report.claims[0].freshnessScore).toBeNull();
 });

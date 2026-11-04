@@ -10,7 +10,7 @@ await access('dist/api/server.js').catch(()=>{throw new Error('Build missing. Ru
 await access('dist/web/index.html');
 const directory=await mkdtemp(join(tmpdir(),'proofbench-deployment-'));
 const environment={...process.env,NODE_OPTIONS:'',HOST:'127.0.0.1',PORT:'0',DATA_DIR:directory,
- BIFROST_IMPLEMENTATION:'mock',TAVILY_MODE:'mock',ALLOW_PAID_REQUESTS:'false',TAVILY_MAX_REQUESTS:'0',
+ BIFROST_IMPLEMENTATION:'mock',TAVILY_MODE:'mock',ALLOW_LIVE_REQUESTS:'false',TAVILY_MAX_REQUESTS:'0',
  LANGUAGE_MODE:'rules',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'rules',
  BIFROST_FREE_TIER_CONFIRMED:'false',BIFROST_LLM_MAX_REQUESTS:'0',
  TAVILY_API_KEY:'',GEMINI_API_KEY:'',GROQ_API_KEY:'',BIFROST_LLM_VIRTUAL_KEY:''};

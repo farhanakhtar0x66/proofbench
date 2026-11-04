@@ -32,7 +32,7 @@ it.each(scenarios)('$name',async({claim,evidence,outcome})=>{
   calls++;
   return Response.json({results:[0,1].map(i=>({url:`https://synthetic-source-${i}.example/facts`,title:'Synthetic test evidence',content:evidence,published_date:new Date().toISOString()}))});
  };
- const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowPaidRequests:'true',apiKey:'fake-test-key',maxRequests:1,fetch:fetcher});
+ const report=await verifyAnswer({version:'1',text:claim},{mode:'live',allowLiveRequests:'true',apiKey:'fake-test-key',maxRequests:1,fetch:fetcher});
  expect(calls).toBe(1);
  expect(report.claims).toHaveLength(1);
  expect(report.claims[0].outcome).toBe(outcome);
@@ -52,7 +52,7 @@ it('returns separate results for a mixed answer using the actual extraction pipe
   const content=query.includes('nimbus')?'Nimbus Pro currently costs USD 25 per month.':query.includes('cedar')?statements[1]:'Orbit latest version is 4.0.';
   return Response.json({results:[0,1].map(i=>({url:`https://synthetic-source-${i}.example/facts`,content,published_date:new Date().toISOString()}))});
  };
- const report=await verifyAnswer({version:'1',text:statements.join('\n')},{mode:'live',allowPaidRequests:'true',apiKey:'fake-test-key',maxRequests:3,fetch:fetcher});
+ const report=await verifyAnswer({version:'1',text:statements.join('\n')},{mode:'live',allowLiveRequests:'true',apiKey:'fake-test-key',maxRequests:3,fetch:fetcher});
  expect(report.claims.map(claim=>claim.text)).toEqual(statements);
  expect(report.claims.map(claim=>claim.outcome)).toEqual(['contradicted','supported','contradicted']);
 });

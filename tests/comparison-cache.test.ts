@@ -90,7 +90,7 @@ it('bounds stored results to 100 entries',async()=>{
 });
 
 it('shares the app cache across analyses and comparison route after request-cap exhaustion, with no extra fetch',async()=>{
- const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'1',GEMINI_API_KEY:'fake',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'};
+ const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/test',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'1',GEMINI_API_KEY:'fake',ALLOW_LIVE_REQUESTS:'true',TAVILY_API_KEY:'fake',TAVILY_MAX_REQUESTS:'1'};
  for(const [key,value] of Object.entries(env))vi.stubEnv(key,value);
  let searches=0,models=0;
  vi.spyOn(globalThis,'fetch').mockImplementation(async(url,init)=>{

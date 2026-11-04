@@ -26,7 +26,7 @@ npm run test:ui            # starts local API + web; desktop and mobile
 cargo test --manifest-path crates/neuromesh-bridge/Cargo.toml --locked
 ```
 
-Default mock development and automated checks make no paid Tavily requests. Live search requires `TAVILY_MODE=live`, `ALLOW_PAID_REQUESTS=true`, a server-only key and a positive `TAVILY_MAX_REQUESTS` cap. The cap covers one running API instance and resets on restart. Search results are cached for five minutes. ChatGPT Plus does not supply API credits. See [Tavily handoff](docs/TAVILY-HANDOFF.md) before enabling live mode.
+Default mock development and automated checks make no paid Tavily requests. Live search requires `TAVILY_MODE=live`, `ALLOW_LIVE_REQUESTS=true`, a server-only key and a positive `TAVILY_MAX_REQUESTS` cap. The cap covers one running API instance and resets on restart. Search results are cached for five minutes. ChatGPT Plus does not supply API credits. See [Tavily handoff](docs/TAVILY-HANDOFF.md) before enabling live mode.
 
 ## Team boundaries
 
