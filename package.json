@@ -23,6 +23,7 @@
     "test:contracts": "vitest run tests/contracts.test.ts",
     "test:ui": "playwright test",
     "test:failover": "node --env-file-if-exists=.env --import tsx scripts/test-bifrost-failover.ts",
+    "test:real-failover": "node --env-file-if-exists=.env --import tsx scripts/test-real-bifrost-failover.ts",
     "test:freshness": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-tavily-freshness.ts",
     "benchmark:strategies": "node --env-file-if-exists=.env --import tsx scripts/benchmark-strategies.ts",
     "demonstrate:bifrost": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-bifrost-01.ts",

@@ -1,5 +1,6 @@
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
   ProofBenchAgent,
   BifrostClient,
@@ -11,23 +12,48 @@ import {
 } from '../implementations/bifrost-01/src/index';
 import { TaskSpec } from '../packages/contracts/src/index';
 
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
 try {
   process.loadEnvFile?.();
 } catch {
   // Ignore missing .env or node versions without loadEnvFile
 }
 
+const GATEWAY_URL = process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
+const ACTIVE_VIRTUAL_KEY = process.env.BIFROST_VIRTUAL_KEY;
+const isLiveRequested = process.argv.includes('--live');
+const isSimulationRequested = process.argv.includes('--simulation');
+
+async function checkLiveGateway(): Promise<boolean> {
+  if (isSimulationRequested) return false;
+  if (isLiveRequested) {
+    if (!ACTIVE_VIRTUAL_KEY) throw new Error('--live flag passed but BIFROST_VIRTUAL_KEY is missing');
+    return true;
+  }
+  try {
+    const res = await fetch(`${GATEWAY_URL}/health`);
+    return res.ok && Boolean(ACTIVE_VIRTUAL_KEY);
+  } catch {
+    return false;
+  }
+}
+
 async function main() {
   console.log('='.repeat(80));
-  console.log('ProofBench — Tavily Freshness & Deprecation Scenario Demonstration');
+  console.log('ProofBench — Tavily Freshness & Deprecation Comparative Verification');
   console.log('Scenario: Version-Sensitive API Deprecation (#![deny(deprecated)])');
   console.log('='.repeat(80));
 
+  const isGatewayLive = await checkLiveGateway();
+  const gatewayMode = isGatewayLive && !isSimulationRequested ? 'live' : 'simulation';
   const hasTavilyKey = Boolean(process.env.TAVILY_API_KEY);
   const tavilyMode = process.env.TAVILY_MODE === 'live' && hasTavilyKey ? 'live' : 'fixture';
-  console.log(`\n[TAVILY CONFIGURATION]`);
-  console.log(`  Mode:                     ${tavilyMode.toUpperCase()}`);
-  console.log(`  API Key Configured:       ${hasTavilyKey ? 'YES (Present in environment)' : 'NO (Using deterministic verified offline fixtures)'}`);
+
+  console.log('\n[RUNTIME CONFIGURATION]');
+  console.log(`  Bifrost Gateway Mode:     ${gatewayMode.toUpperCase()} (${gatewayMode === 'live' ? GATEWAY_URL : 'Embedded in-process'})`);
+  console.log(`  Tavily Search Mode:       ${tavilyMode.toUpperCase()} (${hasTavilyKey ? 'Live Web Search' : 'Deterministic exact fixture'})`);
 
   const tasksDir = getCodingTasksDir();
   const taskPath = path.join(tasksDir, 'task-4-version-freshness', 'task.json');
@@ -42,10 +68,13 @@ async function main() {
   const evidenceReport: Record<string, unknown> = {
     timestamp: new Date().toISOString(),
     scenario: 'task-4-version-freshness',
+    runtimeMode: gatewayMode,
     tavilyMode,
     claimExtraction: null,
     confidentialityCheck: null,
-    agentExecution: null,
+    trialA_withoutTavily: null,
+    trialB_withTavily: null,
+    comparativeAnalysis: null,
   };
 
   // --------------------------------------------------------------------------
@@ -58,7 +87,7 @@ async function main() {
   const standardPolicy = createDefaultPolicy({ confidential: false });
   const verificationResult = await TavilyDocumentationVerifier.verifyCodePlanClaims(taskSpec.prompt, standardPolicy);
 
-  console.log(`  Claims Verified Count:   ${verificationResult.claimsVerified.length}`);
+  console.log(`  Claims Extracted Count:   ${verificationResult.claimsVerified.length}`);
   for (const claim of verificationResult.claimsVerified) {
     console.log(`  Extracted Claim:        "${claim.claimText}"`);
     console.log(`  Outcome:                ${claim.outcome.toUpperCase()}`);
@@ -71,9 +100,6 @@ async function main() {
       console.log(`  Excerpt:                "${source.excerpt}"`);
     }
   }
-
-  console.log(`\n  Injected Context for Model Prompt:`);
-  console.log(verificationResult.injectedContext.trim().split('\n').map((l) => `    ${l}`).join('\n'));
 
   evidenceReport.claimExtraction = {
     claimsVerified: verificationResult.claimsVerified,
@@ -103,12 +129,23 @@ async function main() {
     passed: !confidentialResult.allowed,
   };
 
-  // --------------------------------------------------------------------------
-  // STEP 3: Full Governed Agent Execution with Freshness Verification
-  // --------------------------------------------------------------------------
-  console.log('\n' + '-'.repeat(80));
-  console.log('STEP 3: Governed Agent Execution on Task 4 (#![deny(deprecated)])');
-  console.log('-'.repeat(80));
+  // Helper function to build a Bifrost client
+  function buildClient(): BifrostClient {
+    if (gatewayMode === 'live' && ACTIVE_VIRTUAL_KEY) {
+      return new BifrostClient({
+        mode: 'live',
+        gatewayUrl: GATEWAY_URL,
+        virtualKey: ACTIVE_VIRTUAL_KEY,
+        timeoutMs: 30_000,
+      });
+    }
+    const embeddedGateway = new EmbeddedBifrostGateway();
+    return new BifrostClient({
+      mode: 'simulation',
+      embeddedGateway,
+      userBudgetLimitUsd: 1.0,
+    });
+  }
 
   const approvalHandler = createScopedPriorApprovalHandler({
     allowedFiles: ['src/lib.rs'],
@@ -116,64 +153,132 @@ async function main() {
     maxTotalModifications: 5,
   });
 
-  const embeddedGateway = new EmbeddedBifrostGateway();
-  const client = new BifrostClient({
-    mode: 'simulation',
-    embeddedGateway,
-    userBudgetLimitUsd: 1.0,
-  });
+  // --------------------------------------------------------------------------
+  // STEP 3: Trial A — Governed Agent Execution WITHOUT Tavily
+  // --------------------------------------------------------------------------
+  console.log('\n' + '-'.repeat(80));
+  console.log('STEP 3: Trial A — Agent Execution WITHOUT Tavily Documentation Verification');
+  console.log('-'.repeat(80));
 
-  const agent = new ProofBenchAgent({
-    bifrostClient: client,
+  const clientA = buildClient();
+  const agentA = new ProofBenchAgent({
+    bifrostClient: clientA,
     approvalHandler,
     enableM1ContextBounding: true,
     enableM2StagnationBreaker: true,
-    enableM3aAutopsyEscalation: true,
-    enableTavilyDocumentation: true,
+    enableM3aAutopsyEscalation: false,
+    enableTavilyDocumentation: false, // EXPLICITLY DISABLED
   });
 
-  const runResult = await agent.runTask(taskSpec, Date.now());
+  console.log('  Running Trial A on frozen task...');
+  const resultA = await agentA.runTask(taskSpec, 42);
+  const turnsA = resultA.trace.events.filter((e) => e.type === 'output' && e.message.includes('Dispatching')).length;
+  const inValA = (resultA.run.usage.inputTokens.status === 'known' || resultA.run.usage.inputTokens.status === 'estimated')
+    ? resultA.run.usage.inputTokens.value : null;
+  const outValA = (resultA.run.usage.outputTokens.status === 'known' || resultA.run.usage.outputTokens.status === 'estimated')
+    ? resultA.run.usage.outputTokens.value : null;
 
-  const inVal = (runResult.run.usage.inputTokens.status === 'known' || runResult.run.usage.inputTokens.status === 'estimated')
-    ? `${runResult.run.usage.inputTokens.value} tokens`
-    : runResult.run.usage.inputTokens.status;
-  const outVal = (runResult.run.usage.outputTokens.status === 'known' || runResult.run.usage.outputTokens.status === 'estimated')
-    ? `${runResult.run.usage.outputTokens.value} tokens`
-    : runResult.run.usage.outputTokens.status;
-  const totalTurns = runResult.trace.events.filter((e) => e.type === 'output' && e.message.includes('Dispatching')).length;
+  console.log(`  Trial A Status:             ${resultA.run.status.toUpperCase()}`);
+  console.log(`  Trial A Acceptance:         ${resultA.run.acceptance.status.toUpperCase()}`);
+  console.log(`  Trial A Turns:              ${turnsA}`);
+  console.log(`  Trial A Input Tokens:       ${inValA ?? 'N/A'}`);
+  console.log(`  Trial A Output Tokens:      ${outValA ?? 'N/A'}`);
 
-  console.log(`  Agent Execution Status:     ${runResult.run.status.toUpperCase()}`);
-  console.log(`  Independent Acceptance:     ${runResult.run.acceptance.status.toUpperCase()}`);
-  console.log(`  Total Turns:                ${totalTurns}`);
-  console.log(`  Observed Input Tokens:      ${inVal}`);
-  console.log(`  Observed Output Tokens:     ${outVal}`);
-
-  // Inspect trace for Tavily injection event
-  const tavilyEvents = runResult.trace.events.filter(
-    (e) => e.type === 'output' && e.message.includes('Tavily documentation')
-  );
-  console.log(`  Trace Tavily Event:         ${tavilyEvents[0]?.message ?? 'None found'}`);
-
-  evidenceReport.agentExecution = {
-    status: runResult.run.status,
-    acceptance: runResult.run.acceptance,
-    turns: totalTurns,
-    usage: runResult.run.usage,
-    tavilyEvent: tavilyEvents[0]?.message,
-    eventsCount: runResult.trace.events.length,
+  evidenceReport.trialA_withoutTavily = {
+    status: resultA.run.status,
+    acceptance: resultA.run.acceptance,
+    turns: turnsA,
+    inputTokens: inValA,
+    outputTokens: outValA,
+    output: resultA.run.output,
   };
 
   // --------------------------------------------------------------------------
-  // STEP 4: Write Structured Evidence Artifact
+  // STEP 4: Trial B — Governed Agent Execution WITH Tavily
   // --------------------------------------------------------------------------
-  const outDir = path.resolve(process.cwd(), '.local/data');
+  console.log('\n' + '-'.repeat(80));
+  console.log('STEP 4: Trial B — Agent Execution WITH Tavily Documentation Verification');
+  console.log('-'.repeat(80));
+
+  const clientB = buildClient();
+  const agentB = new ProofBenchAgent({
+    bifrostClient: clientB,
+    approvalHandler,
+    enableM1ContextBounding: true,
+    enableM2StagnationBreaker: true,
+    enableM3aAutopsyEscalation: false,
+    enableTavilyDocumentation: true, // EXPLICITLY ENABLED
+  });
+
+  console.log('  Running Trial B on frozen task...');
+  const resultB = await agentB.runTask(taskSpec, 42);
+  const turnsB = resultB.trace.events.filter((e) => e.type === 'output' && e.message.includes('Dispatching')).length;
+  const inValB = (resultB.run.usage.inputTokens.status === 'known' || resultB.run.usage.inputTokens.status === 'estimated')
+    ? resultB.run.usage.inputTokens.value : null;
+  const outValB = (resultB.run.usage.outputTokens.status === 'known' || resultB.run.usage.outputTokens.status === 'estimated')
+    ? resultB.run.usage.outputTokens.value : null;
+
+  const tavilyEventsB = resultB.trace.events.filter(
+    (e) => e.type === 'output' && e.message.includes('Tavily documentation')
+  );
+
+  console.log(`  Trial B Status:             ${resultB.run.status.toUpperCase()}`);
+  console.log(`  Trial B Acceptance:         ${resultB.run.acceptance.status.toUpperCase()}`);
+  console.log(`  Trial B Turns:              ${turnsB}`);
+  console.log(`  Trial B Input Tokens:       ${inValB ?? 'N/A'}`);
+  console.log(`  Trial B Output Tokens:      ${outValB ?? 'N/A'}`);
+  console.log(`  Trial B Tavily Event:       ${tavilyEventsB[0]?.message ?? 'None found'}`);
+
+  evidenceReport.trialB_withTavily = {
+    status: resultB.run.status,
+    acceptance: resultB.run.acceptance,
+    turns: turnsB,
+    inputTokens: inValB,
+    outputTokens: outValB,
+    tavilyEvent: tavilyEventsB[0]?.message,
+    output: resultB.run.output,
+  };
+
+  // --------------------------------------------------------------------------
+  // STEP 5: Objective Comparative Assessment
+  // --------------------------------------------------------------------------
+  console.log('\n' + '-'.repeat(80));
+  console.log('STEP 5: Objective Comparative Assessment');
+  console.log('-'.repeat(80));
+
+  const trialAPassed = resultA.run.acceptance.status === 'passed';
+  const trialBPassed = resultB.run.acceptance.status === 'passed';
+
+  let assessmentSummary = '';
+  if (!trialAPassed && trialBPassed) {
+    assessmentSummary = 'Tavily documentation verification provided actionable deprecation evidence that enabled the agent to avoid the deprecated API and pass acceptance tests under #![deny(deprecated)]. Without Tavily, the agent failed acceptance checks.';
+  } else if (trialAPassed && trialBPassed) {
+    assessmentSummary = 'Both trials passed acceptance checks. The model avoided deprecated APIs in both cases; Tavily verified the deprecation status but was not solely decisive in this specific run.';
+  } else {
+    assessmentSummary = `Trial A status: ${resultA.run.acceptance.status}, Trial B status: ${resultB.run.acceptance.status}. Observed differences recorded in telemetry.`;
+  }
+
+  console.log(`  Assessment: ${assessmentSummary}`);
+  console.log('  Caution: Observations reflect this specific configuration and prompt; single-run outcomes must not be cited as universal causation.');
+
+  evidenceReport.comparativeAnalysis = {
+    trialAPassed,
+    trialBPassed,
+    summary: assessmentSummary,
+    disclaimer: 'Observations reflect matched frozen trials; causation must not be inferred universally from single-run trials without multi-trial replication.',
+  };
+
+  // --------------------------------------------------------------------------
+  // STEP 6: Write Structured Evidence Artifact
+  // --------------------------------------------------------------------------
+  const outDir = path.resolve(__dirname, '../.local/data');
   await fs.mkdir(outDir, { recursive: true });
   const outPath = path.join(outDir, 'tavily-freshness-evidence.json');
   await fs.writeFile(outPath, JSON.stringify(evidenceReport, null, 2), 'utf8');
 
   console.log('\n' + '='.repeat(80));
   console.log(`Evidence artifact written to: ${outPath}`);
-  console.log('Tavily Freshness Demonstration: COMPLETED SUCCESSFULLY');
+  console.log('Tavily Freshness Comparative Demonstration: COMPLETED');
   console.log('='.repeat(80));
 }
 

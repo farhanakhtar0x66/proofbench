@@ -69,6 +69,7 @@ export interface ChatCompletionResponse {
   };
   bifrost_metadata?: {
     provider: string;
+    primary_provider?: string;
     model: string;
     virtual_key_id: string;
     fallback_invoked: boolean;

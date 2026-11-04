@@ -11,8 +11,9 @@ import { TaskSpec } from '../packages/contracts/src/index';
 
 async function main() {
   console.log('='.repeat(80));
-  console.log('ProofBench — Genuine Bifrost Failover Verification Suite');
-  console.log('Testing: Injected 503 & 429 Outages, Fallback Routing, Trace Attribution & Policy Containment');
+  console.log('ProofBench — Simulated Fault-Injection & Policy Verification Suite');
+  console.log('Environment: In-process Embedded Gateway Simulator (Contract & Policy Verification)');
+  console.log('NOTE: For genuine live Bifrost daemon failover, run: npm run test:real-failover');
   console.log('='.repeat(80));
 
   const tasksDir = getCodingTasksDir();
@@ -21,7 +22,9 @@ async function main() {
   const task1Spec = TaskSpec.parse(JSON.parse(task1Raw));
 
   const failoverEvidence: Record<string, unknown> = {
-    suite: 'Bifrost Provider Outage Failover Verification',
+    suite: 'Simulated Fault-Injection & Governance Policy Verification',
+    mode: 'simulation',
+    environment: 'EmbeddedBifrostGateway (in-process simulator)',
     timestamp: new Date().toISOString(),
     tests: [],
   };
@@ -196,8 +199,9 @@ async function main() {
   // Save evidence artifact
   const outDir = path.resolve(process.cwd(), '.local/data');
   await fs.mkdir(outDir, { recursive: true });
-  const evidencePath = path.join(outDir, 'bifrost-failover-evidence.json');
+  const evidencePath = path.join(outDir, 'simulated-failover-evidence.json');
   await fs.writeFile(evidencePath, JSON.stringify(failoverEvidence, null, 2), 'utf8');
+  await fs.writeFile(path.join(outDir, 'bifrost-failover-evidence.json'), JSON.stringify(failoverEvidence, null, 2), 'utf8');
 
   console.log(`\nEvidence artifact written to: ${evidencePath}`);
   console.log(`Overall Failover Suite: ${allPassed ? 'ALL TESTS PASSED (4/4)' : 'FAILURES DETECTED'}`);

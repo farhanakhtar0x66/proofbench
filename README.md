@@ -30,9 +30,10 @@ npm run check             # Full verification: ESLint, TypeScript, Vitest (36 te
 
 | Command | Target / Component Verified | Output Artifact |
 | --- | --- | --- |
-| `npm run test:failover` | **Genuine Bifrost Failover**: Injected 503/429 outages, fallback routing to secondary provider, session survival, user notifications, confidential block, budget block | `.local/data/bifrost-failover-evidence.json` |
-| `npm run test:freshness` | **Tavily Freshness Scenario**: Task 4 `#![deny(deprecated)]`, extraction of deprecated `spin_loop_hint`, retrieval of `std::hint::spin_loop`, confidential IP block | `.local/data/tavily-freshness-evidence.json` |
-| `npm run benchmark:strategies` | **3-Strategy Efficiency Benchmark**: Compares Direct Small (1.5B), Direct Frontier (9B), and Governed Escalation across frozen tasks with repeated trials | `.local/data/strategy-benchmark-evidence.json` |
+| `npm run test:real-failover` | **Real Bifrost Gateway Failover**: Real stock Maxim Bifrost gateway daemon (`v2.4.0`), injected HTTP 503 & 429 upstream outages, automatic gateway failover, trace provenance, end-to-end task completion | `.local/data/real-bifrost-failover-evidence.json` |
+| `npm run test:failover` | **Simulated Fault-Injection Tests**: Contract & policy regression tests using in-process simulator for offline CI verification | `.local/data/bifrost-failover-evidence.json` |
+| `npm run test:freshness` | **Tavily Freshness Comparative Verification**: Task 4 `#![deny(deprecated)]` without prompt solution leakage; Trial A (without Tavily: fails compiler check) vs. Trial B (with Tavily: passes on turn 1) | `.local/data/tavily-freshness-evidence.json` |
+| `npm run benchmark:strategies` | **3-Strategy Efficiency Benchmark**: Compares Direct Small (1.5B), Direct Frontier (9B), and Governed Escalation across frozen tasks with repeated trials (`--live` or `--simulation`) | `.local/data/strategy-benchmark-evidence.json` |
 | `npm run demonstrate:bifrost` | **Full Agent Demonstration**: Runs all frozen tasks on live Bifrost gateway (if online) and verified deterministic simulation suite | `.local/data/demonstration-evidence.json` |
 | `npm run test:contracts` | **Cross-Package Schema Verification**: Validates Zod v1 contracts across agent traces, run records, and verification reports | CLI assertion output |
 
@@ -112,21 +113,26 @@ To prove that governed escalation is token-efficient compared to frontier-only e
 | **Strategy 2: Direct Frontier** | Frontier-only baseline | Qwen 3.5 9B | None (always uses frontier model) | High success rate; maximum token & compute consumption |
 | **Strategy 3: Governed Escalation** | ProofBench Governed Agent | Qwen 2.5 Coder 1.5B | Qwen 3.5 9B (escalates only via M3a autopsy on failure) | Near-frontier success rate with small-model token baseline |
 
-### Summary of Live & Simulated Benchmark Results
+### Summary of Live Benchmark Results Across Frozen Tasks
 
-- **Task 1 (Fix failing sliding window function)**:
-  - Direct 1.5B: **100% success** (simple single-file bounds fix).
-  - Governed 1.5B: **100% success** without escalating (consumed ~300 tokens vs. ~300 for frontier).
-- **Task 2 (Missing feature / exponential backoff)**:
-  - Direct 1.5B: Fails or introduces infinite loops.
-  - Governed Escalation: Catches failure on attempt 2 via M2, generates M3a autopsy, escalates to 9B, and **succeeds on attempt 3**.
-  - Token Efficiency: Saves ~45% tokens compared to running all attempts on the frontier model.
+- **Task 1 (Fix off-by-one sliding window bug)**:
+  - Direct 1.5B: **100% success** (714 avg tokens, 2.8s duration).
+  - Direct 9B: **100% success** (1,086 avg tokens, 19.0s duration).
+  - Governed Escalation: **100% success** without needing escalation (719 avg tokens, 3.2s duration).
+  - **Efficiency Gain**: Governed agent achieved **33.8% token savings** and ran **83.0% faster** than the frontier model.
+- **Task 2 (Implement exponential backoff retry calculation)**:
+  - Direct 1.5B (no escalation): **0% success (0/2)** — small model failed acceptance checks.
+  - Direct 9B (frontier only): **100% success (2/2)** (3,700 avg tokens, 57.5s duration).
+  - Governed Escalation: **100% success (2/2)** (8,085 avg tokens, 83.3s duration, 2 model switches).
+  - **Resilience**: Governed tiering converted a **0% failure into 100% success** via M2 failure detection and M3a structured diagnostic handoff to Qwen 9B.
 - **Task 3 (Multi-file regression across parser & sink)**:
-  - Direct 1.5B: Fails on multi-file context tracking without bounded discovery.
-  - Governed Escalation: Multi-step resolution with scoped approval across all affected files.
-- **Task 4 (Version freshness & deprecation avoidance)**:
-  - Standard baseline: Uses deprecated `std::sync::atomic::spin_loop_hint`, triggering compiler error under `#![deny(deprecated)]`.
-  - Governed + Tavily: Detects deprecation, injects verified documentation for `std::hint::spin_loop`, and passes acceptance tests on attempt 1.
+  - Direct 1.5B: 100% success (2,899 avg tokens, 6.4s duration).
+  - Direct 9B: 100% success (2,179 avg tokens, 25.9s duration).
+  - Governed Escalation: Governed agent uses recursive context discovery across all workspace `.rs` files.
+- **Task 4 (Version freshness & deprecation avoidance under `#![deny(deprecated)]`)**:
+  - Prompt contains **no solution leakage** (`std::hint::spin_loop` removed; only outdated claim provided).
+  - **Trial A (Without Tavily)**: FAILED. Small model attempted private/stale functions and failed `cargo test` under `#![deny(deprecated)]`.
+  - **Trial B (With Tavily)**: COMPLETED cleanly on Attempt 1. Tavily extracted the claim, marked `spin_loop_hint` as `CONTRADICTED (STALE)`, provided the modern documentation excerpt, and the model used `std::hint::spin_loop`.
 
 ---
 

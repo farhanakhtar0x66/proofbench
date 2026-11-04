@@ -164,13 +164,24 @@ export class BifrostClient {
 
       const data = (await res.json()) as ChatCompletionResponse;
 
-      // Extract observed metadata from genuine Bifrost response headers
+      // Extract observed metadata from genuine Bifrost response headers & routing_info body
       const providerHeader = res.headers.get('x-bifrost-provider');
       const extraProvider = typeof data.extra_fields?.provider === 'string' ? data.extra_fields.provider : undefined;
       const provider = providerHeader || extraProvider || 'bifrost';
       const resolvedModel = res.headers.get('x-bifrost-resolved-model') || data.model;
-      const isFallback = res.headers.get('x-bifrost-routing-info-is-fallback') === 'true';
-      const upstreamLatency = Number(res.headers.get('x-bifrost-upstream-latency-ms')) || 0;
+
+      const routingInfo = (data.extra_fields?.routing_info && typeof data.extra_fields.routing_info === 'object')
+        ? (data.extra_fields.routing_info as Record<string, unknown>)
+        : undefined;
+
+      const isFallback = res.headers.get('x-bifrost-routing-info-is-fallback') === 'true' ||
+        routingInfo?.is_fallback === true;
+      const primaryProvider = (typeof routingInfo?.primary_provider === 'string')
+        ? routingInfo.primary_provider
+        : undefined;
+
+      const upstreamLatency = Number(res.headers.get('x-bifrost-upstream-latency-ms')) ||
+        (typeof data.extra_fields?.upstream_latency === 'number' ? data.extra_fields.upstream_latency : 0);
 
       // Real token counts reported by provider through Bifrost (preserve missing as undefined)
       const promptTokens = data.usage?.prompt_tokens;
@@ -183,6 +194,7 @@ export class BifrostClient {
       const metadata = {
         virtual_key_id: this.virtualKey,
         provider,
+        primary_provider: primaryProvider,
         model: resolvedModel,
         fallback_invoked: isFallback,
         latency_ms: upstreamLatency,

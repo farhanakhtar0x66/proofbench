@@ -15,7 +15,7 @@ import {
 } from '../../../../packages/contracts/src/index';
 import { BifrostClient } from '../gateway/client';
 import { EmbeddedBifrostGateway } from '../gateway/embedded';
-import { GovernancePolicy, createDefaultPolicy, validateModelAgainstPolicy } from '../governance/policy';
+import { GovernancePolicy, createDefaultPolicy, validateModelAgainstPolicy, isLocalDestination } from '../governance/policy';
 import { HostApprovalEngine, ProposedToolAction, HostApprovalHandler } from '../governance/approval';
 import { M1ContextSelector } from '../context/m1-selector';
 import { M2StagnationDetector } from '../progress/m2-stagnation';
@@ -276,10 +276,14 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           totalCostUsd += gatewayResponse.bifrost_metadata.cost_usd;
           observedRoutingProvider = gatewayResponse.bifrost_metadata.provider;
           if (gatewayResponse.bifrost_metadata.fallback_invoked) {
-            addEvent('output', `Bifrost fallback routing triggered: active provider is ${observedRoutingProvider}`, {
+            const fromInfo = gatewayResponse.bifrost_metadata.primary_provider
+              ? ` (fallback from ${gatewayResponse.bifrost_metadata.primary_provider})`
+              : '';
+            addEvent('output', `Bifrost fallback routing triggered: active provider is ${observedRoutingProvider}${fromInfo}`, {
               model: currentModel,
               attempt,
               fallbackProvider: observedRoutingProvider,
+              primaryProvider: gatewayResponse.bifrost_metadata.primary_provider,
             });
           }
         }
@@ -534,14 +538,22 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           source: 'performance.now',
           scope: 'total agent session duration',
         },
-        cost: {
-          status: 'estimated',
-          value: Number(totalCostUsd.toFixed(6)),
-          unit: 'USD',
-          source: 'bifrost.gateway',
-          method: 'pricing_model_v1',
-          scope: 'bifrost virtual key debits',
-        },
+        cost: (this.bifrostClient.mode === 'live' && isLocalDestination(this.bifrostClient.gatewayUrl))
+          ? {
+              status: 'known' as const,
+              value: 0.0,
+              unit: 'USD' as const,
+              source: 'bifrost.gateway',
+              scope: 'local inference host execution ($0.00 direct provider cost)',
+            }
+          : {
+              status: 'estimated' as const,
+              value: Number(totalCostUsd.toFixed(6)),
+              unit: 'USD' as const,
+              source: 'bifrost.gateway',
+              method: 'pricing_model_v1',
+              scope: 'bifrost virtual key debits',
+            },
       });
 
       const descriptor = AgentDescriptor.parse({

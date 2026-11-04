@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { z } from 'zod';
 import { VerifyRequest, VerificationReport, ClaimVerification } from '../../contracts/src/index';
 import cases from '../../../fixtures/freshness-cases/v1.json';
 
@@ -11,6 +12,38 @@ interface TavilySearchResponse {
   }>;
 }
 
+const COMMON_STOPWORDS = new Set([
+  'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'were', 'which',
+  'standard', 'function', 'method', 'module', 'internal', 'document', 'claimed',
+  'signal', 'processor', 'during', 'loops', 'wait', 'loop', 'note',
+]);
+
+function sanitizeUntrustedText(input: string, maxLength = 300): string {
+  if (!input) return '';
+  let cleaned = '';
+  for (let i = 0; i < input.length; i++) {
+    const code = input.charCodeAt(i);
+    if ((code >= 32 && code !== 127) || code === 9 || code === 10 || code === 13) {
+      cleaned += input[i];
+    }
+  }
+  return cleaned
+    .replace(/<[^>]*>/g, '') // strip HTML tags
+    .replace(/\s+/g, ' ')
+    .trim()
+    .slice(0, maxLength);
+}
+
+function extractKeyEntities(text: string): string[] {
+  // Extract path/identifier expressions (e.g. std::sync::atomic::spin_loop_hint or identifiers)
+  const codeSymbols = text.match(/[a-zA-Z_][a-zA-Z0-9_]*(?:::[a-zA-Z_][a-zA-Z0-9_]*)+/g) ?? [];
+  const words = text.match(/\b[a-zA-Z_][a-zA-Z0-9_]{3,}\b/g) ?? [];
+  const candidateWords = words
+    .map((w) => w.toLowerCase())
+    .filter((w) => !COMMON_STOPWORDS.has(w));
+  return Array.from(new Set([...codeSymbols, ...candidateWords]));
+}
+
 async function queryLiveTavily(query: string, apiKey: string): Promise<TavilySearchResponse> {
   const res = await fetch('https://api.tavily.com/search', {
     method: 'POST',
@@ -20,7 +53,7 @@ async function queryLiveTavily(query: string, apiKey: string): Promise<TavilySea
       query,
       search_depth: 'basic',
       include_answer: true,
-      max_results: 3,
+      max_results: 5,
     }),
     signal: AbortSignal.timeout(10_000),
   });
@@ -35,8 +68,18 @@ async function queryLiveTavily(query: string, apiKey: string): Promise<TavilySea
 export async function verifyAnswer(input: VerifyRequest): Promise<VerificationReport> {
   const request = VerifyRequest.parse(input);
   const now = new Date().toISOString();
-  const isLive = process.env.TAVILY_MODE === 'live' && Boolean(process.env.TAVILY_API_KEY);
-  const claims = request.claims ?? request.text.split(/(?<=[.!?])\s+|\n+/u).filter(Boolean).slice(0, 50).map((text) => ({ text, asOf: undefined }));
+  const configuredMode = process.env.TAVILY_MODE ?? 'mock';
+
+  if (configuredMode === 'live' && !process.env.TAVILY_API_KEY) {
+    throw new Error("TAVILY_MODE is configured as 'live', but TAVILY_API_KEY environment variable is not set.");
+  }
+
+  const isLive = configuredMode === 'live' && Boolean(process.env.TAVILY_API_KEY);
+  const claims = request.claims ?? request.text
+    .split(/(?<=[.!?])\s+|\n+/u)
+    .filter(Boolean)
+    .slice(0, 50)
+    .map((text) => ({ text, asOf: undefined }));
 
   const verifiedClaims = await Promise.all(
     claims.map(async ({ text, asOf }) => {
@@ -44,35 +87,105 @@ export async function verifyAnswer(input: VerifyRequest): Promise<VerificationRe
       if (isLive && process.env.TAVILY_API_KEY) {
         try {
           const liveData = await queryLiveTavily(text, process.env.TAVILY_API_KEY);
-          const results = liveData.results ?? [];
-          if (results.length > 0) {
-            const hasDeprecation = results.some((r) => /deprecat/i.test(r.content));
-            const hasSupport = results.some((r) => /supported|current|active/i.test(r.content));
-            const outcome = hasDeprecation ? 'contradicted' : hasSupport ? 'supported' : 'inconclusive';
-            const freshness = hasDeprecation ? 'stale' : hasSupport ? 'current' : 'unknown';
+          const rawResults = liveData.results ?? [];
 
+          if (rawResults.length === 0) {
             return ClaimVerification.parse({
               version: '1',
               id: randomUUID(),
               text,
-              timeSensitive: 'yes',
-              outcome,
-              freshness,
+              timeSensitive: 'unknown',
+              outcome: 'inconclusive',
+              freshness: 'unknown',
               asOf: asOf ?? now,
-              uncertainty: 'Live Tavily web research evidence; subject to source freshness.',
-              evidence: results.map((r) => ({
-                url: r.url,
-                title: r.title,
-                retrievedAt: now,
-                recordedAt: r.published_date ?? now,
-                excerpt: r.content.slice(0, 300),
-                relation: hasDeprecation ? 'contradicts' : 'supports',
-                retrieval: 'live',
-              })),
+              uncertainty: 'Live Tavily web research returned zero results for this query.',
+              evidence: [],
             });
           }
-        } catch {
-          // On live query network error, gracefully fall through to offline fixture lookup
+
+          // Sanitize untrusted external inputs and validate URLs
+          const sanitizedEvidence = rawResults
+            .filter((r) => r.url && z.string().url().safeParse(r.url).success)
+            .map((r) => {
+              const pubDate = r.published_date && !isNaN(Date.parse(r.published_date))
+                ? new Date(r.published_date).toISOString()
+                : undefined;
+              return {
+                url: r.url,
+                title: sanitizeUntrustedText(r.title, 150) || 'Web Resource',
+                retrievedAt: now,
+                recordedAt: pubDate,
+                publishedAt: pubDate,
+                excerpt: sanitizeUntrustedText(r.content, 400),
+              };
+            });
+
+          // Evidence-aware claim assessment: check entity match & deprecation vs active support
+          const entities = extractKeyEntities(text);
+          const relevantSnippets = sanitizedEvidence.filter((e) => {
+            const lowerExcerpt = e.excerpt.toLowerCase();
+            return entities.some((ent) => lowerExcerpt.includes(ent.toLowerCase()));
+          });
+
+          const targetSnippets = relevantSnippets.length > 0 ? relevantSnippets : sanitizedEvidence;
+          const hasDeprecation = targetSnippets.some((e) =>
+            /deprecat|superseded|obsolete|replaced by|no longer recommended|removed in/i.test(e.excerpt)
+          );
+          const hasActiveSupport = targetSnippets.some((e) =>
+            /supported|current|active|recommended API|standard function|stable in/i.test(e.excerpt)
+          );
+
+          let outcome: 'supported' | 'contradicted' | 'inconclusive';
+          let freshness: 'current' | 'stale' | 'unknown';
+          let uncertainty: string;
+
+          if (hasDeprecation) {
+            outcome = 'contradicted';
+            freshness = 'stale';
+            uncertainty = 'Live Tavily web evidence indicates the claimed entity or function is deprecated or superseded.';
+          } else if (hasActiveSupport && relevantSnippets.length > 0) {
+            outcome = 'supported';
+            freshness = 'current';
+            uncertainty = 'Live Tavily web evidence confirms active support and validity of the claimed entity.';
+          } else {
+            outcome = 'inconclusive';
+            freshness = 'unknown';
+            uncertainty = 'Live Tavily web evidence mentions related topics but does not definitively establish active vs deprecated status.';
+          }
+
+          return ClaimVerification.parse({
+            version: '1',
+            id: randomUUID(),
+            text,
+            timeSensitive: 'yes',
+            outcome,
+            freshness,
+            asOf: asOf ?? now,
+            uncertainty,
+            evidence: sanitizedEvidence.slice(0, 3).map((e) => ({
+              url: e.url,
+              title: e.title,
+              retrievedAt: e.retrievedAt,
+              recordedAt: e.recordedAt,
+              publishedAt: e.publishedAt,
+              excerpt: e.excerpt,
+              relation: hasDeprecation ? 'contradicts' : hasActiveSupport ? 'supports' : 'context',
+              retrieval: 'tavily',
+            })),
+          });
+        } catch (err) {
+          // Never silently substitute offline fixtures when live retrieval fails in live mode
+          return ClaimVerification.parse({
+            version: '1',
+            id: randomUUID(),
+            text,
+            timeSensitive: 'unknown',
+            outcome: 'inconclusive',
+            freshness: 'unknown',
+            asOf: asOf ?? now,
+            uncertainty: `Live Tavily search request failed: ${(err as Error).message}. Offline fallback is disabled in live mode.`,
+            evidence: [],
+          });
         }
       }
 

@@ -8,7 +8,14 @@ import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
- if((options.tavilyMode??process.env.TAVILY_MODE??'mock')!=='mock')throw new Error('Live Tavily is not integrated; use TAVILY_MODE=mock. No paid request was sent.');
+ const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
+ if(tavilyMode==='live'){
+  if(!process.env.TAVILY_API_KEY){
+   throw new Error('TAVILY_MODE=live requested, but TAVILY_API_KEY environment variable is not configured.');
+  }
+ } else if(tavilyMode!=='mock'){
+  throw new Error(`Unsupported TAVILY_MODE: ${tavilyMode}. Use 'mock' or 'live'.`);
+ }
  const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
@@ -18,7 +25,19 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return reply.code(500).send({version:'1',error:'internal_error'});
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
- app.get('/api/capabilities',async()=>Capabilities.parse({version:'1',implementation:adapter.descriptor.implementation,agent:adapter.descriptor,capabilities:adapter.capabilities,limitations:['Tavily is offline fixture mode; arbitrary claims are inconclusive.','Native execution is not integrated.',...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:adapter.descriptor.implementation==='01'?['ProofBench Bifrost #01 token-efficient coding agent with deterministic M1 context bounding, M2 stagnation control, M3a failure autopsy, and Tavily documentation verification.','Local process isolation uses isolated temporary directories and scrubbed environments.']:['Selected Bifrost implementation is not integrated.'])]}));
+ app.get('/api/capabilities',async()=>Capabilities.parse({
+  version:'1',
+  implementation:adapter.descriptor.implementation,
+  agent:adapter.descriptor,
+  capabilities:adapter.capabilities,
+  limitations:[
+   tavilyMode==='live'
+    ? 'Tavily is configured in live web research mode backed by Tavily Search API.'
+    : 'Tavily is offline fixture mode; arbitrary claims are inconclusive.',
+   'Native execution is not integrated.',
+   ...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:adapter.descriptor.implementation==='01'?['ProofBench Bifrost #01 token-efficient coding agent with deterministic M1 context bounding, M2 stagnation control, M3a failure autopsy, and Tavily documentation verification.','Local process isolation uses isolated temporary directories and scrubbed environments.']:['Selected Bifrost implementation is not integrated.'])
+  ]
+ }));
  app.get('/api/benchmarks',async()=>{
   if(!adapter.capabilities.benchmarks)throw new UnsupportedCapability('Benchmark catalog not integrated for selected adapter');
   return {version:'1',tasks:[task]};
