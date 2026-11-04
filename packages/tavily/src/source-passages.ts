@@ -34,6 +34,10 @@ export function selectSourcePassages(content:string,score:(text:string)=>number)
   const text=scan.slice(item.start,item.end);if(seen.has(text))return false;seen.add(text);return true;
  });
  const ordered=[...relevant].sort((a,b)=>b.score-a.score||a.start-b.start);
+ const bestScore=ordered[0]?.score??0;
+ // A shared generic word does not make every paragraph material to the claim.
+ // Keep equally strong matches and weaker passages carrying possible qualifications.
+ const material=ordered.filter(item=>item.score===bestScore||/\b(?:not|never|no longer|however|but|unless|except|formerly|previously|only|instead|rather|incorrect|false|denied|disputed)\b/iu.test(scan.slice(item.start,item.end)));
  const selected:{start:number;end:number}[]=[];let omitted=false;
  const merge=(ranges:{start:number;end:number}[])=>{
   const merged:{start:number;end:number}[]=[];
@@ -44,7 +48,7 @@ export function selectSourcePassages(content:string,score:(text:string)=>number)
   }
   return merged;
  };
- for(const candidate of ordered){
+ for(const candidate of material){
   const proposed=merge([...selected,candidate]);
   const size=proposed.reduce((sum,range)=>sum+range.end-range.start,0)+Math.max(0,proposed.length-1)*PASSAGE_SEPARATOR.length;
   if(size>EXCERPT_LIMIT||proposed.length>6){omitted=true;continue;}
