@@ -22,6 +22,10 @@
     "test": "vitest run",
     "test:contracts": "vitest run tests/contracts.test.ts",
     "test:ui": "playwright test",
+    "test:failover": "node --env-file-if-exists=.env --import tsx scripts/test-bifrost-failover.ts",
+    "test:freshness": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-tavily-freshness.ts",
+    "benchmark:strategies": "node --env-file-if-exists=.env --import tsx scripts/benchmark-strategies.ts",
+    "demonstrate:bifrost": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-bifrost-01.ts",
     "evaluate": "node --import tsx scripts/evaluate.ts",
     "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
   },

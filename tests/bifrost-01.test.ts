@@ -1,5 +1,6 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import * as path from 'node:path';
+import * as fs from 'node:fs/promises';
 import {
   EmbeddedBifrostGateway,
   BifrostClient,
@@ -48,6 +49,7 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       const client = new BifrostClient({
         embeddedGateway: gateway,
         userBudgetLimitUsd: 1.0,
+        fallbackProviders: ['opencode'],
       });
 
       const response = await client.createChatCompletion({
@@ -108,6 +110,7 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       const client = new BifrostClient({
         embeddedGateway: gateway,
         userBudgetLimitUsd: 1.0,
+        fallbackProviders: ['opencode'],
       });
 
       const response = await client.createChatCompletion({
@@ -119,6 +122,43 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       expect(response.choices[0].message.content).toBeDefined();
       expect(response.bifrost_metadata?.fallback_invoked).toBe(true);
       expect(response.bifrost_metadata?.provider).toBe('opencode');
+    });
+
+    it('survives provider outage during agent task execution and emits user fallback notification', async () => {
+      gateway.injectFault({
+        provider: 'local',
+        outageStatus: 503,
+      });
+
+      const tasksDir = getCodingTasksDir();
+      const taskPath = path.join(tasksDir, 'task-1-fix-failing-func', 'task.json');
+      const taskRaw = await fs.readFile(taskPath, 'utf8');
+      const task = TaskSpec.parse(JSON.parse(taskRaw));
+
+      const client = new BifrostClient({
+        embeddedGateway: gateway,
+        userBudgetLimitUsd: 1.0,
+        fallbackProviders: ['opencode'],
+      });
+
+      const agent = new ProofBenchAgent({
+        bifrostClient: client,
+        approvalHandler: createScopedPriorApprovalHandler({
+          allowedFiles: ['src/lib.rs'],
+          maxWritesPerFile: 5,
+          maxTotalModifications: 5,
+        }),
+      });
+
+      const { run, trace } = await agent.runTask(task, Date.now());
+      expect(run.status).toBe('completed');
+      expect(run.acceptance.status).toBe('passed');
+
+      const fallbackEvents = trace.events.filter(
+        (e) => e.type === 'output' && e.message.includes('Bifrost fallback routing triggered')
+      );
+      expect(fallbackEvents.length).toBeGreaterThan(0);
+      expect(fallbackEvents[0].message).toContain('opencode');
     });
   });
 
@@ -799,6 +839,44 @@ pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
       expect(finalPassedCheck).toBeDefined();
       expect(finalPassedCheck?.data?.model).toBe('escalation-frontier-model');
     }, 45000);
+
+    it('executes Task 4 (version freshness & deprecation avoidance) and verifies #![deny(deprecated)] clean pass', async () => {
+      const tasksDir = getCodingTasksDir();
+      const taskPath = path.join(tasksDir, 'task-4-version-freshness', 'task.json');
+      const taskRaw = await fs.readFile(taskPath, 'utf8');
+      const task = TaskSpec.parse(JSON.parse(taskRaw));
+
+      const approvalHandler = createScopedPriorApprovalHandler({
+        allowedFiles: ['src/lib.rs'],
+        maxWritesPerFile: 5,
+        maxTotalModifications: 5,
+      });
+
+      const embeddedGateway = new EmbeddedBifrostGateway();
+      const client = new BifrostClient({
+        mode: 'simulation',
+        embeddedGateway,
+        userBudgetLimitUsd: 1.0,
+      });
+
+      const agent = new ProofBenchAgent({
+        bifrostClient: client,
+        approvalHandler,
+        enableM1ContextBounding: true,
+        enableM2StagnationBreaker: true,
+        enableM3aAutopsyEscalation: true,
+        enableTavilyDocumentation: true,
+      });
+
+      const { run, trace } = await agent.runTask(task, Date.now());
+      expect(run.status).toBe('completed');
+      expect(run.acceptance.status).toBe('passed');
+
+      const tavilyEvents = trace.events.filter(
+        (e) => e.type === 'output' && e.message.includes('Tavily documentation verified')
+      );
+      expect(tavilyEvents.length).toBeGreaterThan(0);
+    }, 45000);
   });
 
   // --------------------------------------------------------------------------
@@ -841,6 +919,25 @@ pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
       expect(report.costSavingsPercent).toBeNull();
       expect(report.reason).toContain('Incomparable efficiency');
     });
+
+    it('benchmarks three strategies (direct-small, direct-frontier, governed-escalated) with honest accounting', async () => {
+      const tasksDir = getCodingTasksDir();
+      const taskPath = path.join(tasksDir, 'task-1-fix-failing-func', 'task.json');
+      const taskRaw = await fs.readFile(taskPath, 'utf8');
+      const task = TaskSpec.parse(JSON.parse(taskRaw));
+
+      const comparison = await ComparativeBenchmarkSuite.benchmarkThreeStrategies(task, {
+        mode: 'simulation',
+        trials: 1,
+      });
+
+      expect(comparison.taskId).toBe('task-1-fix-failing-func');
+      expect(comparison.summary.direct_small.totalTrials).toBe(1);
+      expect(comparison.summary.direct_large.totalTrials).toBe(1);
+      expect(comparison.summary.governed_escalation.totalTrials).toBe(1);
+      expect(comparison.summary.direct_small.successRatePercent).toBeGreaterThanOrEqual(0);
+      expect(comparison.evidenceSummary).toContain(task.title);
+    }, 60000);
   });
 
   // --------------------------------------------------------------------------

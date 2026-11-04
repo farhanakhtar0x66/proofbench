@@ -24,10 +24,22 @@ import { M2StagnationDetector } from './progress/m2-stagnation';
 import { M3aFailureAutopsyBuilder } from './handoff/m3a-autopsy';
 import { TavilyDocumentationVerifier } from './tavily/verifier';
 import { ProofBenchAgent } from './runtime/agent';
-import { ComparativeBenchmarkSuite } from './suite/benchmark';
+import {
+  ComparativeBenchmarkSuite,
+  type StrategyName,
+  type StrategyMeasurement,
+  type StrategyAggregate,
+  type StrategyComparisonResult,
+} from './suite/benchmark';
 import { TaskWorkspace, getCodingTasksDir } from './runtime/workspace';
 
-export type { GovernancePolicy };
+export type {
+  GovernancePolicy,
+  StrategyName,
+  StrategyMeasurement,
+  StrategyAggregate,
+  StrategyComparisonResult,
+};
 export {
   BifrostClient,
   EmbeddedBifrostGateway,

@@ -170,10 +170,27 @@ export class ProofBenchAgent {
             tokens: m1Result.totalTokens,
           });
         } else {
-          // Unbounded raw read for baseline comparison
+          // Unbounded raw read for baseline comparison: inspect all source files across the workspace
           try {
-            const rawLib = await fs.readFile(path.join(workspace.workspacePath, 'src/lib.rs'), 'utf8');
-            contextText = `## Full File Context\n\`\`\`rust\n${rawLib}\n\`\`\`\n`;
+            const srcDir = path.join(workspace.workspacePath, 'src');
+            const entries = await fs.readdir(srcDir, { recursive: true });
+            let combined = '';
+            for (const entry of entries) {
+              const strEntry = entry.toString();
+              if (strEntry.endsWith('.rs')) {
+                const fullP = path.join(srcDir, strEntry);
+                try {
+                  const stat = await fs.stat(fullP);
+                  if (stat.isFile()) {
+                    const content = await fs.readFile(fullP, 'utf8');
+                    combined += `## File: src/${strEntry}\n\`\`\`rust\n${content}\n\`\`\`\n\n`;
+                  }
+                } catch {
+                  // Ignore read errors on individual unreadable entries
+                }
+              }
+            }
+            contextText = combined || '';
           } catch {
             contextText = '';
           }
