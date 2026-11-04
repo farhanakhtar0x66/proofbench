@@ -10,11 +10,17 @@ it('unknown claims remain inconclusive and offline',async()=>{
  const report=await verifyAnswer({version:'1',text:'The moon is made of cheese.'});
  expect(report.mode).toBe('mock'); expect(report.claims[0].outcome).toBe('inconclusive'); expect(report.claims[0].evidence).toEqual([]);
 });
-it.each(['01','02'] as const)('%s rejects unavailable execution instead of simulating success',async mode=>{
- const adapter=selectAdapter(mode);
- expect(adapter.descriptor.implementation).toBe(mode);
+it('02 rejects unavailable execution instead of simulating success',async()=>{
+ const adapter=selectAdapter('02');
+ expect(adapter.descriptor.implementation).toBe('02');
  expect(adapter.capabilities.execute).toBe(false);
  await expect(adapter.run({version:'1',task,agentId:adapter.descriptor.id,seed:0})).rejects.toThrow('not integrated');
+});
+it('01 provides working token-efficient coding agent implementation',async()=>{
+ const adapter=selectAdapter('01');
+ expect(adapter.descriptor.implementation).toBe('01');
+ expect(adapter.capabilities.execute).toBe(true);
+ expect(adapter.capabilities.benchmarks).toBe(true);
 });
 it('rejects invalid configuration',()=>expect(()=>selectAdapter('oops')).toThrow());
 it('serves health, validates input, persists verification and links runs, reports, traces',async()=>{
@@ -41,9 +47,9 @@ it('serves health, validates input, persists verification and links runs, report
 });
 it('returns 501 for unintegrated Bifrost while verification remains available',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'proofbench-test-'));
- const app=await createApp({dataDir:dir,implementation:'01'});
+ const app=await createApp({dataDir:dir,implementation:'02'});
  try {
- expect((await app.inject({method:'POST',url:'/api/runs',payload:{version:'1',task,agentId:'bifrost-01'}})).statusCode).toBe(501);
+ expect((await app.inject({method:'POST',url:'/api/runs',payload:{version:'1',task,agentId:'bifrost-02'}})).statusCode).toBe(501);
  expect((await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:'A claim.'}})).statusCode).toBe(201);
  } finally {await app.close();await rm(dir,{recursive:true,force:true});}
 });

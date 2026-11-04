@@ -1,7 +1,67 @@
-import {type AgentAdapter,UnsupportedCapability} from '../../../packages/contracts/src/index';
-// Farhan replaces this module through a reviewed PR. Never substitute mock success.
-export const bifrost01:AgentAdapter={
- descriptor:{version:'1',id:'bifrost-01',name:'Token-efficient coding agent',implementation:'01',runtime:'typescript',revision:'unintegrated',model:null},
- capabilities:{execute:false,benchmarks:false,verify:true,native:false},
- async run(_request){throw new UnsupportedCapability('Bifrost #01 not integrated');}
+import {
+  type AgentAdapter,
+  RunRequest,
+  RunRecord,
+  ExecutionTrace,
+} from '../../../packages/contracts/src/index';
+import { BifrostClient } from './gateway/client';
+import { EmbeddedBifrostGateway } from './gateway/embedded';
+import type { GovernancePolicy } from './governance/policy';
+import { createDefaultPolicy, validateModelAgainstPolicy } from './governance/policy';
+import { HostApprovalEngine } from './governance/approval';
+import { M1ContextSelector } from './context/m1-selector';
+import { M2StagnationDetector } from './progress/m2-stagnation';
+import { M3aFailureAutopsyBuilder } from './handoff/m3a-autopsy';
+import { TavilyDocumentationVerifier } from './tavily/verifier';
+import { ProofBenchAgent } from './runtime/agent';
+import { ComparativeBenchmarkSuite } from './suite/benchmark';
+import { TaskWorkspace, getCodingTasksDir } from './runtime/workspace';
+
+export type { GovernancePolicy };
+export {
+  BifrostClient,
+  EmbeddedBifrostGateway,
+  createDefaultPolicy,
+  validateModelAgainstPolicy,
+  HostApprovalEngine,
+  M1ContextSelector,
+  M2StagnationDetector,
+  M3aFailureAutopsyBuilder,
+  TavilyDocumentationVerifier,
+  ProofBenchAgent,
+  ComparativeBenchmarkSuite,
+  TaskWorkspace,
+  getCodingTasksDir,
+};
+
+export const bifrost01: AgentAdapter = {
+  descriptor: {
+    version: '1',
+    id: 'bifrost-01',
+    name: 'Token-efficient coding agent',
+    implementation: '01',
+    runtime: 'typescript',
+    revision: '0.1.0',
+    model: 'opencode/deepseek-v4.1-flash-free',
+  },
+  capabilities: {
+    execute: true,
+    benchmarks: true,
+    verify: true,
+    native: false,
+  },
+  async run(input: unknown): Promise<{ run: RunRecord; trace: ExecutionTrace }> {
+    const request = RunRequest.parse(input);
+    if (request.agentId !== this.descriptor.id) {
+      throw new Error('Unknown agent');
+    }
+
+    const agent = new ProofBenchAgent();
+    const result = await agent.runTask(request.task, request.seed);
+
+    return {
+      run: result.run,
+      trace: result.trace,
+    };
+  },
 };
