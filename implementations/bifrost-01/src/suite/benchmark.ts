@@ -52,10 +52,14 @@ function extractObservation(obs?: { status: string; value?: number }): number | 
 export class ComparativeBenchmarkSuite {
   static async compareTaskEfficiency(
     task: TaskSpec,
-    options: { mode?: 'live' | 'simulation'; primaryModel?: string } = {}
+    options: {
+      mode?: 'live' | 'simulation';
+      primaryModel?: string;
+      embeddedGateway?: EmbeddedBifrostGateway;
+    } = {}
   ): Promise<ComparativeEfficiencyReport> {
     const isLive = options.mode === 'live' || process.env.BIFROST_MODE === 'live';
-    const embeddedGateway = isLive ? undefined : new EmbeddedBifrostGateway();
+    const embeddedGateway = isLive ? undefined : (options.embeddedGateway ?? new EmbeddedBifrostGateway());
     const bifrostClient = isLive
       ? new BifrostClient({
           mode: 'live',

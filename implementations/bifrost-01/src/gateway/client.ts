@@ -15,6 +15,7 @@ export interface BifrostClientOptions {
   fallbackProviders?: string[];
   mode?: 'live' | 'simulation';
   confidential?: boolean;
+  timeoutMs?: number;
 }
 
 export interface SpendReservation {
@@ -31,6 +32,7 @@ export class BifrostClient {
   public userBudgetSpentUsd = 0;
   public mode: 'live' | 'simulation';
   public confidential: boolean;
+  public timeoutMs: number;
   private activeReservations = new Map<string, number>();
   private embeddedGateway?: EmbeddedBifrostGateway;
 
@@ -39,6 +41,7 @@ export class BifrostClient {
     this.confidential = options.confidential ?? false;
     this.fallbackProviders = options.fallbackProviders ?? (this.confidential ? ['ollama', 'local'] : ['ollama', 'opencode']);
     this.userBudgetLimitUsd = options.userBudgetLimitUsd ?? 5.0;
+    this.timeoutMs = options.timeoutMs ?? 180_000;
 
     if (this.confidential) {
       const unauthorized = this.fallbackProviders.filter(
@@ -141,7 +144,7 @@ export class BifrostClient {
           'x-bf-fallback-providers': fallbackProviders.join(','),
         },
         body: JSON.stringify(req),
-        signal: AbortSignal.timeout(60_000),
+        signal: AbortSignal.timeout(this.timeoutMs),
       });
 
       if (res.status === 402 || res.status === 403) {

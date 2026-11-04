@@ -552,6 +552,45 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       expect(tinyAutopsy.formattedPacket).toContain('Budget Notice');
     });
 
+    it('M3a: safely reduces multi-attempt autopsy to fit budget and marks oversized when unresolvably small', () => {
+      const m2 = new M2StagnationDetector();
+      for (let i = 1; i <= 3; i++) {
+        m2.recordAttempt({
+          patch: `pub fn attempt_${i}() { let x = ${i}; }`,
+          rawError: `error[E0308]: mismatched types in attempt ${i}\n`.repeat(15),
+          exitCode: 101,
+        });
+      }
+
+      // Budget that forces attempt reduction (drops older attempts to keep latest)
+      const reducedAutopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
+        taskId: 'task-test',
+        taskTitle: 'Test Autopsy',
+        taskPrompt: 'Solve task',
+        attempts: m2.getAttempts(),
+        maxTokenBudget: 350,
+      });
+
+      expect(reducedAutopsy.canDispatch).toBe(true);
+      expect(reducedAutopsy.oversized).toBe(false);
+      expect(reducedAutopsy.reducedAttempts).toBe(true);
+      expect(reducedAutopsy.attempts).toHaveLength(1);
+      expect(reducedAutopsy.attempts[0].attemptNumber).toBe(3);
+
+      // Extreme budget that cannot fit even 1 reduced attempt
+      const impossibleAutopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
+        taskId: 'task-test',
+        taskTitle: 'Test Autopsy',
+        taskPrompt: 'Solve task',
+        attempts: m2.getAttempts(),
+        maxTokenBudget: 15,
+      });
+
+      expect(impossibleAutopsy.oversized).toBe(true);
+      expect(impossibleAutopsy.canDispatch).toBe(false);
+      expect(impossibleAutopsy.formattedPacket).toContain('> [!WARNING]');
+    });
+
     it('Tavily: verifies API claims for public tasks and blocks queries in confidential mode', async () => {
       const publicPolicy = createDefaultPolicy({ confidential: false });
       const confidentialPolicy = createDefaultPolicy({ confidential: true });
@@ -664,6 +703,101 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       expect(run.status).toBe('completed');
       expect(run.acceptance.status).toBe('passed');
       expect(trace.events.filter((e) => e.message.includes('Wrote updated content')).length).toBeGreaterThanOrEqual(2);
+    }, 45000);
+
+    it('executes a verified failure-to-recovery trajectory where primary model fails and recovery model resolves task via M3a autopsy packet', async () => {
+      const embeddedGateway = new EmbeddedBifrostGateway();
+      let primaryAttempts = 0;
+      let recoveryAttempts = 0;
+
+      embeddedGateway.setCustomHandler(async (req, _provider, model) => {
+        const allText = req.messages.map((m) => m.content).join('\n');
+
+        if (model === 'escalation-frontier-model' || allText.includes('Structured Failure Autopsy')) {
+          recoveryAttempts++;
+          // Verify that recovery model received the structured evidence autopsy
+          expect(allText).toContain('Structured Failure Autopsy (M3a - Evidence-Only)');
+          expect(allText).toContain('Verified Failure Ledger');
+          expect(allText).toContain('sliding_window_sums');
+
+          // Return the verified correct fix
+          const validCode = `// File: src/lib.rs
+pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
+    if window_size == 0 || window_size > slice.len() {
+        return Vec::new();
+    }
+    let mut result = Vec::with_capacity(slice.len() - window_size + 1);
+    let mut current_sum: i64 = slice[..window_size].iter().sum();
+    result.push(current_sum);
+    for i in window_size..slice.len() {
+        current_sum += slice[i] - slice[i - window_size];
+        result.push(current_sum);
+    }
+    result
+}
+`;
+          return {
+            content: `Recovery model fixing bounds bug based on autopsy:\n\n\`\`\`rust\n${validCode}\`\`\``,
+            usage: { prompt_tokens: 350, completion_tokens: 90 },
+          };
+        }
+
+        // Primary model: propose a failing patch on attempt 1, and duplicate failing patch on attempt 2 to trigger M2 loop breaker
+        primaryAttempts++;
+        const brokenCode = `// File: src/lib.rs
+pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
+    vec![42]
+}
+`;
+        return {
+          content: `Primary model attempting repair:\n\n\`\`\`rust\n${brokenCode}\`\`\``,
+          usage: { prompt_tokens: 200, completion_tokens: 40 },
+        };
+      });
+
+      const agent = new ProofBenchAgent({
+        approvalHandler: createWorkspaceApprovalHandler(),
+        embeddedGateway,
+        primaryModel: 'local-deepseek-coder',
+        recoveryModel: 'escalation-frontier-model',
+      });
+
+      const taskSpec = TaskSpec.parse({
+        version: '1',
+        id: 'task-1-fix-failing-func',
+        title: 'Fix off-by-one bounds bug in sliding window sums',
+        prompt: 'Fix the function sliding_window_sums in src/lib.rs',
+        acceptance: ['cargo test exits with code 0'],
+        fixtureId: 'task-1-v1',
+      });
+
+      const { run, trace } = await agent.runTask(taskSpec, 42);
+
+      // Verify that the task completed successfully after recovery
+      expect(run.status).toBe('completed');
+      expect(run.acceptance.status).toBe('passed');
+      expect(primaryAttempts).toBe(2);
+      expect(recoveryAttempts).toBe(1);
+
+      // Verify model attribution in trace events
+      const turnEvents = trace.events.filter((e) => e.type === 'output' && e.message.includes('Dispatching'));
+      expect(turnEvents).toHaveLength(3);
+      expect(turnEvents[0].data?.model).toBe('local-deepseek-coder');
+      expect(turnEvents[0].data?.isRecovery).toBe(false);
+      expect(turnEvents[1].data?.model).toBe('local-deepseek-coder');
+      expect(turnEvents[1].data?.isRecovery).toBe(false);
+      expect(turnEvents[2].data?.model).toBe('escalation-frontier-model');
+      expect(turnEvents[2].data?.isRecovery).toBe(true);
+
+      // Verify M2 halt and M3a escalation events
+      expect(trace.events.some((e) => e.type === 'error' && e.message.includes('M2 Loop Breaker'))).toBe(true);
+      expect(trace.events.some((e) => e.type === 'output' && e.message.includes('M3a structured autopsy generated'))).toBe(true);
+      expect(trace.events.some((e) => e.type === 'output' && e.message.includes('Authorized model escalation to escalation-frontier-model'))).toBe(true);
+
+      // Verify final successful check is attributed to recovery model
+      const finalPassedCheck = trace.events.find((e) => e.type === 'check' && e.message.includes('passed cleanly'));
+      expect(finalPassedCheck).toBeDefined();
+      expect(finalPassedCheck?.data?.model).toBe('escalation-frontier-model');
     }, 45000);
   });
 

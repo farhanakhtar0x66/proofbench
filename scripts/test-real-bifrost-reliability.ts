@@ -30,6 +30,7 @@ async function runBifrostReliabilitySuite() {
   const revokedVirtualKeys = [
     'sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e',
     'sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808',
+    'sk-bf-3571d7b4-e653-4bad-b1be-a7e82e0de8d4',
   ];
 
   // 1. Healthcheck check

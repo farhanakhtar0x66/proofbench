@@ -136,4 +136,8 @@ export class M2StagnationDetector {
   getAttempts(): AttemptRecord[] {
     return [...this.attempts];
   }
+
+  reset(): void {
+    this.attempts = [];
+  }
 }

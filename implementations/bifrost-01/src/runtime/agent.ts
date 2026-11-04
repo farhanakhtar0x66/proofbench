@@ -29,6 +29,7 @@ export interface ProofBenchAgentOptions {
   policy?: Partial<GovernancePolicy>;
   approvalHandler?: HostApprovalHandler;
   primaryModel?: string;
+  recoveryModel?: string;
   enableM1ContextBounding?: boolean;
   enableM2StagnationBreaker?: boolean;
   enableM3aAutopsyEscalation?: boolean;
@@ -41,6 +42,7 @@ export class ProofBenchAgent {
   public approvalEngine: HostApprovalEngine;
   public m1Selector: M1ContextSelector;
   public primaryModel: string;
+  public recoveryModel: string;
   private enableM1: boolean;
   private enableM2: boolean;
   private enableM3a: boolean;
@@ -61,6 +63,11 @@ export class ProofBenchAgent {
       this.bifrostClient.mode === 'live'
         ? (process.env.BIFROST_DEFAULT_MODEL ?? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M')
         : (this.policy.confidential ? 'local-deepseek-coder' : 'opencode/deepseek-v4.1-flash-free')
+    );
+    this.recoveryModel = options.recoveryModel ?? (
+      this.bifrostClient.mode === 'live'
+        ? (process.env.BIFROST_RECOVERY_MODEL ?? 'gguf/Qwen3.5-9B-GGUF:Q4_K_M')
+        : 'escalation-frontier-model'
     );
     this.enableM1 = options.enableM1ContextBounding ?? true;
     this.enableM2 = options.enableM2StagnationBreaker ?? true;
@@ -116,6 +123,8 @@ export class ProofBenchAgent {
 
     const m2Detector = new M2StagnationDetector();
     let currentModel = this.primaryModel;
+    let pendingHandoffPacket: string | null = null;
+    let recoveryActive = false;
     let totalPromptTokens: number | null = null;
     let totalCompletionTokens: number | null = null;
     let totalCostUsd = 0;
@@ -128,7 +137,11 @@ export class ProofBenchAgent {
       const initialTest = await workspace.runAcceptanceTests();
       if (initialTest.passed) {
         taskCompleted = true;
-        addEvent('check', 'Initial acceptance check passed without modification.');
+        addEvent('check', 'Initial acceptance check passed without modification.', {
+          model: currentModel,
+          attempt: 0,
+          passed: true,
+        });
       }
 
       let attempt = 0;
@@ -144,11 +157,18 @@ export class ProofBenchAgent {
             task.prompt
           );
           if (m1Result.status === 'context_overflow') {
-            addEvent('error', `M1 context overflow: ${m1Result.reason}`);
+            addEvent('error', `M1 context overflow: ${m1Result.reason}`, {
+              model: currentModel,
+              attempt,
+            });
             break;
           }
           contextText = m1Result.formattedContext;
-          addEvent('output', `M1 deterministic context selected (${m1Result.totalTokens} tokens, ${m1Result.selectedItems.length} items, ${m1Result.omittedItems.length} omissions)`);
+          addEvent('output', `M1 deterministic context selected (${m1Result.totalTokens} tokens, ${m1Result.selectedItems.length} items, ${m1Result.omittedItems.length} omissions)`, {
+            model: currentModel,
+            attempt,
+            tokens: m1Result.totalTokens,
+          });
         } else {
           // Unbounded raw read for baseline comparison
           try {
@@ -165,14 +185,37 @@ export class ProofBenchAgent {
           const tavilyRes = await TavilyDocumentationVerifier.verifyCodePlanClaims(task.prompt, this.policy);
           if (tavilyRes.allowed && tavilyRes.injectedContext) {
             tavilyContext = tavilyRes.injectedContext;
-            addEvent('output', `Tavily documentation verified (${tavilyRes.claimsVerified.length} claims checked)`);
+            addEvent('output', `Tavily documentation verified (${tavilyRes.claimsVerified.length} claims checked)`, {
+              model: currentModel,
+              attempt,
+            });
           } else if (!tavilyRes.allowed) {
-            addEvent('output', `Tavily documentation lookup skipped: ${tavilyRes.reason}`);
+            addEvent('output', `Tavily documentation lookup skipped: ${tavilyRes.reason}`, {
+              model: currentModel,
+              attempt,
+            });
           }
         }
 
         // Step 3: Bifrost Gateway Model Request
-        addEvent('output', `Dispatching turn ${attempt} to model ${currentModel} through Bifrost Gateway`);
+        if (recoveryActive) {
+          addEvent('output', `Dispatching recovery turn ${attempt} to authorized model ${currentModel} with M3a failure autopsy packet`, {
+            model: currentModel,
+            attempt,
+            isRecovery: true,
+          });
+        } else {
+          addEvent('output', `Dispatching turn ${attempt} to model ${currentModel} through Bifrost Gateway`, {
+            model: currentModel,
+            attempt,
+            isRecovery: false,
+          });
+        }
+
+        const userPrompt = pendingHandoffPacket
+          ? `${pendingHandoffPacket}\n\nTask: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}`
+          : `Task: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}\n\nPrevious compiler output:\n${lastErrorOutput || 'None yet'}`;
+        pendingHandoffPacket = null;
 
         const messages = [
           {
@@ -188,7 +231,7 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           },
           {
             role: 'user' as const,
-            content: `Task: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}\n\nPrevious compiler output:\n${lastErrorOutput || 'None yet'}`,
+            content: userPrompt,
           },
         ];
 
@@ -199,7 +242,10 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
             messages,
           });
         } catch (gatewayErr) {
-          addEvent('error', `Bifrost gateway error: ${(gatewayErr as Error).message}`);
+          addEvent('error', `Bifrost gateway error: ${(gatewayErr as Error).message}`, {
+            model: currentModel,
+            attempt,
+          });
           break;
         }
 
@@ -213,14 +259,21 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           totalCostUsd += gatewayResponse.bifrost_metadata.cost_usd;
           observedRoutingProvider = gatewayResponse.bifrost_metadata.provider;
           if (gatewayResponse.bifrost_metadata.fallback_invoked) {
-            addEvent('output', `Bifrost fallback routing triggered: active provider is ${observedRoutingProvider}`);
+            addEvent('output', `Bifrost fallback routing triggered: active provider is ${observedRoutingProvider}`, {
+              model: currentModel,
+              attempt,
+              fallbackProvider: observedRoutingProvider,
+            });
           }
         }
 
         // Step 4: Parse Real Model Action(s) — No solution copying!
         const proposedModifications = this.parseModelActions(gatewayResponse);
         if (proposedModifications.length === 0) {
-          addEvent('error', `Turn ${attempt}: No actionable file modifications or code blocks found in model response.`);
+          addEvent('error', `Turn ${attempt}: No actionable file modifications or code blocks found in model response.`, {
+            model: currentModel,
+            attempt,
+          });
           if (this.enableM2) {
             const stagnation = m2Detector.recordAttempt({
               patch: '',
@@ -228,7 +281,11 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
               exitCode: 1,
             });
             if (stagnation.shouldHalt) {
-              addEvent('error', `M2 Loop Breaker: ${stagnation.message}`);
+              addEvent('error', `M2 Loop Breaker: ${stagnation.message}`, {
+                model: currentModel,
+                attempt,
+                stagnationReason: stagnation.reason,
+              });
               break;
             }
           }
@@ -249,7 +306,11 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
             path.isAbsolute(normalizedRelPath) ||
             normalizedRelPath.includes('\0')
           ) {
-            addEvent('error', `Security rejection: path traversal attempt detected in target path '${mod.path}'`);
+            addEvent('error', `Security rejection: path traversal attempt detected in target path '${mod.path}'`, {
+              model: currentModel,
+              attempt,
+              path: mod.path,
+            });
             allApproved = false;
             break;
           }
@@ -257,7 +318,11 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           // Safety check 2: Workspace boundary containment
           const targetAbsPath = path.resolve(workspace.workspacePath, normalizedRelPath);
           if (!targetAbsPath.startsWith(path.resolve(workspace.workspacePath))) {
-            addEvent('error', `Security rejection: path escapes workspace boundaries: '${mod.path}'`);
+            addEvent('error', `Security rejection: path escapes workspace boundaries: '${mod.path}'`, {
+              model: currentModel,
+              attempt,
+              path: mod.path,
+            });
             allApproved = false;
             break;
           }
@@ -272,17 +337,32 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
 
           const approval = await this.approvalEngine.evaluateAction(action);
           if (!approval.approved) {
-            addEvent('error', `Action rejected by host approval engine: ${approval.reason}`);
+            addEvent('error', `Action rejected by host approval engine: ${approval.reason}`, {
+              model: currentModel,
+              attempt,
+              tool: action.tool,
+              path: normalizedRelPath,
+            });
             allApproved = false;
             break;
           }
 
-          addEvent('output', `Host approval granted for action: ${action.tool} on ${normalizedRelPath}`);
+          addEvent('output', `Host approval granted for action: ${action.tool} on ${normalizedRelPath}`, {
+            model: currentModel,
+            attempt,
+            tool: action.tool,
+            path: normalizedRelPath,
+          });
 
           // Execute Approved Action inside workspace
           await fs.mkdir(path.dirname(targetAbsPath), { recursive: true });
           await fs.writeFile(targetAbsPath, mod.content, 'utf8');
-          addEvent('output', `Wrote updated content to ${normalizedRelPath} (${mod.content.length} bytes)`);
+          addEvent('output', `Wrote updated content to ${normalizedRelPath} (${mod.content.length} bytes)`, {
+            model: currentModel,
+            attempt,
+            path: normalizedRelPath,
+            bytes: mod.content.length,
+          });
           lastAppliedPatch = mod.content;
         }
 
@@ -296,11 +376,19 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
 
         if (testResult.passed) {
           taskCompleted = true;
-          addEvent('check', `Acceptance tests passed cleanly on attempt ${attempt}!`);
+          addEvent('check', `Acceptance tests passed cleanly on attempt ${attempt}!`, {
+            model: currentModel,
+            attempt,
+            passed: true,
+          });
           break;
         }
 
-        addEvent('check', `Acceptance tests failed on attempt ${attempt}: ${testResult.output.slice(0, 300)}`);
+        addEvent('check', `Acceptance tests failed on attempt ${attempt}: ${testResult.output.slice(0, 300)}`, {
+          model: currentModel,
+          attempt,
+          passed: false,
+        });
 
         // Step 8: Progress & Loop Control (M2)
         if (this.enableM2) {
@@ -313,32 +401,64 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           });
 
           if (stagnation.shouldHalt) {
-            addEvent('error', `M2 Loop Breaker: ${stagnation.message}`);
+            addEvent('error', `M2 Loop Breaker: ${stagnation.message}`, {
+              model: currentModel,
+              attempt,
+              stagnationReason: stagnation.reason,
+            });
 
             // Step 9: M3a Failure Autopsy & Escalation
-            if (this.enableM3a) {
+            if (this.enableM3a && !recoveryActive) {
               const autopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
                 taskId: task.id,
                 taskTitle: task.title,
                 taskPrompt: task.prompt,
                 attempts: m2Detector.getAttempts(),
                 stagnationReason: stagnation.message,
-                escalationModel: 'escalation-frontier-model',
+                escalationModel: this.recoveryModel,
+                maxTokenBudget: 2000,
               });
 
-              addEvent('output', `M3a structured autopsy generated (${autopsy.tokenCount} tokens; 0 LLM narrative). Target escalation: ${autopsy.escalationModelTarget}`);
+              addEvent('output', `M3a structured autopsy generated (${autopsy.tokenCount} tokens; 0 LLM narrative). Target escalation: ${autopsy.escalationModelTarget}`, {
+                model: currentModel,
+                attempt,
+                tokenCount: autopsy.tokenCount,
+                budgetCompacted: autopsy.budgetCompacted,
+                reducedAttempts: autopsy.reducedAttempts,
+                oversized: autopsy.oversized,
+                canDispatch: autopsy.canDispatch,
+              });
+
+              if (!autopsy.canDispatch || autopsy.oversized) {
+                addEvent('error', `M3a autopsy packet exceeds declared budget (${autopsy.tokenCount} > ${autopsy.maxTokenBudget}) and could not be safely reduced. Escalation dispatch aborted.`, {
+                  model: currentModel,
+                  attempt,
+                });
+                break;
+              }
 
               // Check if escalation is permitted by policy
               const escalationCheck = validateModelAgainstPolicy(autopsy.escalationModelTarget, this.policy, {
                 destinationUrl: this.bifrostClient.gatewayUrl,
               });
-              if (escalationCheck.valid) {
-                currentModel = autopsy.escalationModelTarget;
-                addEvent('output', `Authorized model escalation to ${currentModel} via Bifrost routing`);
-              } else {
-                addEvent('error', `Model escalation denied by policy: ${escalationCheck.reason}`);
+              if (!escalationCheck.valid) {
+                addEvent('error', `Model escalation denied by policy: ${escalationCheck.reason}`, {
+                  model: currentModel,
+                  attempt,
+                });
                 break;
               }
+
+              currentModel = autopsy.escalationModelTarget;
+              pendingHandoffPacket = autopsy.formattedPacket;
+              recoveryActive = true;
+              addEvent('output', `Authorized model escalation to ${currentModel} via Bifrost routing with verified diagnostic handoff`, {
+                previousModel: this.primaryModel,
+                escalationModel: currentModel,
+                attempt,
+              });
+              m2Detector.reset();
+              continue;
             } else {
               break;
             }
@@ -513,17 +633,17 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
     const text = choice.message?.content ?? '';
     if (!text) return results;
 
-    const codeBlockRegex = /(?:(?:\/\/\s*(?:File:\s*)?([^\r\n]+\.rs)|\/\*\s*(?:File:\s*)?([^\r\n*]+\.rs)\*\/|File:\s*([^\r\n]+))\s*)?```(?:rust|rs)?\s*\n([\s\S]*?)```/gi;
+    const codeBlockRegex = /(?:(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?\*?|File:\s*([^\r\n`]+))\s*)?```(?:rust|rs)?\s*\n([\s\S]*?)```/gi;
 
     let match: RegExpExecArray | null;
     while ((match = codeBlockRegex.exec(text)) !== null) {
-      let filePath = (match[1] || match[2] || match[3] || '').trim();
-      const content = match[4];
+      let filePath = (match[1] || match[2] || '').trim();
+      const content = match[3];
 
       if (!filePath) {
-        const firstLineMatch = content.match(/^(?:\/\/\s*(?:File:\s*)?([^\r\n]+\.rs)|\/\*\s*(?:File:\s*)?([^\r\n*]+\.rs)\*\/|File:\s*([^\r\n]+))/i);
+        const firstLineMatch = content.match(/^(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?\*?|File:\s*([^\r\n`]+))/i);
         if (firstLineMatch) {
-          filePath = (firstLineMatch[1] || firstLineMatch[2] || firstLineMatch[3] || '').trim();
+          filePath = (firstLineMatch[1] || firstLineMatch[2] || '').trim();
         }
       }
 

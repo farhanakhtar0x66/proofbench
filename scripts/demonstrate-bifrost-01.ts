@@ -3,6 +3,7 @@ import * as path from 'node:path';
 import {
   ProofBenchAgent,
   BifrostClient,
+  EmbeddedBifrostGateway,
   ComparativeBenchmarkSuite,
   getCodingTasksDir,
   createScopedPriorApprovalHandler,
@@ -96,6 +97,7 @@ async function main() {
         bifrostClient: liveClient,
         approvalHandler: createFreshApprovalHandler(),
         primaryModel: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+        recoveryModel: 'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
         enableM1ContextBounding: true,
         enableM2StagnationBreaker: true,
         enableM3aAutopsyEscalation: true,
@@ -137,10 +139,57 @@ async function main() {
 
     demonstrationEvidence.liveDemonstration = {
       model: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+      recoveryModel: 'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
       provider: 'ollama (via Maxim Bifrost v2.4.0)',
       gatewayUrl: 'http://127.0.0.1:8089',
       virtualKey: liveVirtualKey.slice(0, 10) + '...',
       runs: liveRuns,
+    };
+
+    // --------------------------------------------------------------------------
+    // 1B. Capability Attribution Experiment: Direct 9B Evaluation on Task 3
+    // --------------------------------------------------------------------------
+    console.log('\n' + '='.repeat(80));
+    console.log('SECTION 1B: CAPABILITY ATTRIBUTION EXPERIMENT (TASK 3 DIRECT 9B)');
+    console.log('Model:   gguf/Qwen3.5-9B-GGUF:Q4_K_M (Local Ollama Provider via Bifrost)');
+    console.log('Purpose: Verify whether multi-file failure is model capacity vs. controller logic');
+    console.log('='.repeat(80));
+
+    const task3JsonPath = path.join(tasksDir, 'task-3-multi-file-regression', 'task.json');
+    const task3Raw = await fs.readFile(task3JsonPath, 'utf8');
+    const task3Spec = TaskSpec.parse(JSON.parse(task3Raw));
+
+    const liveClient9B = new BifrostClient({
+      mode: 'live',
+      gatewayUrl: 'http://127.0.0.1:8089',
+      virtualKey: liveVirtualKey,
+      userBudgetLimitUsd: 5.0,
+    });
+
+    const liveAgent9B = new ProofBenchAgent({
+      bifrostClient: liveClient9B,
+      approvalHandler: createFreshApprovalHandler(),
+      primaryModel: 'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
+      enableM1ContextBounding: true,
+      enableM2StagnationBreaker: true,
+      enableM3aAutopsyEscalation: true,
+      enableTavilyDocumentation: true,
+    });
+
+    const result9B = await liveAgent9B.runTask(task3Spec, Date.now());
+    console.log(`  Task:                    ${task3Spec.title}`);
+    console.log(`  Live Execution Status:   ${result9B.run.status.toUpperCase()}`);
+    console.log(`  Acceptance Test Passed:  ${result9B.run.acceptance.status.toUpperCase()}`);
+    console.log(`  Trace Events (${result9B.trace.events.length}):`);
+    for (const ev of result9B.trace.events) {
+      console.log(`    [${ev.type.toUpperCase()}] ${ev.message}`);
+    }
+
+    demonstrationEvidence.task3CapabilityExperiment = {
+      model: 'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
+      status: result9B.run.status,
+      passed: result9B.run.acceptance.status === 'passed',
+      traceSummary: result9B.trace.events.map((e) => `[${e.type}] ${e.message}`),
     };
 
     // Live Comparative Benchmark on Task 1
@@ -170,13 +219,26 @@ async function main() {
   console.log('Tasks:          All 3 Frozen Tasks (Tasks 1, 2, 3)');
   console.log('='.repeat(80));
 
+  delete process.env.BIFROST_MODE;
+  delete process.env.BIFROST_VIRTUAL_KEY;
+
   for (const taskId of taskFiles) {
     const taskJsonPath = path.join(tasksDir, taskId, 'task.json');
     const taskRaw = await fs.readFile(taskJsonPath, 'utf8');
     const taskSpec = TaskSpec.parse(JSON.parse(taskRaw));
 
     console.log(`\n[SIMULATED RUN] Executing on Task: ${taskSpec.title} (${taskSpec.id})`);
-    const agent = new ProofBenchAgent({ approvalHandler: createFreshApprovalHandler() });
+    const embeddedGateway = new EmbeddedBifrostGateway();
+    const bifrostClient = new BifrostClient({
+      mode: 'simulation',
+      embeddedGateway,
+      virtualKey: 'sk-bf-simulation-default',
+    });
+    const agent = new ProofBenchAgent({
+      bifrostClient,
+      approvalHandler: createFreshApprovalHandler(),
+      primaryModel: 'local-deepseek-coder',
+    });
     const { run, trace, report } = await agent.runTask(taskSpec, Date.now());
 
     const inVal = run.usage.inputTokens.status === 'known' ? `${run.usage.inputTokens.value} (${run.usage.inputTokens.source})` : run.usage.inputTokens.status;
@@ -210,7 +272,11 @@ async function main() {
     const taskSpec = TaskSpec.parse(JSON.parse(taskRaw));
 
     console.log(`\n[SIMULATED BENCHMARK] Evaluating: ${taskSpec.title}`);
-    const comparison = await ComparativeBenchmarkSuite.compareTaskEfficiency(taskSpec, { mode: 'simulation' });
+    const comparison = await ComparativeBenchmarkSuite.compareTaskEfficiency(taskSpec, {
+      mode: 'simulation',
+      primaryModel: 'local-deepseek-coder',
+      embeddedGateway: new EmbeddedBifrostGateway(),
+    });
 
     console.log(`  Baseline Total Tokens:     ${comparison.baseline.totalTokens}`);
     console.log(`  Experimental Total Tokens: ${comparison.experimental.totalTokens}`);
