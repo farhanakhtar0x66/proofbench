@@ -45,7 +45,7 @@ it('ranks appointment excerpts first without removing context, changing text or 
   {url:'https://context.example/story',title:'Team news',content:'The squad discussed its preparations.',published_date:now},
   {url:'https://appointment.example/story',title:'Club announcement',content:'Taylor is the club captain for this season.',published_date:now},
  ];
- const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{const body=JSON.parse(String(init?.body));expect(body.query).toBe(target);expect(body.search_depth).toBe('basic');expect(body.max_results).toBe(3);return Response.json({results:raw});});
+ const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{const body=JSON.parse(String(init?.body));expect(body.query).toBe(target);expect(body.search_depth).toBe('basic');expect(body.max_results).toBe(6);return Response.json({results:raw});});
  const options={mode:'live',allowPaidRequests:'true',apiKey:'fake',maxRequests:1,budget:new SearchBudget(),fetch:fetcher};
  const report=await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);
  expect(report.claim).toBe(claim);expect(report.evidence.map(source=>source.scopeHint)).toEqual(['appointment','unspecified','match_only']);

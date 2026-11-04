@@ -1,5 +1,7 @@
 # Relevant source passages and quality warnings
 
+The later [source-quality update](SOURCE-QUALITY.md) adds login/markup/caption checks, fixes fitting-paragraph selection and requests six candidates within one Basic search. The API still retains at most three excerpts; earlier three-result request notes below describe the previous search profile.
+
 General retrieval previously sent the first 1,200 characters of each Tavily result. It now selects a continuous passage within returned text using conservative claim anchors. This is local text processing: no extra search, page fetch, extraction inference or provider fallback is introduced. The existing basic-search cap, cache, three-result limit and model budgets remain unchanged.
 
 Short results of at most 1,200 nonpadding characters retain all their text. Longer results are split at paragraph gaps and Tavily's `[...]` markers. Clear product/version support statements and matching organization/role paragraphs receive priority; other claims use lexical overlap. Explicit support patterns include `Python 2 is currently supported` and negative/no-longer variants. Role anchors reuse the existing narrow English role parser. An alternative holder can be relevant: the original claim's person's name is not required. These are limited English heuristics, not universal relevance or entailment detection.

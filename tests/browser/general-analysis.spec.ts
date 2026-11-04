@@ -40,6 +40,8 @@ test('shows per-claim verdicts, source warnings and corrections from a validated
  await expect(page.getByText('Freshness score: 50/100 (evidence recency)',{exact:false})).toBeVisible();
  await expect(page.getByText('Simulated evidence recency only, not truth confidence.',{exact:true})).toBeVisible();
  await expect(page.getByText('Reused cached comparison',{exact:false})).toBeVisible();
+ await page.getByText('Retrieval limitations',{exact:true}).first().click();
+ await expect(page.getByText('Evidence retrieval only:',{exact:false}).first()).toBeVisible();
  await expect(page.getByText('Evidence-backed correction',{exact:true})).toBeVisible();
  await expect(page.getByText('Wrong role context.',{exact:true}).first()).toBeVisible();
  await expect(page.getByText('1 additional distinct extracted claim(s)',{exact:false})).toBeVisible();

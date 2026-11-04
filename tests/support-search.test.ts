@@ -38,7 +38,7 @@ it('retrieves older lifecycle announcements with warnings, preserves the claim a
  const claim='Python 2 is currently supported.';
  const raw=['first.example','second.example'].map(host=>({url:`https://${host}/announcement`,title:'Historical support announcement',content:'Python 2 reached end of life in 2020 and is no longer supported upstream.',published_date:'2020-01-01'}));
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
-  const body=JSON.parse(String(init?.body));expect(body.query).toBe('Python 2 support status end of life official documentation');expect(body.search_depth).toBe('basic');expect(body.auto_parameters).toBe(false);expect(body.include_published_date).toBe(true);expect(body.max_results).toBe(3);
+  const body=JSON.parse(String(init?.body));expect(body.query).toBe('Python 2 support status end of life official documentation');expect(body.search_depth).toBe('basic');expect(body.auto_parameters).toBe(false);expect(body.include_published_date).toBe(true);expect(body.max_results).toBe(6);
   for(const key of ['start_date','end_date','filter_by_published_date'])expect(body).not.toHaveProperty(key);
   return Response.json({results:raw});
  });

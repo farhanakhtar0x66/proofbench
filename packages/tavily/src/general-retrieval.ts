@@ -7,7 +7,8 @@ import {assessSourceDates} from './dates';
 import {retrievalFailureMessage} from './retrieval-errors';
 import {evidenceSearchPlan} from './search-plan';
 import {captainClaimScope,captainEvidenceHint} from './captain-scope';
-import {selectEvidenceExcerpt} from './excerpts';
+import {selectEvidenceExcerpt,excerptQualityReason} from './excerpts';
+import {sourceRelevanceReason} from './evidence-relevance';
 
 type Options={mode?:string;allowPaidRequests?:string;apiKey?:string;maxRequests?:string|number;budget?:SearchBudget;fetch?:typeof fetch;cacheOnly?:boolean};
 const budgets=new WeakMap<typeof fetch,SearchBudget>();
@@ -31,28 +32,35 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  let budget=options.budget??budgets.get(fetcher);
  if(!budget){budget=new SearchBudget();budgets.set(fetcher,budget);}
  try{
-  const cacheKey=plan.dateWindow?JSON.stringify({query,dateWindow:plan.dateWindow}):query;
-  const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow}),options.cacheOnly);
+  const cacheKey=JSON.stringify({profile:'general-quality-v1',query,dateWindow:plan.dateWindow});
+  const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow,qualityCandidates:true}),options.cacheOnly);
   const seen=new Set<string>();
-  const evidence=[];
+  const evidence:ReturnType<typeof EvidenceRetrievalReport.parse>['evidence']=[];
   const seekAppointment=request.scope==='current'&&captainClaimScope(request.claim)==='appointment';
-  for(const result of search.value){
+  // Request six; tolerate a bounded extra tail if a provider returns more.
+  for(const result of search.value.slice(0,12)){
    const source=normalizeSource(result);if(!source?.url||!source.content?.trim())continue;
    const canonical=canonicalUrl(source.url);if(seen.has(canonical))continue;seen.add(canonical);
    const dates=assessSourceDates(source,createdAt);
    const selected=selectEvidenceExcerpt(request.claim,source.content);const excerpt=selected.excerpt;
    const scopeHint=seekAppointment?captainEvidenceHint(excerpt):undefined;
    evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,excerptSelection:selected.selection,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
-   if(evidence.length===3)break;
   }
+  const quality=(source:typeof evidence[number])=>Number(!!source.excerptSelection?.warning||!!excerptQualityReason(request.claim,source.excerpt)||!!sourceRelevanceReason(request.claim,source.excerpt));
   if(seekAppointment){
    const priority={appointment:0,unspecified:1,match_only:2};
-   evidence.sort((a,b)=>Number(!!a.excerptSelection.warning)-Number(!!b.excerptSelection.warning)||priority[a.scopeHint??'unspecified']-priority[b.scopeHint??'unspecified']);
+   evidence.sort((a,b)=>quality(a)-quality(b)||priority[a.scopeHint??'unspecified']-priority[b.scopeHint??'unspecified']||Number(!assessSourceDates({published_date:a.publishedAt,content:a.excerpt},createdAt).eligible)-Number(!assessSourceDates({published_date:b.publishedAt,content:b.excerpt},createdAt).eligible));
    limitations.push('Appointment-oriented ranking is heuristic. Match-only sources are retained as context, not silently removed or counted as ongoing-role proof.');
   }
-  else if(request.scope==='current')evidence.sort((a,b)=>Number(!!a.excerptSelection.warning)-Number(!!b.excerptSelection.warning));
+  else if(request.scope==='current')evidence.sort((a,b)=>quality(a)-quality(b)||Number(!assessSourceDates({published_date:a.publishedAt,content:a.excerpt},createdAt).eligible)-Number(!assessSourceDates({published_date:b.publishedAt,content:b.excerpt},createdAt).eligible));
+  const group=(url:string)=>new URL(url).hostname.toLowerCase().replace(/^www\./u,'').split('.').slice(-2).join('.');
+  const seenGroups=new Set<string>();
+  const diverse:typeof evidence=[];const repeated:typeof evidence=[];
+  for(const source of evidence){const id=group(source.url);if(seenGroups.has(id))repeated.push(source);else{seenGroups.add(id);diverse.push(source);}}
+  const selectedEvidence=(request.scope==='current'?[...diverse,...repeated]:evidence).slice(0,3);
+  limitations.push(`One Basic search requests six candidates with facebook.com excluded after observed login/markup failures; up to twelve returned candidates are inspected. ${evidence.length} usable-URL candidate(s) inspected; ${selectedEvidence.length} retained. Current scope prioritizes readable, claim-scoped passages, recent dates and distinct hostname groups; literal scope preserves provider order. Omitted candidates are not assessed and may contain conflicting evidence. Ranking does not establish authority or independence.`);
   limitations.push('Excerpt selection uses heuristic claim anchors within returned text, not a new page fetch. Selected passages can omit context; quality warnings exclude weak passages from corroboration.');
-  return EvidenceRetrievalReport.parse({version:'1',claim:request.claim,query,...scope,mode,status:evidence.length?'retrieved':'empty',createdAt,retrievedAt:search.retrievedAt,evidence,limitations,message:evidence.length?'Source excerpts retrieved; their agreement with the claim has not been assessed.':'Search completed but returned no usable, nonempty HTTP(S) source excerpts.'});
+  return EvidenceRetrievalReport.parse({version:'1',claim:request.claim,query,...scope,mode,status:selectedEvidence.length?'retrieved':'empty',createdAt,retrievedAt:search.retrievedAt,evidence:selectedEvidence,limitations,message:selectedEvidence.length?'Source excerpts retrieved; their agreement with the claim has not been assessed.':'Search completed but returned no usable, nonempty HTTP(S) source excerpts.'});
  }catch(error){
   const exhausted=error instanceof RequestBudgetExhausted;
   if(error instanceof CachedEvidenceUnavailable)return EvidenceRetrievalReport.parse({version:'1',claim:request.claim,query,...scope,mode,status:'unavailable',createdAt,retrievedAt:null,evidence:[],limitations,message:'No unexpired matching cached evidence is available. No new search was made because model comparison is unavailable.'});
