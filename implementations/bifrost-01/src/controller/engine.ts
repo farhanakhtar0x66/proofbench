@@ -88,6 +88,7 @@ export class AdaptiveExecutionEngine {
       smallModel: options.smallModel,
       strongerModel: options.strongerModel,
       isLive,
+      gatewayUrl: this.bifrostClient.gatewayUrl,
     });
 
     const smallModelId = this.modelRegistry.getModelForTier('SMALL_LLM').id;
@@ -180,10 +181,11 @@ export class AdaptiveExecutionEngine {
         controllerState = latestCheckpoint.stateSnapshot;
         contextData = latestCheckpoint.contextSnapshot;
         resumedFromCheckpoint = true;
+        currentTier = controllerState.currentTier;
         addTraceEvent(
           'output',
-          `Resumed execution from checkpoint ${latestCheckpoint.checkpointId} at turn ${controllerState.turnCount} (source revision: ${currentRev.slice(0, 8)})`,
-          { checkpointId: latestCheckpoint.checkpointId, turnCount: controllerState.turnCount }
+          `Resumed execution from checkpoint ${latestCheckpoint.checkpointId} at turn ${controllerState.turnCount} (source revision: ${currentRev.slice(0, 8)}) in tier ${currentTier}`,
+          { checkpointId: latestCheckpoint.checkpointId, turnCount: controllerState.turnCount, tier: currentTier }
         );
       } else {
         await durableStore.appendEvent(
@@ -292,6 +294,7 @@ export class AdaptiveExecutionEngine {
     let avoidedModelRequests = 0;
     let totalPromptTokens: number | null = null;
     let totalCompletionTokens: number | null = null;
+    let totalModelCalls = 0;
     let totalCostUsd = 0;
     let pendingHandoff: UniversalHandoffPacket | null = null;
     let pendingBoundedInstructions: string | undefined;
@@ -300,6 +303,58 @@ export class AdaptiveExecutionEngine {
     let lastErrorSignature = '';
     let currentModel = this.modelRegistry.getModelForTier('NON_LLM').id;
     let lastAppliedPatch = '';
+    let deterministicCpuDurationMs = 0;
+    let inferenceDurationMs = 0;
+
+    // Resumption State Restoration
+    if (resumedFromCheckpoint && controllerState) {
+      currentTier = controllerState.currentTier;
+      if ((currentTier as string) !== 'HALT') {
+        currentModel = this.modelRegistry.getModelForTier(currentTier).id;
+      }
+      if (controllerState.totalTokens.prompt > 0 || controllerState.totalTokens.completion > 0) {
+        totalPromptTokens = controllerState.totalTokens.prompt;
+        totalCompletionTokens = controllerState.totalTokens.completion;
+      }
+      avoidedModelRequests = controllerState.deterministicOperationsCount;
+
+      // Restore historical diagnostics and M2 detector attempts from durable evidence
+      for (let t = 1; t <= controllerState.turnCount; t++) {
+        const evContent = await durableStore.getEvidence(`test-turn-${t}`);
+        if (evContent) {
+          const exitMatch = evContent.match(/Exit Code:\s*(\d+)/);
+          const passedMatch = evContent.match(/Passed:\s*(\d+)/);
+          const failedMatch = evContent.match(/Failed:\s*(\d+)/);
+          const outputMatch = evContent.match(/Output:\s*([\s\S]*)$/);
+          const exitCode = exitMatch ? parseInt(exitMatch[1], 10) : 1;
+          const rawOutput = outputMatch ? outputMatch[1] : evContent;
+
+          diagnosticsHistory.push({
+            attempt: t,
+            rawOutput,
+            exitCode,
+            passedCount: passedMatch ? parseInt(passedMatch[1], 10) : undefined,
+            failedCount: failedMatch ? parseInt(failedMatch[1], 10) : undefined,
+          });
+          lastErrorOutput = rawOutput;
+          lastErrorSignature = `${exitCode}:${rawOutput.slice(0, 100)}`;
+
+          m2Detector.recordAttempt({
+            patch: `resumed-turn-${t}`,
+            rawError: rawOutput,
+            exitCode,
+            passedCount: passedMatch ? parseInt(passedMatch[1], 10) : 0,
+            failedCount: failedMatch ? parseInt(failedMatch[1], 10) : 1,
+          });
+        }
+      }
+
+      if (contextData?.nextAction?.step?.includes('bounded instructions') && contextData.nextAction.suggestedTier === 'SMALL_LLM') {
+        pendingBoundedInstructions = contextData.nextAction.step;
+      }
+
+      addTraceEvent('output', `Restored ${diagnosticsHistory.length} diagnostic records and M2 loop breaker history from durable store.`);
+    }
 
     // Check if initial workspace already satisfies acceptance tests
     const initialTest = await this.executeAcceptanceTests(workspacePath);
@@ -311,6 +366,9 @@ export class AdaptiveExecutionEngine {
         passed: true,
         tokens: 0,
       });
+    } else if (!lastErrorOutput) {
+      lastErrorOutput = initialTest.output;
+      lastErrorSignature = `${initialTest.exitCode}:${initialTest.output.slice(0, 100)}`;
     }
 
     // Compile initial AST context
@@ -366,15 +424,26 @@ export class AdaptiveExecutionEngine {
         sourceFiles
       );
 
-      if (mechanicalCandidates.length > 0 && turn === 1) {
+      if (mechanicalCandidates.length > 0 && mechanicalCandidates[0].confidence === 'guaranteed') {
         nextTier = 'NON_LLM';
-        transitionReason = `Mechanical compiler-guided fix candidate found (${mechanicalCandidates[0].description})`;
+        transitionReason = `Guaranteed mechanical compiler-guided fix candidate found (${mechanicalCandidates[0].description})`;
       } else if (pendingHandoff && pendingHandoff.targetTier === 'STRONGER_LLM') {
         nextTier = 'STRONGER_LLM';
         transitionReason = `Authorized M3a escalation: ${pendingHandoff.rationale}`;
       } else if (pendingBoundedInstructions) {
         nextTier = 'SMALL_LLM';
         transitionReason = 'Stronger model delegated implementation to Small LLM with bounded instructions';
+      } else if (currentTier === 'STRONGER_LLM' && initialContext && diagnosticsHistory.length > 0) {
+        // Deterministic controller downgrade if multi-file roadblock is solved and remaining work is bounded
+        const latestDiag = diagnosticsHistory[diagnosticsHistory.length - 1];
+        if (latestDiag.failedCount === 1 && latestDiag.passedCount && latestDiag.passedCount > 0) {
+          nextTier = 'SMALL_LLM';
+          transitionReason = 'Deterministic controller downgrade: complex architectural pass passed, localized test failure remaining';
+          pendingBoundedInstructions = `Resolve remaining localized failure in ${latestDiag.rawOutput.slice(0, 300)}`;
+        } else {
+          nextTier = 'STRONGER_LLM';
+          transitionReason = 'Continue in Stronger LLM for ongoing complex task resolution';
+        }
       } else if (initialContext) {
         // Deterministic evidence-based model selection
         const decision = this.modelSelector.selectModel(initialContext, diagnosticsHistory, task.prompt);
@@ -540,13 +609,18 @@ export class AdaptiveExecutionEngine {
         pendingBoundedInstructions = undefined;
 
         // 3. Bifrost Gateway Request
+        const callStart = performance.now();
         let gatewayResponse;
         try {
           gatewayResponse = await this.bifrostClient.createChatCompletion({
             model: currentModel,
             messages: compiledPrompt.messages,
           });
+          inferenceDurationMs += performance.now() - callStart;
+          totalModelCalls++;
         } catch (gatewayErr) {
+          inferenceDurationMs += performance.now() - callStart;
+          totalModelCalls++;
           addTraceEvent('error', `Bifrost gateway error: ${(gatewayErr as Error).message}`, {
             turn,
             tier: currentTier,
@@ -582,7 +656,12 @@ export class AdaptiveExecutionEngine {
           currentModel
         );
         if (proposal) {
-          const val = UniversalHandoffProtocol.validateProposal(proposal, currentTier);
+          const val = UniversalHandoffProtocol.validateProposal(proposal, currentTier, {
+            modelRegistry: this.modelRegistry,
+            policy: this.policy,
+            currentBudgetUsedUsd: totalCostUsd,
+            diagnosticsAvailable: diagnosticsHistory.length > 0,
+          });
           if (val.valid) {
             addTraceEvent(
               'output',
@@ -592,6 +671,12 @@ export class AdaptiveExecutionEngine {
             if (proposal.targetTier === 'SMALL_LLM' && proposal.boundedInstructions) {
               pendingBoundedInstructions = proposal.boundedInstructions;
             }
+          } else {
+            addTraceEvent(
+              'check',
+              `Rejected model transition proposal to ${proposal.targetTier}: ${val.reason}`,
+              { turn, proposal, rejectionReason: val.reason }
+            );
           }
         }
 
@@ -903,6 +988,8 @@ export class AdaptiveExecutionEngine {
       })),
     });
 
+    deterministicCpuDurationMs = Math.max(1, (performance.now() - startTime) - inferenceDurationMs);
+
     const usage: UsageRecord = UsageRecord.parse({
       version: '1',
       inputTokens:
@@ -914,10 +1001,18 @@ export class AdaptiveExecutionEngine {
               source: 'bifrost.gateway.prompt_tokens',
               scope: 'proofbench_engine_turns_cumulative',
             }
-          : {
-              status: 'missing',
-              reason: 'No prompt token observations reported by provider',
-            },
+          : (avoidedModelRequests > 0 && totalModelCalls === 0)
+            ? {
+                status: 'known',
+                value: 0,
+                unit: 'tokens',
+                source: 'deterministic.non_llm_execution',
+                scope: 'non_llm_deterministic_pass (0 model requests dispatched)',
+              }
+            : {
+                status: 'missing',
+                reason: 'No prompt token observations reported by provider',
+              },
       outputTokens:
         totalCompletionTokens !== null
           ? {
@@ -927,16 +1022,24 @@ export class AdaptiveExecutionEngine {
               source: 'bifrost.gateway.completion_tokens',
               scope: 'proofbench_engine_turns_cumulative',
             }
-          : {
-              status: 'missing',
-              reason: 'No completion token observations reported by provider',
-            },
+          : (avoidedModelRequests > 0 && totalModelCalls === 0)
+            ? {
+                status: 'known',
+                value: 0,
+                unit: 'tokens',
+                source: 'deterministic.non_llm_execution',
+                scope: 'non_llm_deterministic_pass (0 model requests dispatched)',
+              }
+            : {
+                status: 'missing',
+                reason: 'No completion token observations reported by provider',
+              },
       duration: {
         status: 'known',
         value: Math.max(1, Math.round(executionDurationMs)),
         unit: 'ms',
         source: 'performance.now',
-        scope: 'total engine session duration',
+        scope: `total engine session duration (CPU: ${Math.round(deterministicCpuDurationMs)}ms, Inference: ${Math.round(inferenceDurationMs)}ms)`,
       },
       cost:
         this.bifrostClient.mode === 'live' && isLocalDestination(this.bifrostClient.gatewayUrl)
@@ -1019,6 +1122,8 @@ export class AdaptiveExecutionEngine {
       avoidedModelRequests,
       deterministicOperationsCount: controllerState.deterministicOperationsCount,
       transitionsCount: controllerState.transitions.length,
+      deterministicCpuDurationMs: Math.max(1, Math.round(deterministicCpuDurationMs)),
+      inferenceDurationMs: Math.round(inferenceDurationMs),
     };
   }
 
@@ -1196,6 +1301,8 @@ export class AdaptiveExecutionEngine {
       avoidedModelRequests: 0,
       deterministicOperationsCount: 0,
       transitionsCount: 0,
+      deterministicCpuDurationMs: Math.max(1, Math.round(duration)),
+      inferenceDurationMs: 0,
     };
   }
 }

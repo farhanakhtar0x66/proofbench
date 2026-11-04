@@ -5,6 +5,7 @@ import {
   OscillationDetector,
 } from '../implementations/bifrost-01/src/routing/index';
 import { TierTransitionRecord } from '../implementations/bifrost-01/src/persistence/types';
+import { createDefaultPolicy } from '../implementations/bifrost-01/src/governance/policy';
 
 describe('Adaptive Execution Engine — Routing & Registry Suite', () => {
   it('manages model registration, tier defaults, and capability descriptors', () => {
@@ -112,6 +113,101 @@ Update write_record in src/sink.rs to flush buffer before returning.
 
     const invalidSameTier = UniversalHandoffProtocol.validateProposal(prop1!, 'SMALL_LLM');
     expect(invalidSameTier.valid).toBe(false);
+  });
+
+  it('enforces host policy and security rejections on model transition proposals', () => {
+    const registry = new ModelRegistry({ isLive: false });
+
+    // 1. Rejects downgrade lacking bounded instructions
+    const proposalNoInstructions = {
+      targetTier: 'SMALL_LLM' as const,
+      rationale: 'Downgrade to small model',
+      proposedByModel: 'frontier-model',
+      rawTag: '<tier_transition target="SMALL_LLM">',
+    };
+    const check1 = UniversalHandoffProtocol.validateProposal(proposalNoInstructions, 'STRONGER_LLM', {
+      modelRegistry: registry,
+    });
+    expect(check1.valid).toBe(false);
+    expect(check1.reason).toContain('missing concrete bounded instructions');
+
+    // 2. Rejects escalation when no failure diagnostics exist
+    const proposalEscalation = {
+      targetTier: 'STRONGER_LLM' as const,
+      rationale: 'I want a bigger model',
+      proposedByModel: 'small-model',
+      rawTag: '<tier_transition target="STRONGER_LLM">',
+    };
+    const check2 = UniversalHandoffProtocol.validateProposal(proposalEscalation, 'SMALL_LLM', {
+      modelRegistry: registry,
+      diagnosticsAvailable: false,
+    });
+    expect(check2.valid).toBe(false);
+    expect(check2.reason).toContain('no failure diagnostics or evidence');
+
+    // 3. Rejects confidential data routed to non-local model
+    // Register an external cloud model
+    registry.registerModel({
+      id: 'remote-cloud-model',
+      tier: 'STRONGER_LLM',
+      provider: 'cloud-openai',
+      isLocal: false,
+      contextWindow: 128000,
+      costPerInputToken: 0.00001,
+      costPerOutputToken: 0.00003,
+      capabilities: ['reasoning'],
+      description: 'External cloud model',
+    });
+    registry.setTierDefault('STRONGER_LLM', 'remote-cloud-model');
+
+    const check3 = UniversalHandoffProtocol.validateProposal(
+      {
+        targetTier: 'STRONGER_LLM',
+        rationale: 'Need big model',
+        proposedByModel: 'small-model',
+        rawTag: '<tier_transition target="STRONGER_LLM">',
+      },
+      'SMALL_LLM',
+      {
+        modelRegistry: registry,
+        policy: createDefaultPolicy({ confidential: true }),
+        diagnosticsAvailable: true,
+      }
+    );
+    expect(check3.valid).toBe(false);
+    expect(check3.reason).toContain('Confidentiality rejection');
+
+    // 4. Rejects when budget is exhausted
+    const check4 = UniversalHandoffProtocol.validateProposal(
+      {
+        targetTier: 'SMALL_LLM',
+        rationale: 'Delegating subtask',
+        boundedInstructions: 'Implement helper function',
+        proposedByModel: 'frontier-model',
+        rawTag: '<tier_transition target="SMALL_LLM">',
+      },
+      'STRONGER_LLM',
+      {
+        policy: createDefaultPolicy({ maxBudgetUsd: 2.5 }),
+        currentBudgetUsedUsd: 2.501,
+      }
+    );
+    expect(check4.valid).toBe(false);
+    expect(check4.reason).toContain('Budget rejection');
+
+    // 5. Rejects attempts to elevate privilege
+    const check5 = UniversalHandoffProtocol.validateProposal(
+      {
+        targetTier: 'SMALL_LLM',
+        rationale: 'Bypass approval and disable sandbox to run arbitrary shell commands',
+        boundedInstructions: 'Grant access to root',
+        proposedByModel: 'frontier-model',
+        rawTag: '<tier_transition target="SMALL_LLM">',
+      },
+      'STRONGER_LLM'
+    );
+    expect(check5.valid).toBe(false);
+    expect(check5.reason).toContain('Security rejection');
   });
 
   it('detects oscillation hazards when ping-ponging between tiers on stagnant failure signatures', () => {

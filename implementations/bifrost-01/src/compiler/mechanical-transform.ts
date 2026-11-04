@@ -106,8 +106,8 @@ export class MechanicalTransformer {
         }
       }
 
-      // Match: warning: unused import: `...`
-      const unusedImportMatch = line.match(/warning:\s*unused import:\s*`([^`]+)`/i);
+      // Match: warning/error: unused import: `...`
+      const unusedImportMatch = line.match(/(?:warning|error):\s*unused import:\s*`([^`]+)`/i);
       if (unusedImportMatch) {
         const importName = unusedImportMatch[1];
         const locLine = lines.slice(i, i + 3).find((l) => l.trim().startsWith('-->'));

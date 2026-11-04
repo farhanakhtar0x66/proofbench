@@ -58,6 +58,7 @@ async function main() {
     'task-3-multi-file-regression',
     'task-4-version-freshness',
     'task-5-context-filtering',
+    'task-6-deterministic-fix',
   ];
 
   const targetTaskDirs = cliArgs.taskFilter
@@ -88,16 +89,19 @@ async function main() {
     });
     fiveConfigResults.push(fiveRes);
 
-    console.log('\n  6-Configuration Results:');
-    console.log('  ' + '-'.repeat(76));
-    console.log(`  | ${'Configuration'.padEnd(32)} | ${'Pass %'.padEnd(8)} | ${'Avg Tokens'.padEnd(12)} | ${'Time (ms)'.padEnd(10)} |`);
-    console.log('  ' + '-'.repeat(76));
+    console.log('\n  6-Configuration Results (Honest Full-Trial Accounting):');
+    console.log('  ' + '-'.repeat(102));
+    console.log(`  | ${'Configuration'.padEnd(28)} | ${'Pass %'.padEnd(8)} | ${'Pass Tok'.padEnd(10)} | ${'Tok/Accept'.padEnd(11)} | ${'CPU ms'.padEnd(8)} | ${'Inf ms'.padEnd(8)} | ${'Mode'.padEnd(8)} |`);
+    console.log('  ' + '-'.repeat(102));
     for (const agg of Object.values(fiveRes.summary)) {
-      const tokStr = agg.avgTotalTokensOnPass !== null ? agg.avgTotalTokensOnPass.toString() : 'N/A';
-      const durStr = agg.avgDurationMsOnPass !== null ? agg.avgDurationMsOnPass.toString() : 'N/A';
-      console.log(`  | ${agg.configLabel.slice(0, 32).padEnd(32)} | ${(agg.successRatePercent + '%').padEnd(8)} | ${tokStr.padEnd(12)} | ${durStr.padEnd(10)} |`);
+      const passTokStr = agg.avgTotalTokensOnPass !== null ? agg.avgTotalTokensOnPass.toString() : 'N/A';
+      const effTokStr = agg.totalTokensPerAcceptedCompletion !== null ? agg.totalTokensPerAcceptedCompletion.toString() : 'N/A';
+      const cpuStr = agg.avgDeterministicCpuMs !== null && agg.avgDeterministicCpuMs !== undefined ? agg.avgDeterministicCpuMs.toString() : '-';
+      const infStr = agg.avgInferenceMs !== null && agg.avgInferenceMs !== undefined ? agg.avgInferenceMs.toString() : (agg.avgDurationMsOnPass?.toString() ?? '-');
+      const modeStr = agg.isSimulated ? 'Sim' : 'Live';
+      console.log(`  | ${agg.configLabel.slice(0, 28).padEnd(28)} | ${(agg.successRatePercent + '%').padEnd(8)} | ${passTokStr.padEnd(10)} | ${effTokStr.padEnd(11)} | ${cpuStr.padEnd(8)} | ${infStr.padEnd(8)} | ${modeStr.padEnd(8)} |`);
     }
-    console.log('  ' + '-'.repeat(76));
+    console.log('  ' + '-'.repeat(102));
     if (fiveRes.savingsVsDirect9B.comparable) {
       console.log(`  Compiled Token Savings vs Direct 9B: ${fiveRes.savingsVsDirect9B.tokenSavingsPercent}%`);
     }

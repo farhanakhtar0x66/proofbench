@@ -16,39 +16,20 @@ describe('ProofBench — Adaptive Execution Engine v1 Scenarios (A through F)', 
   // Scenario A: Deterministic-Only Resolution (0 LLM Tokens)
   // --------------------------------------------------------------------------
   it('Scenario A: resolves task with zero LLM tokens via non-LLM mechanical transformation', async () => {
-    // Setup isolated workspace with a mechanical compiler issue (e.g. missing 'pub' visibility)
+    // Uses legitimate failing task fixture (strict lint failure with unused import)
     const taskSpec = TaskSpec.parse({
       version: '1',
-      id: 'task-1-fix-failing-func',
-      title: 'Fix off-by-one bounds bug in sliding window sums',
-      prompt: 'Fix the function sliding_window_sums in src/lib.rs',
-      acceptance: ['cargo test exits with code 0'],
-      fixtureId: 'task-1-v1',
+      id: 'task-6-deterministic-fix',
+      title: 'Resolve compiler lint error without model inference',
+      prompt: 'Fix compiler errors in src/lib.rs preventing cargo test from passing under strict compiler lint rules.',
+      acceptance: [
+        'cargo test exits with code 0',
+        'All unit tests in tests/test_checksum.rs pass cleanly',
+      ],
+      fixtureId: 'task-6-v1',
     });
 
     const workspace = await TaskWorkspace.create(taskSpec.id);
-
-    // Pre-apply correct logic but leave an unused import and compiler-fixable warning/issue
-    const libRsPath = path.join(workspace.workspacePath, 'src', 'lib.rs');
-    const fixedContentWithUnused = `//! Sliding window module
-use std::collections::HashMap; // unused import
-
-pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
-    if window_size == 0 || window_size > slice.len() {
-        return Vec::new();
-    }
-    let mut sums = Vec::new();
-    let mut current_sum: i64 = slice[..window_size].iter().sum();
-    sums.push(current_sum);
-
-    for i in window_size..slice.len() {
-        current_sum += slice[i] - slice[i - window_size];
-        sums.push(current_sum);
-    }
-    sums
-}
-`;
-    await fs.writeFile(libRsPath, fixedContentWithUnused, 'utf8');
 
     // Engine configured with workspace approval handler
     const engine = new AdaptiveExecutionEngine({
@@ -59,12 +40,23 @@ pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
 
     expect(result.run.status).toBe('completed');
     expect(result.run.acceptance.status).toBe('passed');
-    // Zero LLM tokens consumed
-    expect(result.run.usage.inputTokens.status).toBe('missing');
-    expect(result.run.usage.outputTokens.status).toBe('missing');
+    // Zero LLM tokens consumed - known to be 0
+    expect(result.run.usage.inputTokens.status).toBe('known');
+    if (result.run.usage.inputTokens.status === 'known') {
+      expect(result.run.usage.inputTokens.value).toBe(0);
+    }
+    expect(result.run.usage.outputTokens.status).toBe('known');
+    if (result.run.usage.outputTokens.status === 'known') {
+      expect(result.run.usage.outputTokens.value).toBe(0);
+    }
     if (result.run.usage.cost.status === 'known' || result.run.usage.cost.status === 'estimated') {
       expect(result.run.usage.cost.value).toBe(0);
     }
+
+    // Deterministic timing and avoided requests tracked
+    expect(result.avoidedModelRequests).toBeGreaterThan(0);
+    expect(result.deterministicCpuDurationMs).toBeGreaterThan(0);
+    expect(result.inferenceDurationMs).toBe(0);
 
     // CONTEXT.MD contains verified evidence and state
     expect(result.contextDocument).toContain('# Project Context');

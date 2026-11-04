@@ -336,5 +336,67 @@ describe('ProofBench — Milestone 1: Context Persistence & Durable State (.proo
       const exists = await fs.access(orphanTmp).then(() => true).catch(() => false);
       expect(exists).toBe(false);
     });
+
+    it('detects external source modifications and safely logs resumption mismatch', async () => {
+      const store = new DurableStore(tmpWorkspace);
+      await store.initialize();
+
+      const currentRev = await ContextDocumentManager.computeSourceRevision(tmpWorkspace);
+      const state: ControllerState = {
+        version: '1',
+        runId: 'run-test-stale',
+        taskId: 'task-1',
+        currentPhase: 'CHECKPOINT',
+        currentTier: 'SMALL_LLM',
+        sourceRevision: currentRev,
+        stateRevision: 'state-stale-1',
+        turnCount: 2,
+        totalTokens: { prompt: 500, completion: 100, total: 600 },
+        deterministicOperationsCount: 2,
+        transitions: [],
+        status: 'running',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+
+      const taskSpec = TaskSpec.parse({
+        version: '1',
+        id: 'task-1-fix-failing-func',
+        title: 'Fix sliding window bug',
+        prompt: 'Fix the bounds calculation in sliding_window_sums',
+        acceptance: ['cargo test exits with code 0'],
+      });
+
+      const contextData = await ContextDocumentManager.initializeFromObservedFacts(
+        tmpWorkspace,
+        taskSpec,
+        currentRev
+      );
+
+      await store.createCheckpoint(state, contextData);
+
+      // Now modify workspace externally (simulating external git change or developer edit)
+      const libPath = path.join(tmpWorkspace, 'src', 'lib.rs');
+      await fs.appendFile(libPath, '\n// External change\n', 'utf8');
+
+      const freshRev = await ContextDocumentManager.computeSourceRevision(tmpWorkspace);
+      expect(freshRev).not.toBe(currentRev);
+
+      // Verify that engine/store detects revision mismatch and records event
+      const latestCp = await store.getLatestCheckpoint();
+      expect(latestCp?.sourceRevision).toBe(currentRev);
+      expect(latestCp?.sourceRevision).not.toBe(freshRev);
+
+      await store.appendEvent('resumption_mismatch', 'ADMISSION', 'NON_LLM', freshRev, {
+        checkpointRev: latestCp?.sourceRevision,
+        currentRev: freshRev,
+        message: 'External source edit detected',
+      });
+
+      const events = await store.loadEvents();
+      const mismatchEvent = events.find((e) => e.type === 'resumption_mismatch');
+      expect(mismatchEvent).toBeDefined();
+      expect(mismatchEvent?.data.currentRev).toBe(freshRev);
+    });
   });
 });

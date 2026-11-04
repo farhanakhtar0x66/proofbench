@@ -1,4 +1,6 @@
 import { ExecutionTier } from '../persistence/types';
+import type { ModelRegistry } from './model-registry';
+import type { GovernancePolicy } from '../governance/policy';
 
 export type HandoffDirection =
   | 'non_llm_to_small'
@@ -190,8 +192,30 @@ export class UniversalHandoffProtocol {
   public static validateProposal(
     proposal: TierTransitionProposal,
     currentTier: ExecutionTier,
-    allowedTiers: ExecutionTier[] = ['NON_LLM', 'SMALL_LLM', 'STRONGER_LLM', 'HALT']
+    optionsOrAllowedTiers?: ExecutionTier[] | {
+      allowedTiers?: ExecutionTier[];
+      modelRegistry?: ModelRegistry;
+      policy?: GovernancePolicy;
+      currentBudgetUsedUsd?: number;
+      diagnosticsAvailable?: boolean;
+    }
   ): { valid: boolean; reason?: string } {
+    let allowedTiers: ExecutionTier[] = ['NON_LLM', 'SMALL_LLM', 'STRONGER_LLM', 'HALT'];
+    let modelRegistry: ModelRegistry | undefined;
+    let policy: GovernancePolicy | undefined;
+    let currentBudgetUsedUsd: number | undefined;
+    let diagnosticsAvailable: boolean | undefined;
+
+    if (Array.isArray(optionsOrAllowedTiers)) {
+      allowedTiers = optionsOrAllowedTiers;
+    } else if (optionsOrAllowedTiers) {
+      if (optionsOrAllowedTiers.allowedTiers) allowedTiers = optionsOrAllowedTiers.allowedTiers;
+      modelRegistry = optionsOrAllowedTiers.modelRegistry;
+      policy = optionsOrAllowedTiers.policy;
+      currentBudgetUsedUsd = optionsOrAllowedTiers.currentBudgetUsedUsd;
+      diagnosticsAvailable = optionsOrAllowedTiers.diagnosticsAvailable;
+    }
+
     if (!allowedTiers.includes(proposal.targetTier)) {
       return { valid: false, reason: `Target tier '${proposal.targetTier}' is not in allowed tiers: ${allowedTiers.join(', ')}` };
     }
@@ -200,7 +224,76 @@ export class UniversalHandoffProtocol {
       return { valid: false, reason: `Model proposed transition to the tier it is already in (${currentTier}).` };
     }
 
-    // A model cannot transition directly to arbitrary unauthorized states without host consent
+    // 1. Evidence check for Stronger -> Small downgrade
+    if (currentTier === 'STRONGER_LLM' && proposal.targetTier === 'SMALL_LLM') {
+      if (!proposal.boundedInstructions || proposal.boundedInstructions.trim().length === 0) {
+        return {
+          valid: false,
+          reason: 'Stronger model downgrade to Small LLM rejected: missing concrete bounded instructions for delegated subtask.',
+        };
+      }
+    }
+
+    // 2. Evidence check for Small -> Stronger escalation
+    if (currentTier === 'SMALL_LLM' && proposal.targetTier === 'STRONGER_LLM') {
+      if (diagnosticsAvailable === false) {
+        return {
+          valid: false,
+          reason: 'Small LLM escalation to Stronger LLM rejected: no failure diagnostics or evidence justifying escalation.',
+        };
+      }
+    }
+
+    // 3. Model Registry & Capabilities check
+    if (modelRegistry && proposal.targetTier !== 'HALT') {
+      try {
+        const targetModel = modelRegistry.getModelForTier(proposal.targetTier);
+        if (!targetModel) {
+          return {
+            valid: false,
+            reason: `Target tier '${proposal.targetTier}' has no registered model in ModelRegistry.`,
+          };
+        }
+
+        // 4. Confidentiality check: if confidential mode is active, target must be local
+        if (policy?.confidential && !targetModel.isLocal) {
+          return {
+            valid: false,
+            reason: `Confidentiality rejection: cannot transition to non-local model '${targetModel.id}' in confidential mode.`,
+          };
+        }
+      } catch (err) {
+        return {
+          valid: false,
+          reason: `ModelRegistry lookup failed for tier '${proposal.targetTier}': ${(err as Error).message}`,
+        };
+      }
+    }
+
+    // 5. Budget Check
+    if (policy && typeof currentBudgetUsedUsd === 'number') {
+      if (currentBudgetUsedUsd >= policy.maxBudgetUsd) {
+        return {
+          valid: false,
+          reason: `Budget rejection: current spending ($${currentBudgetUsedUsd.toFixed(4)}) meets or exceeds policy limit ($${policy.maxBudgetUsd.toFixed(4)}).`,
+        };
+      }
+    }
+
+    // 6. Anti-Privilege Escalation Check: model proposal text cannot override policies
+    const combinedText = `${proposal.rationale} ${proposal.boundedInstructions ?? ''}`.toLowerCase();
+    if (
+      combinedText.includes('bypass approval') ||
+      combinedText.includes('disable sandbox') ||
+      combinedText.includes('elevate privilege') ||
+      combinedText.includes('grant access')
+    ) {
+      return {
+        valid: false,
+        reason: 'Security rejection: model attempted to claim elevated execution privileges in transition proposal.',
+      };
+    }
+
     return { valid: true };
   }
 }

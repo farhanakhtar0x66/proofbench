@@ -1,4 +1,5 @@
 import { ExecutionTier } from '../persistence/types';
+import { isLocalDestination } from '../governance/policy';
 
 export interface ModelDescriptor {
   id: string;
@@ -17,6 +18,7 @@ export interface ModelRegistryOptions {
   smallModel?: string;
   strongerModel?: string;
   isLive?: boolean;
+  gatewayUrl?: string;
 }
 
 export class ModelRegistry {
@@ -25,6 +27,9 @@ export class ModelRegistry {
 
   constructor(options: ModelRegistryOptions = {}) {
     const isLive = options.isLive ?? false;
+    const gatewayUrl = options.gatewayUrl ?? process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
+    const isLocal = !isLive || isLocalDestination(gatewayUrl);
+
     const defaultSmall = options.smallModel ?? (
       isLive
         ? (process.env.BIFROST_DEFAULT_MODEL ?? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M')
@@ -61,7 +66,7 @@ export class ModelRegistry {
       id: defaultSmall,
       tier: 'SMALL_LLM',
       provider: isLive ? 'bifrost' : 'simulation',
-      isLocal: isLive ? false : true,
+      isLocal,
       contextWindow: 8192,
       costPerInputToken: 0.0000002,
       costPerOutputToken: 0.0000006,
@@ -80,7 +85,7 @@ export class ModelRegistry {
       id: defaultStronger,
       tier: 'STRONGER_LLM',
       provider: isLive ? 'bifrost' : 'simulation',
-      isLocal: isLive ? false : true,
+      isLocal,
       contextWindow: 32768,
       costPerInputToken: 0.0000015,
       costPerOutputToken: 0.000005,

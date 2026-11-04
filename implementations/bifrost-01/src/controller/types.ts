@@ -36,4 +36,6 @@ export interface EngineExecutionResult {
   avoidedModelRequests: number;
   deterministicOperationsCount: number;
   transitionsCount: number;
+  deterministicCpuDurationMs: number;
+  inferenceDurationMs: number;
 }

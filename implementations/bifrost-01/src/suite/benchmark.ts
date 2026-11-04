@@ -66,12 +66,15 @@ export interface ConfigMeasurement {
   outputTokens: number | null;
   totalTokens: number | null;
   durationMs: number | null;
+  deterministicCpuDurationMs?: number | null;
+  inferenceDurationMs?: number | null;
   costUsd: number | null;
   turns: number;
   modelSwitches: number;
   primaryModel: string;
   finalModel: string;
   routingProvider: string;
+  isSimulated: boolean;
 }
 
 export interface ConfigAggregate {
@@ -85,8 +88,12 @@ export interface ConfigAggregate {
   avgInputTokensOnPass: number | null;
   avgOutputTokensOnPass: number | null;
   avgDurationMsOnPass: number | null;
+  avgDeterministicCpuMs?: number | null;
+  avgInferenceMs?: number | null;
   totalTokensAllTrials: number | null;
+  totalTokensPerAcceptedCompletion: number | null;
   modelSwitchCount: number;
+  isSimulated: boolean;
 }
 
 export interface FiveConfigComparisonResult {
@@ -690,6 +697,8 @@ export class ComparativeBenchmarkSuite {
         let totTok: number | null;
         let dur: number | null;
         let cost: number | null;
+        let detCpuMs: number | null = null;
+        let infMs: number | null = null;
         let switches = 0;
         let passed = false;
         let status = 'failed';
@@ -710,6 +719,8 @@ export class ComparativeBenchmarkSuite {
           totTok = inTok !== null && outTok !== null ? inTok + outTok : (inTok ?? outTok ?? null);
           dur = extractObservation(result.run.usage.duration);
           cost = extractObservation(result.run.usage.cost);
+          detCpuMs = result.deterministicCpuDurationMs;
+          infMs = result.inferenceDurationMs;
           passed = result.run.acceptance.status === 'passed';
           status = result.run.status;
           turns = result.controllerState.turnCount || 1;
@@ -737,6 +748,8 @@ export class ComparativeBenchmarkSuite {
           totTok = inTok !== null && outTok !== null ? inTok + outTok : null;
           dur = extractObservation(result.run.usage.duration);
           cost = extractObservation(result.run.usage.cost);
+          infMs = dur;
+          detCpuMs = null;
           passed = result.run.acceptance.status === 'passed';
           status = result.run.status;
           turns = result.trace.events.filter((e) => e.type === 'start' && e.message.includes('agent execution started')).length || 1;
@@ -763,12 +776,15 @@ export class ComparativeBenchmarkSuite {
           outputTokens: outTok,
           totalTokens: totTok,
           durationMs: dur,
+          deterministicCpuDurationMs: detCpuMs,
+          inferenceDurationMs: infMs,
           costUsd: cost,
           turns,
           modelSwitches: switches,
           primaryModel: cDef.primaryModel,
           finalModel,
           routingProvider: isLive ? 'bifrost.live' : 'bifrost.simulation',
+          isSimulated: !isLive,
         });
       }
     }
@@ -792,8 +808,18 @@ export class ComparativeBenchmarkSuite {
       const validDur = passed.map((m) => m.durationMs).filter((v): v is number => typeof v === 'number');
       const avgDur = validDur.length > 0 ? Math.round(validDur.reduce((a, b) => a + b, 0) / validDur.length) : null;
 
+      const validDet = ms.map((m) => m.deterministicCpuDurationMs).filter((v): v is number => typeof v === 'number');
+      const avgDet = validDet.length > 0 ? Math.round(validDet.reduce((a, b) => a + b, 0) / validDet.length) : null;
+
+      const validInf = ms.map((m) => m.inferenceDurationMs).filter((v): v is number => typeof v === 'number');
+      const avgInf = validInf.length > 0 ? Math.round(validInf.reduce((a, b) => a + b, 0) / validInf.length) : null;
+
       const allTokens = ms.map((m) => m.totalTokens).filter((v): v is number => typeof v === 'number');
-      const totalTokensAll = allTokens.length === ms.length && allTokens.length > 0 ? allTokens.reduce((a, b) => a + b, 0) : null;
+      const totalTokensAll = allTokens.length > 0 ? allTokens.reduce((a, b) => a + b, 0) : null;
+
+      const totalTokensPerAcceptedCompletion = (passedCount > 0 && totalTokensAll !== null)
+        ? Math.round(totalTokensAll / passedCount)
+        : null;
 
       const switchCount = ms.reduce((acc, m) => acc + m.modelSwitches, 0);
 
@@ -808,8 +834,12 @@ export class ComparativeBenchmarkSuite {
         avgInputTokensOnPass: avgIn,
         avgOutputTokensOnPass: avgOut,
         avgDurationMsOnPass: avgDur,
+        avgDeterministicCpuMs: avgDet,
+        avgInferenceMs: avgInf,
         totalTokensAllTrials: totalTokensAll,
+        totalTokensPerAcceptedCompletion,
         modelSwitchCount: switchCount,
+        isSimulated: !isLive,
       };
     };
 

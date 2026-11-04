@@ -169,6 +169,19 @@ export class DurableStore {
   }
 
   /**
+   * Retrieves an evidence file from .proofbench/evidence/<id>.txt if it exists.
+   */
+  async getEvidence(id: string): Promise<string | null> {
+    const sanitizedId = id.replace(/[^a-zA-Z0-9_-]/g, '_');
+    const evidencePath = path.join(this.evidenceDir, `${sanitizedId}.txt`);
+    try {
+      return await fs.readFile(evidencePath, 'utf8');
+    } catch {
+      return null;
+    }
+  }
+
+  /**
    * Saves a patch record into .proofbench/patches/<id>.json.
    */
   async savePatch(

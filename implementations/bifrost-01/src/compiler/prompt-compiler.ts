@@ -70,11 +70,23 @@ INSTRUCTIONS & FORMAT RULES:
       =======
       <replacement lines>
       >>>>>>> REPLACE
-2. CRITICAL PRESERVATION:
+2. TIER TRANSITION PROPOSALS (Optional):
+   You may request execution tier transitions when justified:
+   - When in STRONGER_LLM, if the architectural design or multi-module dependency is solved and the remaining work is localized:
+     <tier_transition target="SMALL_LLM" rationale="<explanation>">
+     <bounded_instructions>
+     <explicit instructions for the remaining localized subtask>
+     </bounded_instructions>
+     </tier_transition>
+   - When in SMALL_LLM, if you hit an intractable architectural or lifetime roadblock requiring high-capacity reasoning:
+     <tier_transition target="STRONGER_LLM" rationale="<explanation>">
+     </tier_transition>
+   Note: The host controller evaluates all transition proposals against verified compiler evidence and host policy before authorization.
+3. CRITICAL PRESERVATION:
    - Always preserve all existing structs, enums, traits, derive attributes, module declarations, and public API signatures.
    - Maintain 'pub' visibility on all existing public interfaces.
    - Do not remove or omit existing functions unless explicitly requested.
-3. OUTPUT EFFICIENCY:
+4. OUTPUT EFFICIENCY:
    - Provide only the necessary file modifications or search-and-replace blocks.
    - Avoid conversational filler or unrequested explanations.`;
 

@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-6-deterministic-fix",
+  "title": "Resolve compiler lint error without model inference",
+  "prompt": "Fix compiler errors in src/lib.rs preventing cargo test from passing under strict compiler lint rules.",
+  "acceptance": [
+    "cargo test exits with code 0",
+    "All unit tests in tests/test_checksum.rs pass cleanly"
+  ],
+  "fixtureId": "task-6-v1"
+}
