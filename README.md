@@ -42,6 +42,8 @@ Quick offline checks: `npm run smoke:api` exercises the API without server ports
 
 `npm run evaluate:general` runs [14 cross-topic combined-API regression scenarios](docs/GENERAL-EVALUATION.md) with simulated search/model responses. It checks pipeline behavior and abstention with zero provider requests; its passing rate is not a model accuracy estimate.
 
+`npm run evaluate:topics` runs [ten statements across five topics](docs/TOPIC-VALIDATION.md), with separately checked official reference labels and simulated offline evidence/model responses. It prepares broader testing with zero Tavily/Gemini requests; the report explicitly marks live testing as not run.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |

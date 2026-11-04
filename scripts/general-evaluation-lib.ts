@@ -6,7 +6,7 @@ import {AnalysisReport} from '../packages/contracts/src/index';
 
 type Verdict='supported'|'contradicted'|'inconclusive';
 type Source={text:string;published?:string;url?:string};
-type Scenario={id:string;text:string;sources:Source[];relations?:string[];modelStatus?:number;correction?:string;expected:Verdict[];searches:number;models:number;omitted?:number;note:string};
+export type Scenario={id:string;text:string;sources:Source[];relations?:string[];modelStatus?:number;correction?:string;expected:Verdict[];searches:number;models:number;omitted?:number;note:string;scope?:'current'|'as_stated'};
 const pair=(text:string,published?:string):Source[]=>[0,1].map(index=>({text:`${text} Source notice ${index}.`,published}));
 export const generalScenarios:Scenario[]=[
  {id:'price-supported',text:'Acme Pro costs USD 20/month.',sources:pair('Acme Pro costs USD 20/month.'),relations:['supports','supports'],expected:['supported'],searches:1,models:1,note:'Agreeing same-scope assessments.'},
@@ -26,13 +26,13 @@ export const generalScenarios:Scenario[]=[
 ];
 
 // CLI/test utility only: never run concurrently with a production server in this process.
-export async function evaluateGeneralScenarios(){
+export async function evaluateGeneralScenarios(scenarios:Scenario[]=generalScenarios){
  const env={LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',BIFROST_LLM_PROVIDER:'gemini',BIFROST_LLM_MODEL:'gemini/offline-simulation',BIFROST_LLM_ENDPOINT:'http://127.0.0.1:8080',BIFROST_LLM_TIMEOUT_MS:'1000',BIFROST_LLM_VIRTUAL_KEY:'',BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'4',ALLOW_PAID_REQUESTS:'true',TAVILY_API_KEY:'synthetic-key',GEMINI_API_KEY:'synthetic-key',TAVILY_MAX_REQUESTS:'3'};
  const saved=Object.fromEntries(Object.keys(env).map(key=>[key,process.env[key]]));const upstream=globalThis.fetch;
  const results=[];
  try{
   Object.assign(process.env,env);
-  for(const scenario of generalScenarios){
+  for(const scenario of scenarios){
    let searches=0;let models=0;let blocked=0;
    globalThis.fetch=async(url,init)=>{
     if(String(url)==='https://api.tavily.com/search'){
@@ -53,7 +53,7 @@ export async function evaluateGeneralScenarios(){
    const directory=await mkdtemp(join(tmpdir(),'b05-evaluation-'));let app:Awaited<ReturnType<typeof createApp>>|undefined;
    try{
     app=await createApp({implementation:'mock',tavilyMode:'live',dataDir:directory});
-    const response=await app.inject({method:'POST',url:'/api/analysis',payload:{version:'1',text:scenario.text}});
+    const response=await app.inject({method:'POST',url:'/api/analysis',payload:{version:'1',text:scenario.text,...(scenario.scope?{scope:scenario.scope}:{})}});
     if(response.statusCode!==201)throw new Error('Unexpected analysis response');
     const report=AnalysisReport.parse(response.json());const actual=report.results.map(item=>item.comparison.outcome);
     const passed=JSON.stringify(actual)===JSON.stringify(scenario.expected)&&searches===scenario.searches&&models===scenario.models&&blocked===0&&report.omittedClaims===(scenario.omitted??0)&&report.results.every(item=>scenario.correction?item.comparison.correction?.text===scenario.correction:item.comparison.correction===null)&&(scenario.id!=='historical-completed'||report.results[0].comparison.freshness==='unknown');

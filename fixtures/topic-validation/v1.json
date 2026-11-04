@@ -1,0 +1,86 @@
+{
+  "version": "1",
+  "referenceCheckedOn": "2026-11-04",
+  "notice": "Small development set, not an independent holdout. Reference labels were checked on official pages. Offline sources below are invented paraphrases, not retrieved evidence; publication dates and hostnames are simulated. Recheck references before live testing. Never send expected labels, rationales or synthetic sources to a live verification run.",
+  "cases": [
+    {
+      "id": "leadership-current", "topic": "leadership",
+      "claim": "Elon Musk is CEO of Tesla.", "expected": "supported",
+      "reference": "https://ir.tesla.com/corporate/elon-musk",
+      "rationale": "Tesla's executive profile identifies Musk as Chief Executive Officer. This is a current-role claim, not a claim about past holders.",
+      "simulatedSources": ["Elon Musk is CEO of Tesla. This leadership notice concerns the current organization chart.", "Tesla currently has Elon Musk as CEO. The company role described here is ongoing."],
+      "simulatedRelation": "supports", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "leadership-wrong-holder", "topic": "leadership",
+      "claim": "Tim Cook is CEO of Tesla.", "expected": "contradicted",
+      "reference": "https://ir.tesla.com/corporate/elon-musk",
+      "rationale": "The named organization is Tesla; its official profile identifies a different current CEO.",
+      "simulatedSources": ["Elon Musk is CEO of Tesla. This leadership notice concerns the current organization chart.", "Tesla currently has Elon Musk as CEO. The company role described here is ongoing."],
+      "simulatedRelation": "contradicts", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "pricing-explicit-currency", "topic": "pricing",
+      "claim": "GitHub Team costs USD 4 per user/month.", "expected": "supported",
+      "reference": "https://github.com/pricing",
+      "rationale": "The Team base price displayed on the US pricing page is USD 4 per user/month. Optional add-ons, taxes and usage fees are outside this claim.",
+      "simulatedSources": ["GitHub Team costs USD 4 per user/month. This base subscription price excludes optional usage charges.", "The base GitHub Team subscription is USD 4 monthly for each user. Add-on purchases are separate."],
+      "simulatedRelation": "supports", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "pricing-ambiguous-currency", "topic": "pricing",
+      "claim": "GitHub Team costs $4 per user/month.", "expected": "inconclusive",
+      "reference": "https://github.com/pricing",
+      "rationale": "A bare dollar sign does not identify USD. The existing currency ambiguity policy must abstain without search or inference, even when a plausible USD price is known.",
+      "simulatedSources": [], "simulatedSearches": 0, "simulatedModels": 0
+    },
+    {
+      "id": "software-completed-lifecycle", "topic": "software",
+      "claim": "Python 2 reached end of life on 2020-01-01.", "expected": "supported",
+      "reference": "https://www.python.org/doc/sunset-python-2/",
+      "rationale": "The upstream Python page confirms the completed sunset date. Historical completion is distinct from current publication recency.",
+      "simulatedSources": ["The upstream project confirms Python 2 reached end of life on 2020-01-01. That lifecycle transition is complete.", "Python 2 reached end of life on 2020-01-01 according to the upstream maintainers. This describes a completed event."],
+      "simulatedRelation": "supports", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "software-upstream-support", "topic": "software",
+      "claim": "Python 2 currently receives upstream security updates.", "expected": "contradicted",
+      "reference": "https://www.python.org/doc/sunset-python-2/",
+      "rationale": "Python's upstream maintainers stopped support; independent commercial extended support is a different scope.",
+      "simulatedSources": ["Python 2 no longer receives upstream security updates. Its upstream support has ended.", "The upstream maintainers do not issue security fixes for Python 2 anymore. Third-party commercial support is outside this statement."],
+      "simulatedRelation": "contradicts", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "sports-player-limit", "topic": "sports",
+      "claim": "Under IFAB Law 3, an association football team may have at most eleven players on the field.", "expected": "supported",
+      "reference": "https://www.theifab.com/laws/latest/the-players/",
+      "rationale": "Law 3 limits each side to eleven players. Named substitutes are not additional on-field players.",
+      "simulatedSources": ["Under IFAB Law 3, the on-field limit for each association football team is eleven players. Substitutes on the bench are excluded from this count.", "IFAB Law 3 permits a maximum of eleven players per association football side on the field. A goalkeeper is included in that limit."],
+      "simulatedRelation": "supports", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "sports-wrong-player-limit", "topic": "sports",
+      "claim": "Under IFAB Law 3, an association football team may have at most twelve players on the field.", "expected": "contradicted",
+      "reference": "https://www.theifab.com/laws/latest/the-players/",
+      "rationale": "The standard on-field limit is eleven, not twelve; the claim explicitly names IFAB association football rules.",
+      "simulatedSources": ["Under IFAB Law 3, the on-field limit for each association football team is eleven players. Substitutes on the bench are excluded from this count.", "IFAB Law 3 permits a maximum of eleven players per association football side on the field. A goalkeeper is included in that limit."],
+      "simulatedRelation": "contradicts", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "law-application-date", "topic": "law",
+      "claim": "The EU GDPR became applicable on 25 May 2018.", "expected": "supported",
+      "reference": "https://www.edpb.europa.eu/about-edpb/legal-framework_en",
+      "rationale": "EDPB distinguishes the 2018 application date from entry into force in 2016. This tests a date, not personalized legal advice.",
+      "simulatedSources": ["The EU GDPR became applicable on 25 May 2018. Its earlier entry into force was a separate milestone.", "The EU GDPR application date was 25 May 2018. Adoption and entry into force occurred earlier."],
+      "simulatedRelation": "supports", "simulatedSearches": 1, "simulatedModels": 1
+    },
+    {
+      "id": "law-wrong-application-date", "topic": "law",
+      "claim": "The EU GDPR became applicable on 25 May 2020.", "expected": "contradicted",
+      "reference": "https://www.edpb.europa.eu/about-edpb/legal-framework_en",
+      "rationale": "The reference gives 25 May 2018 as the application date, two years before the asserted date.",
+      "simulatedSources": ["The EU GDPR became applicable on 25 May 2018. Its earlier entry into force was a separate milestone.", "The EU GDPR application date was 25 May 2018. Adoption and entry into force occurred earlier."],
+      "simulatedRelation": "contradicts", "simulatedSearches": 1, "simulatedModels": 1
+    }
+  ]
+}
