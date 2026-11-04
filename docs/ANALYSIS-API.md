@@ -1,5 +1,7 @@
 # Combined answer analysis API
 
+Supported current assessments now include a backend-computed [evidence-recency score and explanation](EVIDENCE-FRESHNESS.md). Other assessments keep a null score. This does not change verdict gates or make new external requests; older validation notes describe the earlier null-only version.
+
 `POST /api/analysis` combines existing claim extraction, Tavily retrieval and evidence comparison. It reuses the same interpreter, search cache, server budgets, schema validation, relevance checks and failure cooldown as the separate endpoints. No direct provider integration, retry, extra evidence search or paid fallback is introduced.
 
 Request:

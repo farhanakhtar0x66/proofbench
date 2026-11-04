@@ -32,6 +32,8 @@ Default mock development and automated checks make no paid Tavily requests. Live
 
 For teammate setup, command explanations, current validation limits and production hosting checks, use the [B05 running guide](docs/TEAM-RUNNING-GUIDE.md). After `npm run build`, `npm run smoke:deployment` checks the compiled API offline, including report persistence across a restart. `npm start` serves the API only; the built website needs separate static hosting and an `/api` proxy.
 
+General supported current assessments now include an [evidence-recency freshness score](docs/EVIDENCE-FRESHNESS.md). It measures the oldest qualifying supporting publication within the existing 30-day policy, not truth confidence. Contradicted, inconclusive, historical and offline results remain unscored.
+
 Quick offline checks: `npm run smoke:api` exercises the API without server ports, and `npm run demo:verifier` demonstrates all three verdicts with simulated evidence. See the [API testing guide](docs/API-TESTING.md) and [demo guide](docs/DEMO-GUIDE.md) for commands, expected results, error behavior and presentation notes. Neither command loads .env or makes live requests.
 
 `npm run evaluate:general` runs [14 cross-topic combined-API regression scenarios](docs/GENERAL-EVALUATION.md) with simulated search/model responses. It checks pipeline behavior and abstention with zero provider requests; its passing rate is not a model accuracy estimate.

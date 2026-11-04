@@ -96,7 +96,7 @@ These are implementation/deployment checks, not a hosted deployment or a claim o
 
 On November 4, 2026, lint, TypeScript (as part of build), production build, existing offline API smoke and the new compiled deployment smoke all passed. The latter confirmed loopback startup, offline status/analysis, API-only serving and report persistence across restart. Temporary servers/data were removed. This documentation/startup change did not rerun the full unit or browser suites. No Gemini/Tavily requests were made and the developer's `.env` was unchanged. No hosted deployment was performed.
 
-The [historical correction recheck](CORRECTION-RESTATEMENTS.md) passed with a real Gemini call on fixed synthetic evidence. The [real-source demo attempt](LIVE-DEMO-VALIDATION.md) did not produce a validated supported/contradicted pair: weak or incomplete retrieved excerpts kept the tested leadership claims inconclusive. Do not present that attempt as a successful three-verdict live demo. General freshness scores remain unavailable; comparison-result caching is still pending.
+The [historical correction recheck](CORRECTION-RESTATEMENTS.md) passed with a real Gemini call on fixed synthetic evidence. The [real-source demo attempt](LIVE-DEMO-VALIDATION.md) did not produce a validated supported/contradicted pair: weak or incomplete retrieved excerpts kept the tested leadership claims inconclusive. Do not present that attempt as a successful three-verdict live demo. General supported current results now have an [evidence-recency score](EVIDENCE-FRESHNESS.md); other results remain unscored. Comparison-result caching is still pending.
 
 Suggested message to the team:
 

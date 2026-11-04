@@ -1,5 +1,7 @@
 # General evidence comparison and quoted corrections
 
+For current website integration see [WEBSITE-ANALYSIS.md](WEBSITE-ANALYSIS.md). Supported current results now have a backend-computed [evidence-recency score](EVIDENCE-FRESHNESS.md); other results remain unscored. Earlier implementation/validation notes below describe the original endpoint stage.
+
 `POST /api/claims/compare` is the next backend building block after extraction and retrieval. It accepts only `{version: "1", claim: "..."}`. Evidence is retrieved server-side through the existing capped Tavily path. The client cannot submit its own citations, dates, provider or request limit. The old `/api/verify` route and the website's current behavior remain unchanged. Connecting the new flow to the website is still a separate step.
 
 ## Default behavior and configuration
