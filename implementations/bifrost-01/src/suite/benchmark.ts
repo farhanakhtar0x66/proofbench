@@ -1,5 +1,6 @@
 import { TaskSpec } from '../../../../packages/contracts/src/index';
 import { ProofBenchAgent } from '../runtime/agent';
+import { AdaptiveExecutionEngine } from '../controller/engine';
 import { EmbeddedBifrostGateway } from '../gateway/embedded';
 import { BifrostClient } from '../gateway/client';
 import { createWorkspaceApprovalHandler } from '../governance/approval';
@@ -48,7 +49,10 @@ export type ConfigName =
   | 'direct_9b'
   | 'governed_baseline'
   | 'governed_compiled'
-  | 'governed_model_selected';
+  | 'governed_model_selected'
+  | 'adaptive_execution_engine';
+
+export type SixConfigComparisonResult = FiveConfigComparisonResult;
 
 export interface ConfigMeasurement {
   config: ConfigName;
@@ -642,6 +646,18 @@ export class ComparativeBenchmarkSuite {
         enableIncrementalEdits: true,
         enableModelSelectionPolicy: true,
       },
+      {
+        config: 'adaptive_execution_engine',
+        label: 'Adaptive Execution Engine v1 (Non-LLM First + Dynamic Tiers)',
+        primaryModel: smallModel,
+        recoveryModel: largeModel,
+        enableM1: true,
+        enableM3a: true,
+        enableContextCompiler: true,
+        enablePromptCompiler: true,
+        enableIncrementalEdits: true,
+        enableModelSelectionPolicy: true,
+      },
     ];
 
     const measurements: Record<ConfigName, ConfigMeasurement[]> = {
@@ -650,6 +666,7 @@ export class ComparativeBenchmarkSuite {
       governed_baseline: [],
       governed_compiled: [],
       governed_model_selected: [],
+      adaptive_execution_engine: [],
     };
 
     for (const cDef of configDefs) {
@@ -668,38 +685,72 @@ export class ComparativeBenchmarkSuite {
               virtualKey: 'sk-bf-simulation-default',
             });
 
-        const agent = new ProofBenchAgent({
-          bifrostClient,
-          approvalHandler: createWorkspaceApprovalHandler(),
-          primaryModel: cDef.primaryModel,
-          recoveryModel: cDef.recoveryModel,
-          enableM1ContextBounding: cDef.enableM1,
-          enableM2StagnationBreaker: true,
-          enableM3aAutopsyEscalation: cDef.enableM3a,
-          enableTavilyDocumentation: true,
-          enableContextCompiler: cDef.enableContextCompiler,
-          enablePromptCompiler: cDef.enablePromptCompiler,
-          enableIncrementalEdits: cDef.enableIncrementalEdits,
-          enableModelSelectionPolicy: cDef.enableModelSelectionPolicy,
-        });
-
-        const result = await agent.runTask(task, t);
-        const inTok = extractObservation(result.run.usage.inputTokens);
-        const outTok = extractObservation(result.run.usage.outputTokens);
-        const totTok = inTok !== null && outTok !== null ? inTok + outTok : null;
-        const dur = extractObservation(result.run.usage.duration);
-        const cost = extractObservation(result.run.usage.cost);
-
+        let inTok: number | null;
+        let outTok: number | null;
+        let totTok: number | null;
+        let dur: number | null;
+        let cost: number | null;
         let switches = 0;
-        let lastM = cDef.primaryModel;
-        for (const ev of result.trace.events) {
-          if (ev.data && typeof ev.data.model === 'string' && ev.data.model !== lastM) {
-            switches++;
-            lastM = ev.data.model;
+        let passed = false;
+        let status = 'failed';
+        let turns = 1;
+        let finalModel = cDef.primaryModel;
+
+        if (cDef.config === 'adaptive_execution_engine') {
+          const engine = new AdaptiveExecutionEngine({
+            bifrostClient,
+            approvalHandler: createWorkspaceApprovalHandler(),
+            smallModel: cDef.primaryModel,
+            strongerModel: cDef.recoveryModel,
+          });
+
+          const result = await engine.runTask(task, { seed: t });
+          inTok = extractObservation(result.run.usage.inputTokens);
+          outTok = extractObservation(result.run.usage.outputTokens);
+          totTok = inTok !== null && outTok !== null ? inTok + outTok : (inTok ?? outTok ?? null);
+          dur = extractObservation(result.run.usage.duration);
+          cost = extractObservation(result.run.usage.cost);
+          passed = result.run.acceptance.status === 'passed';
+          status = result.run.status;
+          turns = result.controllerState.turnCount || 1;
+          switches = result.controllerState.transitions.length;
+          finalModel = result.run.agent.model ?? cDef.primaryModel;
+        } else {
+          const agent = new ProofBenchAgent({
+            bifrostClient,
+            approvalHandler: createWorkspaceApprovalHandler(),
+            primaryModel: cDef.primaryModel,
+            recoveryModel: cDef.recoveryModel,
+            enableM1ContextBounding: cDef.enableM1,
+            enableM2StagnationBreaker: true,
+            enableM3aAutopsyEscalation: cDef.enableM3a,
+            enableTavilyDocumentation: true,
+            enableContextCompiler: cDef.enableContextCompiler,
+            enablePromptCompiler: cDef.enablePromptCompiler,
+            enableIncrementalEdits: cDef.enableIncrementalEdits,
+            enableModelSelectionPolicy: cDef.enableModelSelectionPolicy,
+          });
+
+          const result = await agent.runTask(task, t);
+          inTok = extractObservation(result.run.usage.inputTokens);
+          outTok = extractObservation(result.run.usage.outputTokens);
+          totTok = inTok !== null && outTok !== null ? inTok + outTok : null;
+          dur = extractObservation(result.run.usage.duration);
+          cost = extractObservation(result.run.usage.cost);
+          passed = result.run.acceptance.status === 'passed';
+          status = result.run.status;
+          turns = result.trace.events.filter((e) => e.type === 'start' && e.message.includes('agent execution started')).length || 1;
+          finalModel = result.run.agent.model ?? cDef.primaryModel;
+
+          let lastM = cDef.primaryModel;
+          for (const ev of result.trace.events) {
+            if (ev.data && typeof ev.data.model === 'string' && ev.data.model !== lastM) {
+              switches++;
+              lastM = ev.data.model;
+            }
           }
         }
 
-        const passed = result.run.acceptance.status === 'passed';
         measurements[cDef.config].push({
           config: cDef.config,
           configLabel: cDef.label,
@@ -707,16 +758,16 @@ export class ComparativeBenchmarkSuite {
           taskTitle: task.title,
           trial: t,
           passed,
-          status: result.run.status,
+          status,
           inputTokens: inTok,
           outputTokens: outTok,
           totalTokens: totTok,
           durationMs: dur,
           costUsd: cost,
-          turns: result.trace.events.filter((e) => e.type === 'start' && e.message.includes('agent execution started')).length || 1,
+          turns,
           modelSwitches: switches,
           primaryModel: cDef.primaryModel,
-          finalModel: result.run.agent.model ?? cDef.primaryModel,
+          finalModel,
           routingProvider: isLive ? 'bifrost.live' : 'bifrost.simulation',
         });
       }
@@ -768,6 +819,7 @@ export class ComparativeBenchmarkSuite {
       governed_baseline: computeAgg('governed_baseline', configDefs[2].label),
       governed_compiled: computeAgg('governed_compiled', configDefs[3].label),
       governed_model_selected: computeAgg('governed_model_selected', configDefs[4].label),
+      adaptive_execution_engine: computeAgg('adaptive_execution_engine', configDefs[5].label),
     };
 
     const direct9bAgg = summary.direct_9b;
@@ -816,6 +868,21 @@ export class ComparativeBenchmarkSuite {
       },
       evidenceSummary,
     };
+  }
+
+  static async benchmarkSixConfigurations(
+    task: TaskSpec,
+    options: {
+      mode?: 'live' | 'simulation';
+      trials?: number;
+      models?: {
+        small?: string;
+        large?: string;
+      };
+      embeddedGateway?: EmbeddedBifrostGateway;
+    } = {}
+  ): Promise<SixConfigComparisonResult> {
+    return this.benchmarkFiveConfigurations(task, options);
   }
 
   static async runAblationSuite(

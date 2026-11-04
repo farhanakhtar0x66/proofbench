@@ -191,17 +191,80 @@ To reduce total model token consumption while preserving or improving task corre
   └──────────────────────────────────────────────────────────────────────┘
 ```
 
-### 5-Configuration Optimization Benchmark Matrix
+---
 
-ProofBench benchmarks each task across five distinct configurations to isolate component contributions:
+## Adaptive Execution Engine v1 (Non-LLM-First & Dynamic Model Tiers)
+
+Extending the optimization layer into an active runtime controller, **Adaptive Execution Engine v1** unifies deterministic tools and model tiers under a single host-governed state machine:
+
+$$\text{NON\_LLM} \longleftrightarrow \text{SMALL\_LLM} \longleftrightarrow \text{STRONGER\_LLM}$$
+
+### Core Design Principles
+
+1. **Zero LLM Orchestrator**: The host deterministic TypeScript controller is the sole transition authority. No meta-LLMs or autonomous sub-agents make state decisions.
+2. **Non-LLM as the Default Tier**: The engine begins in `NON_LLM`. If repository analysis or compiler-guided mechanical fixes can resolve the issue, 0 LLM tokens are consumed.
+3. **Universal Project Memory via `CONTEXT.MD`**: Stored at the workspace root in human-readable Markdown across 11 standardized sections:
+   - `Project Identity`, `Original Requirements`, `Project Architecture`, `Active Task`, `Accepted Decisions`, `Verified Progress`, `Known Failures`, `Next Action`, `Evidence References`, and `Checkpoint`.
+   - `CONTEXT.MD` is a project-state snapshot, not an authority over host policies. Host policy engines, budgets, and confidentiality gates are strictly authoritative.
+4. **Durable State Storage (`.proofbench/`)**:
+   - `state.json`: current phase, tier, source revision, turn count, token accounting.
+   - `events.jsonl`: append-only structured audit ledger.
+   - `checkpoints/`: atomic snapshots enabling seamless process restart recovery.
+   - `patches/` and `evidence/`: archived diffs and raw compiler verification artifacts.
+   - Interrupted-write protection via atomic temporary file renaming and orphan `.tmp` cleanup.
+5. **Bidirectional Tier Routing Protocol**:
+   - `NON_LLM ➔ SMALL_LLM`: routine single-file coding tasks.
+   - `NON_LLM ➔ STRONGER_LLM`: direct routing on multi-file dependency or borrow/lifetime hazards.
+   - `SMALL_LLM ➔ STRONGER_LLM`: escalation via compact M3a failure autopsy packet on stagnation.
+   - `STRONGER_LLM ➔ SMALL_LLM`: delegation of localized implementation with bounded guidance.
+   - `ANY ➔ NON_LLM`: mandatory independent compiler verification after every patch.
+6. **Oscillation Detection**: Blocks unproductive ping-pong between tiers on stagnant failure signatures and triggers `HALT` to prevent budget waste.
+
+```
+┌────────────────────────────────────────────────────────────────────────┐
+│            Adaptive Execution Engine v1 — 12-Phase Lifecycle           │
+└────────────────────────────────────────────────────────────────────────┘
+
+  [ADMISSION] ──► [LOAD_CONTEXT] ──► [ANALYZE] ──► [PREPARE]
+                                                      │
+  ┌───────────────────────────────────────────────────┘
+  ▼
+  [SELECT_TIER] ──► [INFER_OR_EXECUTE] ──► [VALIDATE] ──► [APPROVAL]
+                                                             │
+  ┌──────────────────────────────────────────────────────────┘
+  ▼
+  [VERIFY] ──► [CHECKPOINT] ──► [DECIDE] ──► [COMPLETE / HALT]
+```
+
+### Verified Acceptance Scenarios (A through F)
+
+All 6 acceptance test scenarios are proven in reproducible unit and integration tests (`tests/adaptive-engine.test.ts`):
+
+| Scenario | Path / Transition Sequence | Mechanism Proven | Verified Outcome |
+| --- | --- | --- | --- |
+| **Scenario A** | `NON_LLM ➔ VERIFIED` | Zero-LLM resolution: compiler-guided mechanical fix / baseline verification | **0 LLM Tokens**, 100% test pass, `CONTEXT.MD` generated |
+| **Scenario B** | `NON_LLM ➔ SMALL_LLM ➔ NON_LLM` | Routine single-file task routing and completion | Economical token baseline, verified pass |
+| **Scenario C** | `NON_LLM ➔ STRONGER_LLM ➔ NON_LLM` | Multi-module high complexity directly routed to frontier tier | Bypasses small-model failure on multi-file task |
+| **Scenario D** | `SMALL_LLM ➔ STRONGER_LLM ➔ NON_LLM` | M2 loop breaker triggers M3a structured diagnostic autopsy escalation | Failure converted to 100% verified pass |
+| **Scenario E** | `STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM` | Architectural reasoning delegates to small model with bounded instructions | Model transition proposal parsed & validated by host |
+| **Scenario F** | `MULTI-TIER WITH RESTART` | Engine process killed between turns; resumes from `.proofbench/` checkpoint | Resumption verified without relying on git commits |
+
+```bash
+npx vitest run tests/adaptive-engine.test.ts
+```
+
+### 6-Configuration Optimization Benchmark Matrix
+
+ProofBench benchmarks each task across six distinct configurations to isolate component contributions:
 1. **Direct Small**: Raw prompt, unbounded context, small model only.
 2. **Direct Frontier**: Raw prompt, unbounded context, frontier model only.
 3. **Governed Baseline**: Regex M1 context selector, M2 stagnation detector, M3a autopsy escalation.
 4. **Governed Compiled**: Tree-sitter Context Compiler + Deterministic Prompt Compiler + Incremental Edits.
 5. **Governed Compiled + Model Selector**: Complete pipeline with dynamic evidence-based model routing.
+6. **Adaptive Execution Engine v1**: Unified non-LLM-first runtime with dynamic tier routing (`NON_LLM ↔ SMALL_LLM ↔ STRONGER_LLM`), persistent universal memory (`CONTEXT.MD`), and `.proofbench/` durable store.
 
 ```bash
-npm run benchmark:optimization -- --simulation --trials=1 --ablation
+npm run benchmark:optimization -- --simulation --trials=1
 ```
 
 ### Component Ablation Findings & Honest Disclosures

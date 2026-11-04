@@ -116,7 +116,7 @@ export class DeterministicModelSelector {
       };
     }
 
-    if (features.relevantFileCount >= 3 && features.hasMultiFileDependency && features.contextBudgetPressure > 0.4) {
+    if (features.relevantFileCount >= 3 && features.hasMultiFileDependency) {
       rulesTriggered.push('RULE_MULTI_MODULE_HIGH_COMPLEXITY');
       rationale.push(`Task spans ${features.relevantFileCount} distinct files with multi-module dependencies; direct frontier allocation avoids cross-file coordination failures.`);
       return {

@@ -44,11 +44,40 @@ import {
   PromptCompiler,
   IncrementalEditManager,
   DeterministicModelSelector,
+  MechanicalTransformer,
   type ContextCompilationResult,
   type CompiledPrompt,
   type WorkspaceRevisionSnapshot,
   type ModelSelectionDecision,
+  type MechanicalFixCandidate,
+  type MechanicalTransformResult,
 } from './compiler/index';
+import {
+  ContextDocumentManager,
+  DurableStore,
+  type ExecutionTier,
+  type EnginePhase,
+  type ProjectContextData,
+  type ControllerState,
+  type DurableEvent,
+  type StateCheckpointRecord,
+  type TierTransitionRecord,
+} from './persistence/index';
+import {
+  ModelRegistry,
+  UniversalHandoffProtocol,
+  OscillationDetector,
+  type ModelDescriptor,
+  type UniversalHandoffPacket,
+  type TierTransitionProposal,
+  type HandoffDirection,
+} from './routing/index';
+import {
+  AdaptiveExecutionEngine,
+  type AdaptiveExecutionEngineOptions,
+  type EngineRunOptions,
+  type EngineExecutionResult,
+} from './controller/index';
 
 export type {
   GovernancePolicy,
@@ -66,7 +95,24 @@ export type {
   CompiledPrompt,
   WorkspaceRevisionSnapshot,
   ModelSelectionDecision,
+  MechanicalFixCandidate,
+  MechanicalTransformResult,
+  ExecutionTier,
+  EnginePhase,
+  ProjectContextData,
+  ControllerState,
+  DurableEvent,
+  StateCheckpointRecord,
+  TierTransitionRecord,
+  ModelDescriptor,
+  UniversalHandoffPacket,
+  TierTransitionProposal,
+  HandoffDirection,
+  AdaptiveExecutionEngineOptions,
+  EngineRunOptions,
+  EngineExecutionResult,
 };
+
 export {
   BifrostClient,
   EmbeddedBifrostGateway,
@@ -91,6 +137,13 @@ export {
   PromptCompiler,
   IncrementalEditManager,
   DeterministicModelSelector,
+  MechanicalTransformer,
+  ContextDocumentManager,
+  DurableStore,
+  ModelRegistry,
+  UniversalHandoffProtocol,
+  OscillationDetector,
+  AdaptiveExecutionEngine,
 };
 
 export const bifrost01: AgentAdapter = {

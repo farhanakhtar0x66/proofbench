@@ -80,15 +80,15 @@ async function main() {
     const taskSpec = TaskSpec.parse(JSON.parse(taskRaw));
     console.log(`\nEvaluating Task: ${taskSpec.id} ("${taskSpec.title}")`);
 
-    // 1. Run 5-Configuration Benchmark
-    console.log(`  -> Running 5-Configuration Benchmark (${cliArgs.trials} trial(s))...`);
-    const fiveRes = await ComparativeBenchmarkSuite.benchmarkFiveConfigurations(taskSpec, {
+    // 1. Run 6-Configuration Benchmark
+    console.log(`  -> Running 6-Configuration Benchmark (${cliArgs.trials} trial(s))...`);
+    const fiveRes = await ComparativeBenchmarkSuite.benchmarkSixConfigurations(taskSpec, {
       mode: cliArgs.isLive ? 'live' : 'simulation',
       trials: cliArgs.trials,
     });
     fiveConfigResults.push(fiveRes);
 
-    console.log('\n  5-Configuration Results:');
+    console.log('\n  6-Configuration Results:');
     console.log('  ' + '-'.repeat(76));
     console.log(`  | ${'Configuration'.padEnd(32)} | ${'Pass %'.padEnd(8)} | ${'Avg Tokens'.padEnd(12)} | ${'Time (ms)'.padEnd(10)} |`);
     console.log('  ' + '-'.repeat(76));
