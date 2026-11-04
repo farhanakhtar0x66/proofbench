@@ -4,10 +4,10 @@ import {z} from 'zod';
 import {verifyAnswer,SearchBudget} from '../packages/tavily/src/index';
 import {EvidenceRetrievalReport} from '../packages/contracts/src/index';
 
-const Dataset=z.object({version:z.literal('1'),notice:z.string(),cases:z.array(z.object({id:z.string(),claim:z.string().min(1),evidence:z.array(z.string().min(1)).max(3),publishedAt:z.string().datetime().optional(),expected:z.enum(['supported','contradicted','inconclusive']),rationale:z.string().min(1)}).strict()).min(1)}).strict();
+export const BenchmarkDataset=z.object({version:z.literal('1'),notice:z.string(),cases:z.array(z.object({id:z.string(),claim:z.string().min(1),evidence:z.array(z.string().min(1)).max(3),publishedAt:z.string().datetime().optional(),expected:z.enum(['supported','contradicted','inconclusive']),rationale:z.string().min(1)}).strict()).min(1)}).strict();
 export async function prepareVerificationBenchmark(){
  const raw=await readFile(new URL('../fixtures/verification-benchmark/v1.json',import.meta.url),'utf8');
- const dataset=Dataset.parse(JSON.parse(raw));const datasetHash=createHash('sha256').update(raw).digest('hex');
+ const dataset=BenchmarkDataset.parse(JSON.parse(raw));const datasetHash=createHash('sha256').update(raw).digest('hex');
  if(new Set(dataset.cases.map(item=>item.id)).size!==dataset.cases.length)throw new Error('Duplicate benchmark case IDs');
  const preparedAt=new Date().toISOString();const recent=new Date(Date.now()-86400000).toISOString();
  const cases=[];let simulatedSearchCalls=0;
