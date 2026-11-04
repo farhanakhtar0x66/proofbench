@@ -1,7 +1,7 @@
 import {expect,it} from 'vitest';
 import {prepareVerificationBenchmark} from '../scripts/verification-benchmark-lib';
 import {PreparedBenchmark} from '../scripts/run-verification-benchmark-lib';
-import {prepareBenchmarkContinuation} from '../scripts/resume-verification-benchmark';
+import {prepareBenchmarkContinuation,prepareBenchmarkTail} from '../scripts/resume-verification-benchmark';
 
 async function fixture(){
  const snapshot=PreparedBenchmark.parse(await prepareVerificationBenchmark());
@@ -18,4 +18,16 @@ it('rejects changed evidence, mismatched counts and an unrelated failure',async(
  await expect(prepareBenchmarkContinuation(snapshot,JSON.stringify({...previous,evidenceHash:'changed'}))).rejects.toThrow('evidence');
  await expect(prepareBenchmarkContinuation(snapshot,JSON.stringify({...previous,modelRequests:6}))).rejects.toThrow('counts');
  previous.result.rows[4].id='other-failure';await expect(prepareBenchmarkContinuation(snapshot,JSON.stringify(previous))).rejects.toThrow();
+});
+it('finishes only untouched tail cases without retrying either prior failure',async()=>{
+ const {snapshot,previous}=await fixture();const raw=JSON.stringify(previous);const first=await prepareBenchmarkContinuation(snapshot,raw);
+ const rows=structuredClone(previous.result.rows);
+ rows[4]={...rows[4],status:'precheck_abstained',modelRequests:0,correct:true};
+ for(const index of [5,6])rows[index]={...rows[index],status:'completed',modelRequests:1,outcome:'inconclusive',correct:true};
+ rows[7]={...rows[7],status:'failed',modelRequests:1,outcome:'inconclusive'};
+ const stage={...previous,modelRequests:3,priorModelRequests:5,totalModelRequests:8,parentReportHash:first.parentHash,result:{status:'incomplete',rows}};
+ const tail=await prepareBenchmarkTail(snapshot,raw,JSON.stringify(stage));
+ expect(tail.maxRequests).toBe(1);expect(tail.priorRequests).toBe(8);expect(tail.priorFailures).toBe(2);expect(tail.remainingSnapshot.cases.map(item=>item.id)).toEqual(['missing-evidence','pricing-paraphrase']);
+ expect(tail.merge([])[7].status).toBe('failed');
+ await expect(prepareBenchmarkTail(snapshot,raw,JSON.stringify({...stage,totalModelRequests:7}))).rejects.toThrow('totals');
 });
