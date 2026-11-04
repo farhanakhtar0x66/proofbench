@@ -1,5 +1,5 @@
 import {claimDateContext} from './claim-date-context';
-export type DatedSource={published_date?:string;content?:string;originalContent?:string;contextContent?:string;claim?:string};
+export type DatedSource={published_date?:string;content?:string;originalContent?:string;contextContent?:string;claim?:string;calendarDayWindow?:boolean};
 const monthNames=['january','february','march','april','may','june','july','august','september','october','november','december'];
 const explicitDatePattern='(?:\\d{4}-\\d{2}-\\d{2}|(?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}(?:st|nd|rd|th)?,? \\d{4}|\\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{4})';
 function explicitDate(text:string){
@@ -27,6 +27,14 @@ export function sourceDate(value:string|undefined):string|undefined{
  if(!Number.isFinite(calendar.getTime())||calendar.toISOString().slice(0,10)!==day)return;
  const parsed=Date.parse(value);
  return Number.isFinite(parsed)?new Date(parsed).toISOString():undefined;
+}
+
+/** Match date-only search bounds without accepting future timestamps. */
+export function publicationWindowAgeMs(publishedAt:string|undefined,now:string,calendarDayWindow=false){
+ if(!publishedAt)return NaN;
+ const exact=Date.parse(now)-Date.parse(publishedAt);
+ if(!Number.isFinite(exact)||exact<0||!calendarDayWindow)return exact;
+ return Date.parse(`${now.slice(0,10)}T00:00:00Z`)-Date.parse(`${publishedAt.slice(0,10)}T00:00:00Z`);
 }
 
 export function assessSourceDates(source:DatedSource,now:string){
@@ -61,7 +69,7 @@ export function assessSourceDates(source:DatedSource,now:string){
  }
  const updatedAt=new Set(updates).size===1?sourceDate(updates[0]):undefined;
  const effectiveAt=effective.length===1?sourceDate(effective[0]):undefined;
- const age=publishedAt?Date.parse(now)-Date.parse(publishedAt):NaN;
+ const age=publicationWindowAgeMs(publishedAt,now,source.calendarDayWindow);
  let reason:string|undefined;
  if(!publishedAt)reason=source.published_date?'The publication date is invalid or unsupported.':'The publication date is missing; an update or retrieval date cannot replace it.';
  else if(age<0)reason='The publication date is in the future.';
@@ -73,6 +81,6 @@ export function assessSourceDates(source:DatedSource,now:string){
  if(new Set(updates).size>1||new Set(effective).size>1||new Set(scopes).size>1)reason='Multiple explicit source dates cannot be safely assigned to the fact.';
  if(updatedAt&&(Date.parse(updatedAt)>Date.parse(now)||publishedAt&&updatedAt.slice(0,10)<publishedAt.slice(0,10)))reason='The update date conflicts with publication or current time.';
  if(effectiveAt&&Date.parse(effectiveAt)>Date.parse(now))reason='The stated effective date is in the future; this fact is not established as current.';
- if(scopes.some(value=>{const date=sourceDate(value);const age=date?Date.parse(now)-Date.parse(date):NaN;return !Number.isFinite(age)||age<0||age>30*86400000;}))reason='The text explicitly scopes this fact to a historical or future date.';
+ if(scopes.some(value=>{const date=sourceDate(value);const age=publicationWindowAgeMs(date,now,source.calendarDayWindow);return !Number.isFinite(age)||age<0||age>30*86400000;}))reason='The text explicitly scopes this fact to a historical or future date.';
  return {publishedAt,updatedAt,effectiveAt,eligible:!reason,reason:reason??'Recent publication; explicit update/effective dates do not conflict. Retrieval time is separate.'};
 }
