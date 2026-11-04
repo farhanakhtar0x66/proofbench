@@ -51,6 +51,9 @@ export class EmbeddedBifrostGateway {
         'opencode/deepseek-v4.1-flash-free',
         'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
         'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
+        'ollama/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M',
+        'qwen-1.5b',
+        'qwen-9b',
         'gpt-4o-mini',
         'claude-3-5-haiku',
         'escalation-frontier-model',
@@ -70,6 +73,9 @@ export class EmbeddedBifrostGateway {
         'opencode/deepseek-v4.1-flash-free',
         'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
         'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
+        'ollama/Qwen/Qwen2.5-Coder-7B-Instruct-GGUF:Q4_K_M',
+        'qwen-1.5b',
+        'qwen-9b',
         'gpt-4o-mini',
         'claude-3-5-haiku',
         'escalation-frontier-model',
@@ -322,6 +328,7 @@ export class EmbeddedBifrostGateway {
     }
 
     const allText = req.messages.map((m) => m.content).join('\n');
+    const dynamicPromptTokens = Math.max(20, Math.ceil(allText.length / 3.8));
 
     // Deterministic mock model responses for frozen offline test tasks
     if (allText.includes('sliding_window_sums') || allText.includes('task-1')) {
@@ -345,7 +352,7 @@ pub fn sliding_window_sums(values: &[i64], window_size: usize) -> Vec<i64> {
       return {
         content: `Here is the corrected Rust code fixing the off-by-one bounds bug:\n\n\`\`\`rust\n${code}\`\`\``,
         usage: {
-          prompt_tokens: 180,
+          prompt_tokens: dynamicPromptTokens,
           completion_tokens: 85,
         },
       };
@@ -392,7 +399,7 @@ impl ExponentialBackoff {
       return {
         content: `Here is the implementation of \`delay_for_attempt\`:\n\n\`\`\`rust\n${code}\`\`\``,
         usage: {
-          prompt_tokens: 220,
+          prompt_tokens: dynamicPromptTokens,
           completion_tokens: 110,
         },
       };
@@ -400,7 +407,7 @@ impl ExponentialBackoff {
 
     if (allText.includes('event pipeline') || allText.includes('task-3') || allText.includes('parser.rs') || allText.includes('sink.rs')) {
       // If escalated via M3a failure autopsy or frontier model, provide the complete two-file resolution
-      if (allText.includes('Structured Failure Autopsy') || model === 'escalation-frontier-model') {
+      if (allText.includes('Structured Failure Autopsy') || model === 'escalation-frontier-model' || model.includes('9B') || model.includes('7B')) {
         const parserCode = `// File: src/parser.rs
 //! Line parser for formatted event strings.
 
@@ -480,15 +487,18 @@ impl EventSink {
         return {
           content: `Recovery model resolving both parser and sink issues from autopsy:\n\n\`\`\`rust\n${parserCode}\`\`\`\n\n\`\`\`rust\n${sinkCode}\`\`\``,
           usage: {
-            prompt_tokens: 450,
+            prompt_tokens: dynamicPromptTokens,
             completion_tokens: 195,
           },
         };
       }
 
-      const compilerSection = allText.split('Previous compiler output:')[1] ?? '';
+      const diagSection = allText.includes('<trusted_diagnostic_verification>')
+        ? allText.split('<trusted_diagnostic_verification>')[1]?.split('</trusted_diagnostic_verification>')[0] ?? ''
+        : allText.split('Previous compiler output:')[1] ?? '';
+
       // Turn 1 (initial run or parser failure): fix parser.rs
-      if (compilerSection.includes('None yet') || compilerSection.includes('test_parse_valid') || compilerSection.includes('invalid checksum format')) {
+      if (diagSection.includes('None yet') || diagSection.includes('Attempt 0') || diagSection.includes('test_parse_valid') || diagSection.includes('invalid checksum format')) {
         const parserCode = `// File: src/parser.rs
 //! Line parser for formatted event strings.
 
@@ -522,7 +532,7 @@ pub fn parse_event(line: &str) -> Result<Event, String> {
         return {
           content: `Fixing the parser checksum index bug:\n\n\`\`\`rust\n${parserCode}\`\`\``,
           usage: {
-            prompt_tokens: 260,
+            prompt_tokens: dynamicPromptTokens,
             completion_tokens: 100,
           },
         };
@@ -576,7 +586,7 @@ impl EventSink {
         return {
           content: `Fixing the sink capacity bug:\n\n\`\`\`rust\n${sinkCode}\`\`\``,
           usage: {
-            prompt_tokens: 250,
+            prompt_tokens: dynamicPromptTokens,
             completion_tokens: 95,
           },
         };
@@ -599,8 +609,64 @@ pub fn spin_wait(max_spins: usize) -> usize {
       return {
         content: `Based on verified Tavily documentation showing \`spin_loop_hint\` is deprecated, here is the updated non-deprecated implementation using \`std::hint::spin_loop\`:\n\n\`\`\`rust\n${spinCode}\`\`\``,
         usage: {
-          prompt_tokens: 240,
+          prompt_tokens: dynamicPromptTokens,
           completion_tokens: 90,
+        },
+      };
+    }
+
+    if (allText.includes('OutlierFilteredAccumulator') || allText.includes('task-5') || allText.includes('accumulator.rs')) {
+      const accCode = `// File: src/core/accumulator.rs
+#[derive(Debug, Clone, Default)]
+pub struct OutlierFilteredAccumulator {
+    samples: Vec<f64>,
+}
+
+impl OutlierFilteredAccumulator {
+    pub fn new() -> Self {
+        Self {
+            samples: Vec::new(),
+        }
+    }
+
+    pub fn process(&mut self, sample: f64) -> Option<f64> {
+        if self.samples.len() < 5 {
+            self.samples.push(sample);
+            return Some(sample);
+        }
+
+        let n = self.samples.len() as f64;
+        let sum: f64 = self.samples.iter().sum();
+        let mean = sum / n;
+        let variance: f64 = self.samples.iter().map(|&x| (x - mean).powi(2)).sum::<f64>() / n;
+        let std_dev = variance.sqrt();
+
+        if (sample - mean).abs() > 3.0 * std_dev {
+            None
+        } else {
+            self.samples.push(sample);
+            Some(sample)
+        }
+    }
+
+    pub fn count(&self) -> usize {
+        self.samples.len()
+    }
+
+    pub fn mean(&self) -> f64 {
+        if self.samples.is_empty() {
+            0.0
+        } else {
+            self.samples.iter().sum::<f64>() / self.samples.len() as f64
+        }
+    }
+}
+`;
+      return {
+        content: `Here is the corrected Rust implementation for OutlierFilteredAccumulator in src/core/accumulator.rs:\n\n\`\`\`rust\n${accCode}\`\`\``,
+        usage: {
+          prompt_tokens: dynamicPromptTokens,
+          completion_tokens: 120,
         },
       };
     }

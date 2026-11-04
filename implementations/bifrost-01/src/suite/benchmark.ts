@@ -43,6 +43,86 @@ export interface ComparativeSuiteSummary {
 
 export type StrategyName = 'direct_small' | 'direct_large' | 'governed_escalation';
 
+export type ConfigName =
+  | 'direct_1_5b'
+  | 'direct_9b'
+  | 'governed_baseline'
+  | 'governed_compiled'
+  | 'governed_model_selected';
+
+export interface ConfigMeasurement {
+  config: ConfigName;
+  configLabel: string;
+  taskId: string;
+  taskTitle: string;
+  trial: number;
+  passed: boolean;
+  status: string;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  durationMs: number | null;
+  costUsd: number | null;
+  turns: number;
+  modelSwitches: number;
+  primaryModel: string;
+  finalModel: string;
+  routingProvider: string;
+}
+
+export interface ConfigAggregate {
+  config: ConfigName;
+  configLabel: string;
+  totalTrials: number;
+  passedTrials: number;
+  failedTrials: number;
+  successRatePercent: number;
+  avgTotalTokensOnPass: number | null;
+  avgInputTokensOnPass: number | null;
+  avgOutputTokensOnPass: number | null;
+  avgDurationMsOnPass: number | null;
+  totalTokensAllTrials: number | null;
+  modelSwitchCount: number;
+}
+
+export interface FiveConfigComparisonResult {
+  taskId: string;
+  taskTitle: string;
+  trialsPerConfig: number;
+  measurements: Record<ConfigName, ConfigMeasurement[]>;
+  summary: Record<ConfigName, ConfigAggregate>;
+  savingsVsDirect9B: {
+    tokenSavingsPercent: number | null;
+    comparable: boolean;
+    reason?: string;
+  };
+  savingsVsGovernedBaseline: {
+    tokenSavingsPercent: number | null;
+    comparable: boolean;
+    reason?: string;
+  };
+  evidenceSummary: string;
+}
+
+export interface AblationMeasurement {
+  variant: 'baseline' | 'context_only' | 'prompt_only' | 'model_selection_only' | 'full_optimization';
+  label: string;
+  passed: boolean;
+  inputTokens: number | null;
+  outputTokens: number | null;
+  totalTokens: number | null;
+  durationMs: number | null;
+  turns: number;
+  tokenSavingsVsBaselinePercent: number | null;
+}
+
+export interface AblationSuiteResult {
+  taskId: string;
+  taskTitle: string;
+  variants: AblationMeasurement[];
+  evidenceSummary: string;
+}
+
 export interface StrategyMeasurement {
   strategy: StrategyName;
   strategyLabel: string;
@@ -471,6 +551,404 @@ export class ComparativeBenchmarkSuite {
         comparable,
         reason: compReason,
       },
+      evidenceSummary,
+    };
+  }
+
+  static async benchmarkFiveConfigurations(
+    task: TaskSpec,
+    options: {
+      mode?: 'live' | 'simulation';
+      trials?: number;
+      models?: {
+        small?: string;
+        large?: string;
+      };
+      embeddedGateway?: EmbeddedBifrostGateway;
+    } = {}
+  ): Promise<FiveConfigComparisonResult> {
+    const isLive = options.mode === 'live' || process.env.BIFROST_MODE === 'live';
+    const trials = Math.max(1, options.trials ?? 1);
+    const smallModel = options.models?.small ?? (isLive ? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M' : 'local-deepseek-coder');
+    const largeModel = options.models?.large ?? (isLive ? 'gguf/Qwen3.5-9B-GGUF:Q4_K_M' : 'escalation-frontier-model');
+
+    const configDefs: Array<{
+      config: ConfigName;
+      label: string;
+      primaryModel: string;
+      recoveryModel?: string;
+      enableM1: boolean;
+      enableM3a: boolean;
+      enableContextCompiler: boolean;
+      enablePromptCompiler: boolean;
+      enableIncrementalEdits: boolean;
+      enableModelSelectionPolicy: boolean;
+    }> = [
+      {
+        config: 'direct_1_5b',
+        label: `Direct ${smallModel} (Unbounded, No Escalation)`,
+        primaryModel: smallModel,
+        enableM1: false,
+        enableM3a: false,
+        enableContextCompiler: false,
+        enablePromptCompiler: false,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        config: 'direct_9b',
+        label: `Direct ${largeModel} (Frontier Only)`,
+        primaryModel: largeModel,
+        enableM1: false,
+        enableM3a: false,
+        enableContextCompiler: false,
+        enablePromptCompiler: false,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        config: 'governed_baseline',
+        label: 'Governed Baseline (Regex M1, M2, M3a Escalation)',
+        primaryModel: smallModel,
+        recoveryModel: largeModel,
+        enableM1: true,
+        enableM3a: true,
+        enableContextCompiler: false,
+        enablePromptCompiler: false,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        config: 'governed_compiled',
+        label: 'Governed + Context/Prompt Compiler v2 & Incremental Edits',
+        primaryModel: smallModel,
+        recoveryModel: largeModel,
+        enableM1: true,
+        enableM3a: true,
+        enableContextCompiler: true,
+        enablePromptCompiler: true,
+        enableIncrementalEdits: true,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        config: 'governed_model_selected',
+        label: 'Governed + Compilers + Evidence-Based Model Selection',
+        primaryModel: smallModel,
+        recoveryModel: largeModel,
+        enableM1: true,
+        enableM3a: true,
+        enableContextCompiler: true,
+        enablePromptCompiler: true,
+        enableIncrementalEdits: true,
+        enableModelSelectionPolicy: true,
+      },
+    ];
+
+    const measurements: Record<ConfigName, ConfigMeasurement[]> = {
+      direct_1_5b: [],
+      direct_9b: [],
+      governed_baseline: [],
+      governed_compiled: [],
+      governed_model_selected: [],
+    };
+
+    for (const cDef of configDefs) {
+      for (let t = 1; t <= trials; t++) {
+        const embeddedGateway = isLive ? undefined : (options.embeddedGateway ?? new EmbeddedBifrostGateway());
+        const bifrostClient = isLive
+          ? new BifrostClient({
+              mode: 'live',
+              gatewayUrl: process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089',
+              virtualKey: process.env.BIFROST_VIRTUAL_KEY,
+              userBudgetLimitUsd: 10.0,
+            })
+          : new BifrostClient({
+              mode: 'simulation',
+              embeddedGateway,
+              virtualKey: 'sk-bf-simulation-default',
+            });
+
+        const agent = new ProofBenchAgent({
+          bifrostClient,
+          approvalHandler: createWorkspaceApprovalHandler(),
+          primaryModel: cDef.primaryModel,
+          recoveryModel: cDef.recoveryModel,
+          enableM1ContextBounding: cDef.enableM1,
+          enableM2StagnationBreaker: true,
+          enableM3aAutopsyEscalation: cDef.enableM3a,
+          enableTavilyDocumentation: true,
+          enableContextCompiler: cDef.enableContextCompiler,
+          enablePromptCompiler: cDef.enablePromptCompiler,
+          enableIncrementalEdits: cDef.enableIncrementalEdits,
+          enableModelSelectionPolicy: cDef.enableModelSelectionPolicy,
+        });
+
+        const result = await agent.runTask(task, t);
+        const inTok = extractObservation(result.run.usage.inputTokens);
+        const outTok = extractObservation(result.run.usage.outputTokens);
+        const totTok = inTok !== null && outTok !== null ? inTok + outTok : null;
+        const dur = extractObservation(result.run.usage.duration);
+        const cost = extractObservation(result.run.usage.cost);
+
+        let switches = 0;
+        let lastM = cDef.primaryModel;
+        for (const ev of result.trace.events) {
+          if (ev.data && typeof ev.data.model === 'string' && ev.data.model !== lastM) {
+            switches++;
+            lastM = ev.data.model;
+          }
+        }
+
+        const passed = result.run.acceptance.status === 'passed';
+        measurements[cDef.config].push({
+          config: cDef.config,
+          configLabel: cDef.label,
+          taskId: task.id,
+          taskTitle: task.title,
+          trial: t,
+          passed,
+          status: result.run.status,
+          inputTokens: inTok,
+          outputTokens: outTok,
+          totalTokens: totTok,
+          durationMs: dur,
+          costUsd: cost,
+          turns: result.trace.events.filter((e) => e.type === 'start' && e.message.includes('agent execution started')).length || 1,
+          modelSwitches: switches,
+          primaryModel: cDef.primaryModel,
+          finalModel: result.run.agent.model ?? cDef.primaryModel,
+          routingProvider: isLive ? 'bifrost.live' : 'bifrost.simulation',
+        });
+      }
+    }
+
+    const computeAgg = (cfg: ConfigName, label: string): ConfigAggregate => {
+      const ms = measurements[cfg];
+      const passed = ms.filter((m) => m.passed);
+      const passedCount = passed.length;
+      const failedCount = ms.length - passedCount;
+      const successRate = ms.length > 0 ? Number(((passedCount / ms.length) * 100).toFixed(1)) : 0;
+
+      const validTokens = passed.map((m) => m.totalTokens).filter((v): v is number => typeof v === 'number');
+      const avgTokens = validTokens.length > 0 ? Math.round(validTokens.reduce((a, b) => a + b, 0) / validTokens.length) : null;
+
+      const validIn = passed.map((m) => m.inputTokens).filter((v): v is number => typeof v === 'number');
+      const avgIn = validIn.length > 0 ? Math.round(validIn.reduce((a, b) => a + b, 0) / validIn.length) : null;
+
+      const validOut = passed.map((m) => m.outputTokens).filter((v): v is number => typeof v === 'number');
+      const avgOut = validOut.length > 0 ? Math.round(validOut.reduce((a, b) => a + b, 0) / validOut.length) : null;
+
+      const validDur = passed.map((m) => m.durationMs).filter((v): v is number => typeof v === 'number');
+      const avgDur = validDur.length > 0 ? Math.round(validDur.reduce((a, b) => a + b, 0) / validDur.length) : null;
+
+      const allTokens = ms.map((m) => m.totalTokens).filter((v): v is number => typeof v === 'number');
+      const totalTokensAll = allTokens.length === ms.length && allTokens.length > 0 ? allTokens.reduce((a, b) => a + b, 0) : null;
+
+      const switchCount = ms.reduce((acc, m) => acc + m.modelSwitches, 0);
+
+      return {
+        config: cfg,
+        configLabel: label,
+        totalTrials: ms.length,
+        passedTrials: passedCount,
+        failedTrials: failedCount,
+        successRatePercent: successRate,
+        avgTotalTokensOnPass: avgTokens,
+        avgInputTokensOnPass: avgIn,
+        avgOutputTokensOnPass: avgOut,
+        avgDurationMsOnPass: avgDur,
+        totalTokensAllTrials: totalTokensAll,
+        modelSwitchCount: switchCount,
+      };
+    };
+
+    const summary: Record<ConfigName, ConfigAggregate> = {
+      direct_1_5b: computeAgg('direct_1_5b', configDefs[0].label),
+      direct_9b: computeAgg('direct_9b', configDefs[1].label),
+      governed_baseline: computeAgg('governed_baseline', configDefs[2].label),
+      governed_compiled: computeAgg('governed_compiled', configDefs[3].label),
+      governed_model_selected: computeAgg('governed_model_selected', configDefs[4].label),
+    };
+
+    const direct9bAgg = summary.direct_9b;
+    const compiledAgg = summary.governed_compiled;
+    const baselineAgg = summary.governed_baseline;
+
+    let savingsVsDirect9bPercent: number | null = null;
+    let savingsVsDirect9bComparable = false;
+    let savingsVsDirect9bReason: string | undefined;
+
+    if (direct9bAgg.passedTrials > 0 && compiledAgg.passedTrials > 0 && direct9bAgg.avgTotalTokensOnPass && compiledAgg.avgTotalTokensOnPass) {
+      savingsVsDirect9bComparable = true;
+      savingsVsDirect9bPercent = Number((((direct9bAgg.avgTotalTokensOnPass - compiledAgg.avgTotalTokensOnPass) / direct9bAgg.avgTotalTokensOnPass) * 100).toFixed(1));
+    } else {
+      savingsVsDirect9bReason = 'Incomparable: one or both configurations had 0 successful trials';
+    }
+
+    let savingsVsBaselinePercent: number | null = null;
+    let savingsVsBaselineComparable = false;
+    let savingsVsBaselineReason: string | undefined;
+
+    if (baselineAgg.passedTrials > 0 && compiledAgg.passedTrials > 0 && baselineAgg.avgTotalTokensOnPass && compiledAgg.avgTotalTokensOnPass) {
+      savingsVsBaselineComparable = true;
+      savingsVsBaselinePercent = Number((((baselineAgg.avgTotalTokensOnPass - compiledAgg.avgTotalTokensOnPass) / baselineAgg.avgTotalTokensOnPass) * 100).toFixed(1));
+    } else {
+      savingsVsBaselineReason = 'Incomparable: baseline or compiled had 0 successful trials';
+    }
+
+    const evidenceSummary = `5-Config Benchmark on '${task.title}': direct_1.5B=${summary.direct_1_5b.successRatePercent}%, direct_9B=${summary.direct_9b.successRatePercent}%, governed_baseline=${summary.governed_baseline.successRatePercent}%, governed_compiled=${summary.governed_compiled.successRatePercent}%, governed_model_selected=${summary.governed_model_selected.successRatePercent}%. Compiled Token Savings: vs 9B=${savingsVsDirect9bPercent !== null ? `${savingsVsDirect9bPercent}%` : 'N/A'}, vs Baseline=${savingsVsBaselinePercent !== null ? `${savingsVsBaselinePercent}%` : 'N/A'}.`;
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      trialsPerConfig: trials,
+      measurements,
+      summary,
+      savingsVsDirect9B: {
+        tokenSavingsPercent: savingsVsDirect9bPercent,
+        comparable: savingsVsDirect9bComparable,
+        reason: savingsVsDirect9bReason,
+      },
+      savingsVsGovernedBaseline: {
+        tokenSavingsPercent: savingsVsBaselinePercent,
+        comparable: savingsVsBaselineComparable,
+        reason: savingsVsBaselineReason,
+      },
+      evidenceSummary,
+    };
+  }
+
+  static async runAblationSuite(
+    task: TaskSpec,
+    options: {
+      mode?: 'live' | 'simulation';
+      models?: { small?: string; large?: string };
+      embeddedGateway?: EmbeddedBifrostGateway;
+    } = {}
+  ): Promise<AblationSuiteResult> {
+    const isLive = options.mode === 'live' || process.env.BIFROST_MODE === 'live';
+    const smallModel = options.models?.small ?? (isLive ? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M' : 'local-deepseek-coder');
+    const largeModel = options.models?.large ?? (isLive ? 'gguf/Qwen3.5-9B-GGUF:Q4_K_M' : 'escalation-frontier-model');
+
+    const variants: Array<{
+      variant: AblationMeasurement['variant'];
+      label: string;
+      enableContextCompiler: boolean;
+      enablePromptCompiler: boolean;
+      enableIncrementalEdits: boolean;
+      enableModelSelectionPolicy: boolean;
+    }> = [
+      {
+        variant: 'baseline',
+        label: 'Baseline (Raw Prompt & Unbounded Context)',
+        enableContextCompiler: false,
+        enablePromptCompiler: false,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        variant: 'context_only',
+        label: 'Ablation: Context Compiler Only (Tree-sitter AST & Omission Ledger)',
+        enableContextCompiler: true,
+        enablePromptCompiler: false,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        variant: 'prompt_only',
+        label: 'Ablation: Prompt Compiler Only (Invariant Prefix & Deduplication)',
+        enableContextCompiler: false,
+        enablePromptCompiler: true,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: false,
+      },
+      {
+        variant: 'model_selection_only',
+        label: 'Ablation: Model Selection Only (Observable Engineering Features)',
+        enableContextCompiler: false,
+        enablePromptCompiler: false,
+        enableIncrementalEdits: false,
+        enableModelSelectionPolicy: true,
+      },
+      {
+        variant: 'full_optimization',
+        label: 'Full Optimization (Context + Prompt + Incremental + Model Selection)',
+        enableContextCompiler: true,
+        enablePromptCompiler: true,
+        enableIncrementalEdits: true,
+        enableModelSelectionPolicy: true,
+      },
+    ];
+
+    const measurements: AblationMeasurement[] = [];
+    let baselineTokens: number | null = null;
+
+    for (const v of variants) {
+      const embeddedGateway = isLive ? undefined : (options.embeddedGateway ?? new EmbeddedBifrostGateway());
+      const bifrostClient = isLive
+        ? new BifrostClient({
+            mode: 'live',
+            gatewayUrl: process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089',
+            virtualKey: process.env.BIFROST_VIRTUAL_KEY,
+            userBudgetLimitUsd: 10.0,
+          })
+        : new BifrostClient({
+            mode: 'simulation',
+            embeddedGateway,
+            virtualKey: 'sk-bf-simulation-default',
+          });
+
+      const agent = new ProofBenchAgent({
+        bifrostClient,
+        approvalHandler: createWorkspaceApprovalHandler(),
+        primaryModel: smallModel,
+        recoveryModel: largeModel,
+        enableM1ContextBounding: true,
+        enableM2StagnationBreaker: true,
+        enableM3aAutopsyEscalation: true,
+        enableTavilyDocumentation: true,
+        enableContextCompiler: v.enableContextCompiler,
+        enablePromptCompiler: v.enablePromptCompiler,
+        enableIncrementalEdits: v.enableIncrementalEdits,
+        enableModelSelectionPolicy: v.enableModelSelectionPolicy,
+      });
+
+      const result = await agent.runTask(task);
+      const inTok = extractObservation(result.run.usage.inputTokens);
+      const outTok = extractObservation(result.run.usage.outputTokens);
+      const totTok = inTok !== null && outTok !== null ? inTok + outTok : null;
+      const dur = extractObservation(result.run.usage.duration);
+      const passed = result.run.acceptance.status === 'passed';
+
+      if (v.variant === 'baseline' && passed && totTok !== null) {
+        baselineTokens = totTok;
+      }
+
+      let savingsPercent: number | null = null;
+      if (baselineTokens !== null && totTok !== null && passed && baselineTokens > 0) {
+        savingsPercent = Number((((baselineTokens - totTok) / baselineTokens) * 100).toFixed(1));
+      }
+
+      measurements.push({
+        variant: v.variant,
+        label: v.label,
+        passed,
+        inputTokens: inTok,
+        outputTokens: outTok,
+        totalTokens: totTok,
+        durationMs: dur,
+        turns: result.trace.events.filter((e) => e.type === 'start' && e.message.includes('agent execution started')).length || 1,
+        tokenSavingsVsBaselinePercent: savingsPercent,
+      });
+    }
+
+    const fullOpt = measurements.find((m) => m.variant === 'full_optimization');
+    const evidenceSummary = `Ablation on '${task.title}': full optimization achieved ${fullOpt?.tokenSavingsVsBaselinePercent !== null ? `${fullOpt?.tokenSavingsVsBaselinePercent}%` : 'N/A'} savings vs unoptimized baseline.`;
+
+    return {
+      taskId: task.id,
+      taskTitle: task.title,
+      variants: measurements,
       evidenceSummary,
     };
   }

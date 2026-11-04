@@ -30,8 +30,25 @@ import {
   type StrategyMeasurement,
   type StrategyAggregate,
   type StrategyComparisonResult,
+  type ConfigName,
+  type ConfigMeasurement,
+  type ConfigAggregate,
+  type FiveConfigComparisonResult,
+  type AblationMeasurement,
+  type AblationSuiteResult,
 } from './suite/benchmark';
 import { TaskWorkspace, getCodingTasksDir } from './runtime/workspace';
+import {
+  ContextCompiler,
+  TokenizerService,
+  PromptCompiler,
+  IncrementalEditManager,
+  DeterministicModelSelector,
+  type ContextCompilationResult,
+  type CompiledPrompt,
+  type WorkspaceRevisionSnapshot,
+  type ModelSelectionDecision,
+} from './compiler/index';
 
 export type {
   GovernancePolicy,
@@ -39,6 +56,16 @@ export type {
   StrategyMeasurement,
   StrategyAggregate,
   StrategyComparisonResult,
+  ConfigName,
+  ConfigMeasurement,
+  ConfigAggregate,
+  FiveConfigComparisonResult,
+  AblationMeasurement,
+  AblationSuiteResult,
+  ContextCompilationResult,
+  CompiledPrompt,
+  WorkspaceRevisionSnapshot,
+  ModelSelectionDecision,
 };
 export {
   BifrostClient,
@@ -59,6 +86,11 @@ export {
   ComparativeBenchmarkSuite,
   TaskWorkspace,
   getCodingTasksDir,
+  ContextCompiler,
+  TokenizerService,
+  PromptCompiler,
+  IncrementalEditManager,
+  DeterministicModelSelector,
 };
 
 export const bifrost01: AgentAdapter = {

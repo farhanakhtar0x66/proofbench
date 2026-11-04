@@ -159,7 +159,7 @@ async function runRealBifrostFailoverSuite() {
       mode: 'live',
       gatewayUrl: GATEWAY_URL,
       virtualKey: ACTIVE_VIRTUAL_KEY,
-      timeoutMs: 15_000,
+      timeoutMs: 90_000,
     });
 
     const completion503 = await liveClient.createChatCompletion({

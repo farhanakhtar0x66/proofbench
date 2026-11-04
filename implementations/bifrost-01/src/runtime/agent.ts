@@ -22,6 +22,14 @@ import { M2StagnationDetector } from '../progress/m2-stagnation';
 import { M3aFailureAutopsyBuilder } from '../handoff/m3a-autopsy';
 import { TavilyDocumentationVerifier } from '../tavily/verifier';
 import { TaskWorkspace } from './workspace';
+import {
+  ContextCompiler,
+  PromptCompiler,
+  IncrementalEditManager,
+  DeterministicModelSelector,
+  type DiagnosticRecord,
+  type ContextCompilationResult,
+} from '../compiler/index';
 
 export interface ProofBenchAgentOptions {
   bifrostClient?: BifrostClient;
@@ -34,6 +42,10 @@ export interface ProofBenchAgentOptions {
   enableM2StagnationBreaker?: boolean;
   enableM3aAutopsyEscalation?: boolean;
   enableTavilyDocumentation?: boolean;
+  enableContextCompiler?: boolean;
+  enablePromptCompiler?: boolean;
+  enableIncrementalEdits?: boolean;
+  enableModelSelectionPolicy?: boolean;
 }
 
 export class ProofBenchAgent {
@@ -41,12 +53,18 @@ export class ProofBenchAgent {
   public policy: GovernancePolicy;
   public approvalEngine: HostApprovalEngine;
   public m1Selector: M1ContextSelector;
+  public contextCompiler: ContextCompiler;
+  public modelSelector: DeterministicModelSelector;
   public primaryModel: string;
   public recoveryModel: string;
   private enableM1: boolean;
   private enableM2: boolean;
   private enableM3a: boolean;
   private enableTavily: boolean;
+  public enableContextCompiler: boolean;
+  public enablePromptCompiler: boolean;
+  public enableIncrementalEdits: boolean;
+  public enableModelSelectionPolicy: boolean;
 
   constructor(options: ProofBenchAgentOptions = {}) {
     this.policy = createDefaultPolicy(options.policy);
@@ -73,7 +91,17 @@ export class ProofBenchAgent {
     this.enableM2 = options.enableM2StagnationBreaker ?? true;
     this.enableM3a = options.enableM3aAutopsyEscalation ?? true;
     this.enableTavily = options.enableTavilyDocumentation ?? true;
+    this.enableContextCompiler = options.enableContextCompiler ?? true;
+    this.enablePromptCompiler = options.enablePromptCompiler ?? true;
+    this.enableIncrementalEdits = options.enableIncrementalEdits ?? true;
+    this.enableModelSelectionPolicy = options.enableModelSelectionPolicy ?? false;
+
     this.m1Selector = new M1ContextSelector({ maxTokenBudget: 4000 });
+    this.contextCompiler = new ContextCompiler({ maxTokenBudget: 3500 });
+    this.modelSelector = new DeterministicModelSelector({
+      smallModel: this.primaryModel,
+      frontierModel: this.recoveryModel,
+    });
   }
 
   async runTask(task: TaskSpec, seed = 0): Promise<{ run: RunRecord; trace: ExecutionTrace; report: EvidenceReport }> {
@@ -132,7 +160,12 @@ export class ProofBenchAgent {
     let lastErrorOutput = '';
     let observedRoutingProvider = 'bifrost';
 
+    const incrementalManager = new IncrementalEditManager(workspace.workspacePath, this.approvalEngine);
+    const diagnosticsHistory: DiagnosticRecord[] = [];
+
     try {
+      await incrementalManager.captureSnapshot();
+
       // Check baseline status before edits
       const initialTest = await workspace.runAcceptanceTests();
       if (initialTest.passed) {
@@ -144,13 +177,61 @@ export class ProofBenchAgent {
         });
       }
 
+      // Initial Evidence-Based Model Selection (Phase D)
+      if (this.enableModelSelectionPolicy) {
+        const initialContext = await this.contextCompiler.compileContext(workspace.workspacePath, '', task.prompt);
+        const decision = this.modelSelector.selectModel(initialContext, [], task.prompt);
+        currentModel = decision.recommendedModel;
+        if (decision.recoveryModelTarget) {
+          this.recoveryModel = decision.recoveryModelTarget;
+        }
+        addEvent('output', `Evidence-based model selection policy: strategy=${decision.strategy} -> model=${currentModel} (${decision.rationale[0]})`, {
+          model: currentModel,
+          strategy: decision.strategy,
+          rulesTriggered: decision.rulesTriggered,
+          features: decision.features,
+        });
+      }
+
       let attempt = 0;
       while (!taskCompleted && attempt < this.policy.maxTurns) {
         attempt++;
 
-        // Step 1: M1 Context Selection
+        // Step 1: Context Compilation (Phase A)
         let contextText = '';
-        if (this.enableM1) {
+        let lastContextResult: ContextCompilationResult | null = null;
+
+        if (this.enableContextCompiler && this.enableM1) {
+          const cResult = await this.contextCompiler.compileContext(
+            workspace.workspacePath,
+            lastErrorOutput,
+            task.prompt
+          );
+          lastContextResult = cResult;
+          if (cResult.status === 'context_overflow') {
+            addEvent('error', `Context Compiler overflow: ${cResult.reason}`, {
+              model: currentModel,
+              attempt,
+            });
+            break;
+          }
+          if (cResult.status === 'mandatory_context_missing') {
+            addEvent('output', `Context Compiler detected missing mandatory dependencies: ${cResult.missingMandatorySymbols.join(', ')}`, {
+              model: currentModel,
+              attempt,
+              missing: cResult.missingMandatorySymbols,
+            });
+          }
+          contextText = cResult.formattedContext;
+          addEvent('output', `Context compiled (${cResult.totalTokens} tokens [${cResult.tokenCountMode}], ${cResult.selectedItems.length} symbols, ${cResult.omissionLedger.length} omissions)`, {
+            model: currentModel,
+            attempt,
+            tokens: cResult.totalTokens,
+            tokenCountMode: cResult.tokenCountMode,
+            symbolsCount: cResult.selectedItems.length,
+            omissionsCount: cResult.omissionLedger.length,
+          });
+        } else if (this.enableM1) {
           const m1Result = await this.m1Selector.selectContext(
             workspace.workspacePath,
             lastErrorOutput,
@@ -198,8 +279,9 @@ export class ProofBenchAgent {
 
         // Step 2: Tavily Documentation Verification
         let tavilyContext = '';
+        let tavilyRes: Awaited<ReturnType<typeof TavilyDocumentationVerifier.verifyCodePlanClaims>> | null = null;
         if (this.enableTavily) {
-          const tavilyRes = await TavilyDocumentationVerifier.verifyCodePlanClaims(task.prompt, this.policy);
+          tavilyRes = await TavilyDocumentationVerifier.verifyCodePlanClaims(task.prompt, this.policy);
           if (tavilyRes.allowed && tavilyRes.injectedContext) {
             tavilyContext = tavilyRes.injectedContext;
             addEvent('output', `Tavily documentation verified (${tavilyRes.claimsVerified.length} claims checked)`, {
@@ -214,7 +296,58 @@ export class ProofBenchAgent {
           }
         }
 
-        // Step 3: Bifrost Gateway Model Request
+        // Step 3: Prompt Compilation (Phase B)
+        let messages: Array<{ role: 'system' | 'user'; content: string }>;
+        if (this.enablePromptCompiler && lastContextResult) {
+          const incrementalNotice = incrementalManager.getIncrementalNotice() ?? undefined;
+          const compiledPrompt = PromptCompiler.compile({
+            task,
+            contextResult: lastContextResult,
+            diagnosticsHistory,
+            tavilyEvidence: tavilyRes?.injectedContext ? {
+              claimsVerified: tavilyRes.claimsVerified.map((c) => ({ text: c.claimText, outcome: c.outcome, freshness: c.freshness })),
+              injectedContext: tavilyRes.injectedContext,
+            } : undefined,
+            m3aAutopsyPacket: pendingHandoffPacket,
+            incrementalEditsNotice: incrementalNotice,
+            maxInputBudget: 6000,
+            maxOutputBudget: 2000,
+            activeModel: currentModel,
+          });
+          pendingHandoffPacket = null;
+          messages = compiledPrompt.messages;
+          addEvent('output', `Prompt compiled (${compiledPrompt.inputTokens} input tokens [${compiledPrompt.tokenCountMode}], ${compiledPrompt.trustBoundaries.prunedDiagnosticCount} pruned diagnostics)`, {
+            model: currentModel,
+            attempt,
+            inputTokens: compiledPrompt.inputTokens,
+            tokenCountMode: compiledPrompt.tokenCountMode,
+            prunedDiagnostics: compiledPrompt.trustBoundaries.prunedDiagnosticCount,
+          });
+        } else {
+          const userPrompt = pendingHandoffPacket
+            ? `${pendingHandoffPacket}\n\nTask: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}`
+            : `Task: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}\n\nPrevious compiler output:\n${lastErrorOutput || 'None yet'}`;
+          pendingHandoffPacket = null;
+
+          messages = [
+            {
+              role: 'system' as const,
+              content: `You are an expert Rust coding agent. Fix the bug or implement the feature to satisfy acceptance tests.
+You may output file modifications via write_file tool calls or formatted markdown code blocks:
+// File: <relative-path>
+\`\`\`rust
+<complete file content>
+\`\`\`
+Always output the complete valid file content for the target file.
+CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros (e.g. #[derive(Debug, Clone)]), imports (use ...), and existing public APIs in the file. Ensure public functions, methods, and types retain 'pub' visibility. Output only the complete valid file content for the target file.`,
+            },
+            {
+              role: 'user' as const,
+              content: userPrompt,
+            },
+          ];
+        }
+
         if (recoveryActive) {
           addEvent('output', `Dispatching recovery turn ${attempt} to authorized model ${currentModel} with M3a failure autopsy packet`, {
             model: currentModel,
@@ -228,29 +361,6 @@ export class ProofBenchAgent {
             isRecovery: false,
           });
         }
-
-        const userPrompt = pendingHandoffPacket
-          ? `${pendingHandoffPacket}\n\nTask: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}`
-          : `Task: ${task.prompt}\n\n${contextText}\n\n${tavilyContext}\n\nPrevious compiler output:\n${lastErrorOutput || 'None yet'}`;
-        pendingHandoffPacket = null;
-
-        const messages = [
-          {
-            role: 'system' as const,
-            content: `You are an expert Rust coding agent. Fix the bug or implement the feature to satisfy acceptance tests.
-You may output file modifications via write_file tool calls or formatted markdown code blocks:
-// File: <relative-path>
-\`\`\`rust
-<complete file content>
-\`\`\`
-Always output the complete valid file content for the target file.
-CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros (e.g. #[derive(Debug, Clone)]), imports (use ...), and existing public APIs in the file. Ensure public functions, methods, and types retain 'pub' visibility. Output only the complete valid file content for the target file.`,
-          },
-          {
-            role: 'user' as const,
-            content: userPrompt,
-          },
-        ];
 
         let gatewayResponse;
         try {
@@ -288,103 +398,146 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
           }
         }
 
-        // Step 4: Parse Real Model Action(s) — No solution copying!
-        const proposedModifications = this.parseModelActions(gatewayResponse);
-        if (proposedModifications.length === 0) {
-          addEvent('error', `Turn ${attempt}: No actionable file modifications or code blocks found in model response.`, {
-            model: currentModel,
-            attempt,
-          });
-          if (this.enableM2) {
-            const stagnation = m2Detector.recordAttempt({
-              patch: '',
-              rawError: 'No code modifications proposed by model',
-              exitCode: 1,
-            });
-            if (stagnation.shouldHalt) {
-              addEvent('error', `M2 Loop Breaker: ${stagnation.message}`, {
-                model: currentModel,
-                attempt,
-                stagnationReason: stagnation.reason,
-              });
-              break;
-            }
-          }
-          continue;
-        }
-
-        // Step 5 & 6: Validate, Approve & Apply each modification inside workspace
+        // Step 4: Parse Real Model Action(s) — Full file or Localized Search/Replace (Phase C)
+        let appliedAny = false;
         let allApproved = true;
         let lastAppliedPatch = '';
 
-        for (let modIdx = 0; modIdx < proposedModifications.length; modIdx++) {
-          const mod = proposedModifications[modIdx];
-          const normalizedRelPath = path.normalize(mod.path).replace(/^[/\\]+/, '');
+        const responseContent = gatewayResponse.choices?.[0]?.message?.content || '';
 
-          // Safety check 1: Path traversal protection
-          if (
-            normalizedRelPath.startsWith('..') ||
-            path.isAbsolute(normalizedRelPath) ||
-            normalizedRelPath.includes('\0')
-          ) {
-            addEvent('error', `Security rejection: path traversal attempt detected in target path '${mod.path}'`, {
+        if (this.enableIncrementalEdits) {
+          const proposedMods = IncrementalEditManager.parseProposedModifications(responseContent);
+          if (proposedMods.length > 0) {
+            const editResult = await incrementalManager.applyModifications(proposedMods, attempt);
+            if (!editResult.success && editResult.errors.length > 0) {
+              for (const err of editResult.errors) {
+                if (err.includes('Action rejected by host approval engine')) {
+                  addEvent('error', err, {
+                    model: currentModel,
+                    attempt,
+                    errors: editResult.errors,
+                  });
+                } else {
+                  addEvent('error', `Incremental edit validation error: ${err}`, {
+                    model: currentModel,
+                    attempt,
+                    errors: editResult.errors,
+                  });
+                }
+              }
+              allApproved = false;
+            } else {
+              appliedAny = true;
+              for (const ap of editResult.appliedModifications) {
+                addEvent('output', `Host approval granted & applied ${ap.type} to ${ap.path} (${ap.bytesWritten} bytes, rev: ${ap.newRevision}). Wrote updated content to ${ap.path}`, {
+                  model: currentModel,
+                  attempt,
+                  path: ap.path,
+                  type: ap.type,
+                  revision: ap.newRevision,
+                });
+              }
+              lastAppliedPatch = proposedMods.map((m) => m.replaceBlock || m.content || '').join('\n');
+            }
+          }
+        }
+
+        // If incremental edits did not parse or wasn't enabled, fallback to tool call parser
+        if (!appliedAny && allApproved) {
+          const proposedModifications = this.parseModelActions(gatewayResponse);
+          if (proposedModifications.length === 0) {
+            addEvent('error', `Turn ${attempt}: No actionable file modifications or code blocks found in model response.`, {
               model: currentModel,
               attempt,
-              path: mod.path,
             });
-            allApproved = false;
-            break;
+            if (this.enableM2) {
+              const stagnation = m2Detector.recordAttempt({
+                patch: '',
+                rawError: 'No code modifications proposed by model',
+                exitCode: 1,
+              });
+              if (stagnation.shouldHalt) {
+                addEvent('error', `M2 Loop Breaker: ${stagnation.message}`, {
+                  model: currentModel,
+                  attempt,
+                  stagnationReason: stagnation.reason,
+                });
+                break;
+              }
+            }
+            continue;
           }
 
-          // Safety check 2: Workspace boundary containment
-          const targetAbsPath = path.resolve(workspace.workspacePath, normalizedRelPath);
-          if (!targetAbsPath.startsWith(path.resolve(workspace.workspacePath))) {
-            addEvent('error', `Security rejection: path escapes workspace boundaries: '${mod.path}'`, {
-              model: currentModel,
-              attempt,
-              path: mod.path,
-            });
-            allApproved = false;
-            break;
-          }
+          for (let modIdx = 0; modIdx < proposedModifications.length; modIdx++) {
+            const mod = proposedModifications[modIdx];
+            const normalizedRelPath = path.normalize(mod.path).replace(/^[/\\]+/, '');
 
-          // Safety check 3: Host Approval Check
-          const action: ProposedToolAction = {
-            id: `act-${attempt}-${modIdx + 1}`,
-            tool: 'write_file',
-            parameters: { path: normalizedRelPath, content: mod.content },
-            category: 'write',
-          };
+            // Safety check 1: Path traversal protection
+            if (
+              normalizedRelPath.startsWith('..') ||
+              path.isAbsolute(normalizedRelPath) ||
+              normalizedRelPath.includes('\0')
+            ) {
+              addEvent('error', `Security rejection: path traversal attempt detected in target path '${mod.path}'`, {
+                model: currentModel,
+                attempt,
+                path: mod.path,
+              });
+              allApproved = false;
+              break;
+            }
 
-          const approval = await this.approvalEngine.evaluateAction(action);
-          if (!approval.approved) {
-            addEvent('error', `Action rejected by host approval engine: ${approval.reason}`, {
+            // Safety check 2: Workspace boundary containment
+            const targetAbsPath = path.resolve(workspace.workspacePath, normalizedRelPath);
+            if (!targetAbsPath.startsWith(path.resolve(workspace.workspacePath))) {
+              addEvent('error', `Security rejection: path escapes workspace boundaries: '${mod.path}'`, {
+                model: currentModel,
+                attempt,
+                path: mod.path,
+              });
+              allApproved = false;
+              break;
+            }
+
+            // Safety check 3: Host Approval Check
+            const action: ProposedToolAction = {
+              id: `act-${attempt}-${modIdx + 1}`,
+              tool: 'write_file',
+              parameters: { path: normalizedRelPath, content: mod.content },
+              category: 'write',
+            };
+
+            const approval = await this.approvalEngine.evaluateAction(action);
+            if (!approval.approved) {
+              addEvent('error', `Action rejected by host approval engine: ${approval.reason}`, {
+                model: currentModel,
+                attempt,
+                tool: action.tool,
+                path: normalizedRelPath,
+              });
+              allApproved = false;
+              break;
+            }
+
+            addEvent('output', `Host approval granted for action: ${action.tool} on ${normalizedRelPath}`, {
               model: currentModel,
               attempt,
               tool: action.tool,
               path: normalizedRelPath,
             });
-            allApproved = false;
-            break;
+
+            // Execute Approved Action inside workspace
+            await fs.mkdir(path.dirname(targetAbsPath), { recursive: true });
+            await fs.writeFile(targetAbsPath, mod.content, 'utf8');
+            addEvent('output', `Wrote updated content to ${normalizedRelPath} (${mod.content.length} bytes)`, {
+              model: currentModel,
+              attempt,
+              path: normalizedRelPath,
+              bytes: mod.content.length,
+            });
+            lastAppliedPatch = mod.content;
+            appliedAny = true;
           }
-
-          addEvent('output', `Host approval granted for action: ${action.tool} on ${normalizedRelPath}`, {
-            model: currentModel,
-            attempt,
-            tool: action.tool,
-            path: normalizedRelPath,
-          });
-
-          // Execute Approved Action inside workspace
-          await fs.mkdir(path.dirname(targetAbsPath), { recursive: true });
-          await fs.writeFile(targetAbsPath, mod.content, 'utf8');
-          addEvent('output', `Wrote updated content to ${normalizedRelPath} (${mod.content.length} bytes)`, {
-            model: currentModel,
-            attempt,
-            path: normalizedRelPath,
-            bytes: mod.content.length,
-          });
-          lastAppliedPatch = mod.content;
         }
 
         if (!allApproved) {
@@ -394,6 +547,15 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
         // Step 7: Independent Test Verification
         const testResult = await workspace.runAcceptanceTests();
         lastErrorOutput = testResult.output;
+
+        // Record diagnostic history for prompt compiler deduplication & pruning (Phase B)
+        diagnosticsHistory.push({
+          attempt,
+          rawOutput: testResult.output,
+          exitCode: testResult.exitCode,
+          passedCount: testResult.passedCount,
+          failedCount: testResult.failedCount,
+        });
 
         if (testResult.passed) {
           taskCompleted = true;
@@ -605,7 +767,18 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
         verification: null,
         limitations: [
           'Independent acceptance test execution verified through cargo test.',
-          'M1 context selection utilizes regex/brace scanning for symbol extraction, not Tree-sitter or verified LSP.',
+          this.enableContextCompiler
+            ? 'Context Compiler utilizes Tree-sitter Rust AST parsing for symbol, import, and dependency extraction with recursive traversal and an omission ledger.'
+            : 'M1 context selection utilizes regex/brace scanning for symbol extraction, not Tree-sitter or verified LSP.',
+          this.enablePromptCompiler
+            ? 'Deterministic Prompt Compiler enforces invariant system prefixes, deduplicates diagnostics, and marks trust boundaries.'
+            : 'Standard unstructured prompt assembly.',
+          this.enableIncrementalEdits
+            ? 'Incremental workspace revision tracking with SHA-256 hashes and support for localized search/replace blocks.'
+            : 'Full file rewriting mode only.',
+          this.enableModelSelectionPolicy
+            ? 'Evidence-based deterministic model selection policy derived from observable engineering features.'
+            : 'Static model assignment with M3a failure escalation.',
           'M2 stagnation detection utilizes SHA-256 patch and error output hashes, not full structural AST progress control.',
           'M3a failure autopsy utilizes character-ratio token approximations rather than exact model tokenizer profiles.',
           'Workspace isolation uses temporary directory creation and sanitized process environments; not a hardware virtual-machine sandbox.',
