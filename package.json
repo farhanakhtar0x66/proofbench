@@ -33,6 +33,8 @@
     "evaluate:general": "node --import tsx scripts/evaluate-general.ts",
     "evaluate:topics": "node --import tsx scripts/evaluate-topics.ts",
     "evaluate:topics:live": "node --env-file-if-exists=.env --import tsx scripts/run-topic-validation.ts",
+    "evaluate:focused:prepare": "node --import tsx scripts/prepare-focused-recheck.ts",
+    "evaluate:focused:live": "node --env-file-if-exists=.env --import tsx scripts/run-topic-validation.ts --focused",
     "evaluate:verifier": "node --import tsx scripts/evaluate-verifier.ts",
     "benchmark:language": "node --import tsx scripts/benchmark-language.ts",
     "benchmark:bifrost": "node --env-file-if-exists=.env --import tsx scripts/benchmark-language.ts --bifrost",

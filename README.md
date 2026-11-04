@@ -48,6 +48,8 @@ The [first real ten-case topic batch](docs/LIVE-TOPIC-RESULTS.md) used eight Bas
 
 [Retrieval coverage improvements](docs/RETRIEVAL-COVERAGE.md) request page text within the same Basic search, rank relevant subject/website candidates and distinguish explicitly dated completed events from current claims. Offline tests cover context recovery and historical corroboration; no new API calls or improved live-accuracy claim accompanied this change.
 
+`npm run evaluate:focused:prepare` prepares [four focused recheck cases](docs/FOCUSED-RECHECK.md), including original live baselines and strict future request ceilings. Preparation makes no API requests; the separately gated live runner is not enabled by this command.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |

@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "baselineRun": "live-BsGphp",
+  "baselineStage": "Original live batch before evidence and retrieval fixes; not the subsequent scripted replay.",
+  "cases": [
+    {"id": "leadership-current", "baselineOutcome": "inconclusive", "purpose": "Check whether page text recovers directly scoped current Tesla leadership evidence."},
+    {"id": "pricing-explicit-currency", "baselineOutcome": "inconclusive", "purpose": "Check relevant GitHub Team base pricing evidence with explicit USD and matching billing scope."},
+    {"id": "sports-wrong-player-limit", "baselineOutcome": "inconclusive", "purpose": "Check whether fuller rule text contradicts twelve players; eleven must never count as support for twelve."},
+    {"id": "law-application-date", "baselineOutcome": "supported", "purpose": "Historical control: keep the correct GDPR application-date verdict without presenting historical support as current freshness."}
+  ]
+}
