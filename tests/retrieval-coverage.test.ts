@@ -46,9 +46,9 @@ it('keeps full-text date warnings after passage selection omits the date label',
  expect(comparison.citations.every(source=>!source.eligible)).toBe(true);expect(model).not.toHaveBeenCalled();
 });
 it('retains scan-limit warnings instead of treating a bounded raw scan as a full-page review',async()=>{
- const raw=`Taylor is CEO of Acme.\n\n${'Background. '.repeat(2000)}`;
+ const raw=`Taylor is CEO of Acme.\n\n${'Background. '.repeat(20000)}`;
  const report=await retrieveClaimEvidence({version:'1',claim},{...settings,fetch:async()=>Response.json({results:[page('https://source.example',raw)]})});
- expect(report.evidence[0].excerptSelection?.warning).toContain('20,000');
+ expect(report.evidence[0].excerptSelection?.warning).toContain('200,000');
  expect(report.evidence[0].excerptSelection?.sourceLength).toBe(raw.length);
 });
 it('prefers a matching website hint only after relevance/quality, without promoting source authority',async()=>{

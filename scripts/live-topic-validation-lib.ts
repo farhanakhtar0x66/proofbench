@@ -1,5 +1,6 @@
 import {createApp} from '../apps/api/src/app';
 import {AnalysisReport} from '../packages/contracts/src/index';
+import {readBoundedSearchJson} from '../packages/tavily/src/response-json';
 
 type Case={id:string;claim:string;expected:'supported'|'contradicted'|'inconclusive'};
 type Result={id:string;expected:Case['expected'];status:'not_run'|'completed';actual:Case['expected']|null;elapsedMs:number|null;report:ReturnType<typeof AnalysisReport.parse>|null};
@@ -10,7 +11,7 @@ export type TopicBatchReport={
 };
 
 // Standalone evaluation only. Replaces process fetch temporarily; never invoke in a serving app.
-export async function runLiveTopicBatch(options:{cases:Case[];dataDir:string;endpoint:string;limits:{tavily:number;model:number};fetcher?:typeof fetch;checkpoint?:(report:TopicBatchReport)=>Promise<void>}){
+export async function runLiveTopicBatch(options:{cases:Case[];dataDir:string;endpoint:string;limits:{tavily:number;model:number};fetcher?:typeof fetch;checkpoint?:(report:TopicBatchReport)=>Promise<void>;captureSearch?:(payload:unknown,attempt:number)=>Promise<void>}){
  const {cases,limits}=options;
  if(!cases.length||cases.length>10||new Set(cases.map(item=>item.id)).size!==cases.length)throw new Error('One to ten unique cases required');
  if(!Object.values(limits).every(value=>Number.isInteger(value)&&value>=0&&value<=9))throw new Error('Live limits must be integers between zero and nine');
@@ -33,6 +34,7 @@ export async function runLiveTopicBatch(options:{cases:Case[];dataDir:string;end
    try{
     const response=await upstream(input,{...init,redirect:'error'});
     if(!response.ok)stop(`${kind} HTTP failure (${response.status}); no retry`);
+    if(kind==='tavily'&&response.ok&&options.captureSearch)await options.captureSearch(await readBoundedSearchJson(response.clone()),report.attempts.tavily);
     return response;
    }catch{stop(`${kind} transport failure; no retry`);throw new Error('Provider transport failed');}
   };

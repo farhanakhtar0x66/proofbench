@@ -1,6 +1,9 @@
 import {roleClaimAnchors} from './evidence-relevance';
 import {supportClaimSubject} from './support-scope';
 import {priceCurrencyEvidenceReason} from './claim-ambiguity';
+import {selectSourcePassages} from './source-passages';
+import {completedEventClaim} from './completed-event';
+import {claimEntity} from './comparison';
 
 const tokens=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/([\p{L}])(?=\d)/gu,'$1 ').match(/[\p{L}\p{N}]+/gu)??[];
 const phrase=(text:string,term:string)=>` ${tokens(text).join(' ')} `.includes(` ${tokens(term).join(' ')} `);
@@ -24,43 +27,32 @@ export function excerptQualityReason(claim:string,excerpt:string):string|undefin
 }
 
 export function selectEvidenceExcerpt(claim:string,content:string){
- const sourceLength=content.length;const scan=content.slice(0,20000);
- const ranges:{start:number;end:number;score:number}[]=[];
+ const sourceLength=content.length;
  const role=roleClaimAnchors(claim);const subject=supportClaimSubject(claim);
- const anchors=[...new Set(tokens(claim).filter(word=>word.length>2&&!/^(?:the|and|for|are|not|currently|supported|costs|with|from|that|this)$/u.test(word)))];
+ const event=completedEventClaim(claim,new Date().toISOString());
+ const priceSubject=/\b(?:costs?|prices?|pricing)\b/iu.test(claim)?claimEntity(claim):undefined;
+ const countUnit=claim.match(/\b(?:at most|at least|maximum of|minimum of)\s+(?:\d+|[a-z]+)\s+(players?|members?|seats?|users?|requests?|items?)\b/iu)?.[1].replace(/s$/u,'');
+ const anchors=[...new Set(tokens(claim).filter(word=>word.length>2&&!/^\d+$/u.test(word)&&!/^(?:the|and|for|are|not|currently|supported|costs|with|from|that|this|became|was|may|january|february|march|april|june|july|august|september|october|november|december|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)$/u.test(word)))];
  const score=(text:string)=>{
   const quality=excerptQualityReason(claim,text);
   if(quality&&/package identifiers|encoded images|login or subscription|image caption/u.test(quality))return -1;
-  if(subject&&phrase(text,subject)&&supportTerms.test(text))return 10;
-  if(role&&phrase(text,role.entity)&&role.roles.some(word=>phrase(text,word)))return 10;
+  if(subject)return phrase(text,subject)&&supportTerms.test(text)?10:0;
+  if(role)return phrase(text,role.entity)&&role.roles.some(word=>phrase(text,word))?10:0;
+  if(priceSubject)return phrase(text,priceSubject)&&/\b(?:costs?|prices?|pricing|USD|dollars?|per user|monthly)\b|\$\s*\d/iu.test(text)?10:0;
+  if(event){
+   const subjects=tokens(event.subject).filter(word=>word.length>2&&word!=='the');
+   return subjects.some(word=>phrase(text,word))&&/\b(?:applicab\w*|appl(?:y|ies|ied|ication)|effect|released?|founded|established)\b/iu.test(text)&&/\b\d{4}\b/u.test(text)?10:0;
+  }
+  if(countUnit)return new RegExp(`\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\\s+${countUnit}s?\\b|\\b${countUnit}s?\\b.{0,60}\\b\\d+\\b`,'iu').test(text)?10:0;
   return Math.min(5,anchors.filter(word=>phrase(text,word)).length);
  };
- const add=(start:number,end:number)=>{
-  while(start<end&&/\s/u.test(scan[start]))start++;
-  while(end>start&&/\s/u.test(scan[end-1]))end--;
-  if(start<end)ranges.push({start,end,score:score(scan.slice(start,end))});
- };
- let start=0;
- for(const match of scan.matchAll(/\n\s*\n|\[\.\.\.\]/gu)){add(start,match.index);start=match.index+match[0].length;}
- add(start,scan.length);
- let chosen=ranges[0]??{start:0,end:0,score:0};
  if(content.trim().length>1200){
-  const fitting=ranges.filter(range=>range.end-range.start<=1200);
-  if(fitting.length)chosen=fitting.reduce((best,range)=>range.score>best.score?range:best);
-  // A high-scoring oversized paragraph cannot safely be excerpted at a sentence
-  // boundary without risking loss of its qualifications. Keep it and warn below.
+  const selected=selectSourcePassages(content,score);
+  const first=selected.passages[0];const last=selected.passages.at(-1)!;
+  const warning=selected.warning??excerptQualityReason(claim,selected.excerpt);
+  return {excerpt:selected.excerpt,passages:selected.passages.length>1?selected.passages:undefined,selection:{start:first.start,end:last.end,sourceLength,reason:selected.passages.length>1?'Selected exact source blocks in source order; [...] marks omitted text.':'Selected a complete source block using claim anchors; wording is unchanged.',...(warning?{warning}:{})}};
  }
- let left=chosen.start;let right=chosen.end;
- if(content.trim().length<=1200){left=content.search(/\S/u);right=content.trimEnd().length;}
- else if(right-left<=1200){
-  const index=ranges.indexOf(chosen);
-  if(index>0&&right-ranges[index-1].start<=1200)left=ranges[index-1].start;
-  if(index+1<ranges.length&&ranges[index+1].end-left<=1200)right=ranges[index+1].end;
- }
- left=Math.max(0,left);const clipped=right-left>1200;right=Math.min(right,left+1200);
- const excerpt=content.slice(left,right);
- const relevant=ranges.filter(range=>range.score>=2);
- const uncovered=relevant.some(range=>range.start<left||range.end>right);
- const warning=sourceLength>20000?'Only the first 20,000 source characters were inspected; fuller context requires review.':clipped?'The excerpt cuts a paragraph at the length limit; its missing qualifications require fuller review.':uncovered?'Other potentially relevant passages were omitted by the excerpt limit; conflicting context may require fuller review.':excerptQualityReason(claim,excerpt);
- return {excerpt,selection:{start:left,end:right,sourceLength,reason:left>0?'Selected a contiguous passage using heuristic claim anchors; wording is unchanged.':'Retained the initial source passage; wording is unchanged.',...(warning?{warning}:{})}};
+ const start=Math.max(0,content.search(/\S/u));const end=content.trimEnd().length;
+ const excerpt=content.slice(start,end);const warning=excerptQualityReason(claim,excerpt);
+ return {excerpt,passages:undefined,selection:{start,end,sourceLength,reason:'Retained the complete short source text; wording is unchanged.',...(warning?{warning}:{})}};
 }

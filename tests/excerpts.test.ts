@@ -23,9 +23,11 @@ it('preserves paragraph qualifiers and abstains when the paragraph cannot fit',(
  const content=`Python 2 is supported ${'under separately negotiated conditions '.repeat(40)}only by an independent vendor, not by the upstream project.`;
  const result=selectEvidenceExcerpt(claim,content);expect(result.excerpt).toHaveLength(1200);expect(result.selection.warning).toContain('cuts a paragraph');
 });
-it('warns rather than cherry-picking when relevant paragraphs are too far apart',()=>{
+it('keeps separated opposing passages together with explicit omission metadata',()=>{
  const content=`Python 2 is supported by Vendor A.\n\n${'Unrelated context '.repeat(100)}\n\nPython 2 is not supported upstream.`;
- expect(selectEvidenceExcerpt(claim,content).selection.warning).toContain('Other potentially relevant passages');
+ const selected=selectEvidenceExcerpt(claim,content);
+ expect(selected.excerpt).toContain('supported by Vendor A');expect(selected.excerpt).toContain('not supported upstream');
+ expect(selected.passages).toHaveLength(2);expect(selected.excerpt).toContain('[...]');
 });
 it.each([
  packages,
@@ -39,7 +41,7 @@ it('selects role evidence without requiring the originally asserted person to ap
  const result=selectEvidenceExcerpt('Alex is captain of Acme FC.',content);expect(result.excerpt).toContain('Taylor is the club captain');expect(result.selection.warning).toBeUndefined();
 });
 it('bounds source inspection and discloses unseen context',()=>{
- const result=selectEvidenceExcerpt(claim,'x'.repeat(21000));expect(result.excerpt).toHaveLength(1200);expect(result.selection.warning).toContain('20,000');
+ const result=selectEvidenceExcerpt(claim,'x'.repeat(210000));expect(result.excerpt).toHaveLength(1200);expect(result.selection.warning).toContain('200,000');
 });
 it('reuses cached raw search text to select a useful passage and sends no additional search',async()=>{
  const content=`${packages}\n\n${statement}`;const now=new Date().toISOString();

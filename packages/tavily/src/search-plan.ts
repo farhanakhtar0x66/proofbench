@@ -2,6 +2,7 @@ import {captainClaimScope} from './captain-scope';
 import {supportClaimSubject} from './support-scope';
 import {datedEndOfLifeClaim} from './historical-support';
 import {completedEventClaim} from './completed-event';
+import {parsePrice} from './pricing';
 
 export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_stated',now=new Date()){
  const literal=claim.replace(/\s+/gu,' ');
@@ -21,6 +22,12 @@ export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_
  const role=qualified?null:literal.match(/^.+?\s+(?:is|serves as)\s+(?:(?:not|currently)\s+){0,2}(?:the\s+)?((?:club |team |first-team )?captain|CEO|president|prime minister|chairperson|head coach)\s+(?:of|for)\s+(.+)$/iu);
  const possessive=qualified?null:literal.match(/^(.+?)(?:'s|’s)\s+(?:current\s+)?(?:club\s+|team\s+|first-team\s+)?captain\s+is\s+(?:not\s+)?.+$/iu);
  let query=`${literal} current official sources`;
+ const price=parsePrice(literal);
+ if(price){
+  const [,currency,period,...qualifiers]=price.scope.split('/');
+  const explicit=qualifiers.filter(value=>!value.endsWith(':unspecified')).map(value=>value.replace('region:','region ').replace('billing:','billed ')).join(' ');
+  query=`${price.entity} current ${currency.toUpperCase()} pricing per ${period}${explicit?` ${explicit}`:''} official sources`;
+ }
  if(role){
   const target=role[2].replace(/[.!]+$/u,'');
   query=/\bcaptain\b/iu.test(role[1])&&captainClaimScope(literal)==='appointment'?`${target} current club captains captaincy appointment official sources`:`${target} current ${role[1]} official sources`;

@@ -19,9 +19,9 @@ function simulatedFetch(modelStatus=200,invalid=false):typeof fetch{
   return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:invalid?'{}':JSON.stringify({assessments:context.sources.map((source:{sourceId:string;excerpt:string})=>({sourceId:source.sourceId,relation:context.claim===cases[0].claim?'supports':'contradicts',quote:source.excerpt})),correction:null})}}]});
  };
 }
-async function run(fetcher:typeof fetch,limits={tavily:9,model:9}){
+async function run(fetcher:typeof fetch,limits={tavily:9,model:9},captureSearch?:(payload:unknown,attempt:number)=>Promise<void>){
  configure();const directory=await mkdtemp(join(tmpdir(),'b05-topic-test-'));const checkpoints:unknown[]=[];
- try{return {report:await runLiveTopicBatch({cases,dataDir:directory,endpoint:'http://127.0.0.1:8080',limits,fetcher,checkpoint:async report=>{checkpoints.push(report);}}),checkpoints};}
+ try{return {report:await runLiveTopicBatch({cases,dataDir:directory,endpoint:'http://127.0.0.1:8080',limits,fetcher,captureSearch,checkpoint:async report=>{checkpoints.push(report);}}),checkpoints};}
  finally{await rm(directory,{recursive:true,force:true});}
 }
 it('runs the combined API with injected evidence, journals attempts and restores fetch',async()=>{
@@ -47,4 +47,11 @@ it('enforces the additional fetch attempt ceiling before an upstream request',as
  const {report}=await run(upstream,{tavily:9,model:1});
  expect(report.status).toBe('stopped');expect(report.attempts.model).toBe(1);
  expect(upstream.mock.calls.filter(([url])=>String(url).includes('/chat/completions'))).toHaveLength(1);
+});
+it('captures successful search payloads from a clone without consuming the verifier response or adding requests',async()=>{
+ const capture=vi.fn(async(_payload:unknown,_attempt:number)=>{});const upstream=vi.fn(simulatedFetch());
+ const {report}=await run(upstream,{tavily:9,model:9},capture);
+ expect(report.status).toBe('completed');expect(capture).toHaveBeenCalledTimes(report.attempts.tavily);
+ expect(capture.mock.calls[0][0]).toMatchObject({results:expect.any(Array)});
+ expect(upstream.mock.calls.length).toBe(report.attempts.tavily+report.attempts.model);
 });

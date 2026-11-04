@@ -24,6 +24,7 @@ const directory=await mkdtemp(`.local/topic-validation/${focused?'focused-live':
 const createdAt=new Date().toISOString();
 const report=await runLiveTopicBatch({
  cases:cases.map(({id,claim,expected})=>({id,claim,expected})),dataDir:`${directory}/data`,endpoint:settings.endpoint,limits:{tavily:limit,model:limit},
+ captureSearch:async(payload,attempt)=>{await writeFile(`${directory}/search-${attempt}.json`,JSON.stringify(payload),{flag:'wx'});},
  checkpoint:async result=>{
   await writeFile(`${directory}/result.json`,JSON.stringify({createdAt,datasetHash,referenceCheckedOn:dataset.referenceCheckedOn,model:settings.model,...result,...(focus?{focus,baselineComparison:compareFocusedBaseline(focus,result)}:{}),notice:'Real-source development test, not independent accuracy or billing audit. Basic search attempts are expected credits; startup model-catalog metadata calls are separate. Inconclusive known facts are coverage limitations, not accuracy passes.'},null,2));
  },

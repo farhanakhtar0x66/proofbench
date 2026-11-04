@@ -52,6 +52,8 @@ The [first real ten-case topic batch](docs/LIVE-TOPIC-RESULTS.md) used eight Bas
 
 The [focused live recheck](docs/FOCUSED-RECHECK-RESULTS.md) subsequently returned inconclusive for all four cases, using four Basic searches and zero Gemini comparisons. Plain-text segmentation, bounded context and source eligibility blocked comparison; the historical control regressed. Improved live coverage is not established.
 
+The [showcase context fix](docs/SHOWCASE-CONTEXT-FIX.md) addresses single-line page text, carries exact separated passages with visible omission markers and scopes operative date checks to the selected evidence. It also saves bounded search snapshots in ignored evaluation artifacts for offline diagnosis. Live showcase readiness requires the separately recorded live result.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |

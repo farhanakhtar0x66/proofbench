@@ -1,4 +1,14 @@
-export type DatedSource={published_date?:string;content?:string;originalContent?:string};
+export type DatedSource={published_date?:string;content?:string;originalContent?:string;contextContent?:string};
+const monthNames=['january','february','march','april','may','june','july','august','september','october','november','december'];
+const explicitDatePattern='(?:\\d{4}-\\d{2}-\\d{2}|(?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{1,2}(?:st|nd|rd|th)?,? \\d{4}|\\d{1,2} (?:January|February|March|April|May|June|July|August|September|October|November|December) \\d{4})';
+function explicitDate(text:string){
+ if(/^\d{4}-/u.test(text))return text;
+ const monthFirst=text.match(/^([A-Za-z]+) (\d{1,2})(?:st|nd|rd|th)?,? (\d{4})$/iu);
+ const dayFirst=text.match(/^(\d{1,2}) ([A-Za-z]+) (\d{4})$/u);
+ if(!monthFirst&&!dayFirst)return text;
+ const month=monthNames.indexOf((monthFirst?.[1]??dayFirst![2]).toLowerCase())+1;
+ return `${monthFirst?.[3]??dayFirst![3]}-${String(month).padStart(2,'0')}-${(monthFirst?.[2]??dayFirst![1]).padStart(2,'0')}`;
+}
 
 export function sourceDate(value:string|undefined):string|undefined{
  // Tavily can return RFC-style GMT publication dates. Validate every component
@@ -21,7 +31,8 @@ export function sourceDate(value:string|undefined):string|undefined{
 export function assessSourceDates(source:DatedSource,now:string){
  const publishedAt=sourceDate(source.published_date);
  const content=source.originalContent??source.content??'';
- const collect=(pattern:RegExp)=>[...new Set([...content.matchAll(pattern)].map(match=>match[1]))];
+ const context=source.contextContent??content;
+ const collect=(pattern:RegExp,text=content)=>[...new Set([...text.matchAll(pattern)].map(match=>match[1]))];
  const updates=collect(/\b(?:last updated(?: on)?|updated(?: on)?)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
  // A readable page-update label can disagree with Tavily's publication estimate.
  // Parse complete English month dates strictly; never replace publication with it.
@@ -32,8 +43,8 @@ export function assessSourceDates(source:DatedSource,now:string){
   const month=months.indexOf(match[1].toLowerCase())+1;
   updates.push(month?`${match[3]}-${String(month).padStart(2,'0')}-${match[2].padStart(2,'0')}`:text);
  }
- const effective=collect(/\b(?:effective(?: from| on)?|takes effect(?: on)?)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
- const scopes=collect(/\b(?:as of|historical as of)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
+ const effective=collect(new RegExp(`\\b(?:effective(?: from| on)?|takes effect(?: on)?)\\s*:?\\s*(${explicitDatePattern})\\b`,'giu'),context).map(explicitDate);
+ const scopes=collect(new RegExp(`\\b(?:as of|historical as of)\\s*:?\\s*(${explicitDatePattern})\\b`,'giu'),context).map(explicitDate);
  const updatedAt=new Set(updates).size===1?sourceDate(updates[0]):undefined;
  const effectiveAt=effective.length===1?sourceDate(effective[0]):undefined;
  const age=publishedAt?Date.parse(now)-Date.parse(publishedAt):NaN;
@@ -43,7 +54,8 @@ export function assessSourceDates(source:DatedSource,now:string){
  else if(age>30*86400000)reason='The publication is older than 30 days; a recent page update does not prove that the fact was rechecked.';
  if([...updates,...effective,...scopes].some(value=>!sourceDate(value)))reason='An explicit source date is invalid.';
  if(/\b(?:last updated(?: on)?|updated on)\s*:?\s*(?:[A-Za-z]+\s+\d|\d)/iu.test(content)&&!updates.length)reason='An explicit update date could not be parsed; its publication relationship is uncertain.';
- if(/\b(?:effective|takes effect)\b/iu.test(content)&&effective.length===0||/\bas of\b/iu.test(content)&&scopes.length===0)reason='An explicit effective or as-of date could not be parsed; its temporal scope is uncertain.';
+ const effectiveCue=/\b(?:effective (?:from|on)|takes effect)\b|\beffective\s*:?\s*(?:\d|next\b|tomorrow\b|immediately\b|(?:January|February|March|April|May|June|July|August|September|October|November|December)\b)/iu.test(context);
+ if(effectiveCue&&effective.length===0||/\bas of\b/iu.test(context)&&scopes.length===0)reason='An explicit effective or as-of date could not be parsed; its temporal scope is uncertain.';
  if(new Set(updates).size>1||new Set(effective).size>1||new Set(scopes).size>1)reason='Multiple explicit source dates cannot be safely assigned to the fact.';
  if(updatedAt&&(Date.parse(updatedAt)>Date.parse(now)||publishedAt&&updatedAt.slice(0,10)<publishedAt.slice(0,10)))reason='The update date conflicts with publication or current time.';
  if(effectiveAt&&Date.parse(effectiveAt)>Date.parse(now))reason='The stated effective date is in the future; this fact is not established as current.';

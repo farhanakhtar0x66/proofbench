@@ -15,6 +15,7 @@ import {isClaimRestatement,sharedReplacementSentences} from './correction-candid
 import {evidenceFreshness} from './evidence-freshness';
 import {supportedQuantityReason} from './quantity-evidence';
 import {completedEventAssessment,completedEventClaim} from './completed-event';
+import {validPassageBundle} from './source-passages';
 import type {ComparisonCache} from './comparison-cache';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
@@ -49,7 +50,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  const seen=new Set<string>();const overlaps=evidenceOverlapTracker();
  const prepareSources=()=>data.evidence.map((source,index)=>{
   const safe=normalizeSource({url:source.url,content:source.excerpt});
-  if(!safe?.url||!source.excerpt.trim()||source.excerpt.length>1200||source.retrieval!=='tavily'||!source.retrievedAt||Date.parse(source.retrievedAt)>Date.parse(assessedAt))throw new Error('Invalid comparison source');
+  if(!safe?.url||!source.excerpt.trim()||source.excerpt.length>1200||!validPassageBundle(source)||source.retrieval!=='tavily'||!source.retrievedAt||Date.parse(source.retrievedAt)>Date.parse(assessedAt))throw new Error('Invalid comparison source');
   const url=canonicalUrl(source.url);const repeatedPassage=overlaps(source.excerpt);
   const duplicate=!!source.duplicateOf||seen.has(url)||repeatedPassage;seen.add(url);
   const hostname=new URL(source.url).hostname.toLowerCase().replace(/^www\./u,'');

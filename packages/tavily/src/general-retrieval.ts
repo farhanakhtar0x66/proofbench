@@ -35,7 +35,7 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  let budget=options.budget??budgets.get(fetcher);
  if(!budget){budget=new SearchBudget();budgets.set(fetcher,budget);}
  try{
-  const cacheKey=JSON.stringify({profile:'general-page-text-v2',query,dateWindow:plan.dateWindow});
+  const cacheKey=JSON.stringify({profile:'general-passages-v3',query,dateWindow:plan.dateWindow});
   const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow,qualityCandidates:true}),options.cacheOnly);
   const evidenceAt=new Date().toISOString();
   const seen=new Set<string>();
@@ -47,11 +47,11 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
    const raw=!!result.raw_content?.trim();const body=raw?result.raw_content!:source.content;
    if(!body?.trim())continue;
    const canonical=canonicalUrl(source.url);if(seen.has(canonical))continue;seen.add(canonical);
-   const dates=assessSourceDates({...source,content:body},evidenceAt);
    const selected=selectEvidenceExcerpt(request.claim,body);const excerpt=selected.excerpt;
+   const dates=assessSourceDates({...source,content:body,contextContent:excerpt},evidenceAt);
    selected.selection.reason=`${raw?'From Tavily returned page text':'From Tavily search snippet; page text unavailable'}. ${selected.selection.reason}`;
    const scopeHint=seekAppointment?captainEvidenceHint(excerpt):undefined;
-   evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,excerptSelection:selected.selection,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
+   evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,excerptPassages:selected.passages,excerptSelection:selected.selection,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
   }
   const quality=(source:typeof evidence[number])=>Number(!!source.excerptSelection?.warning||!!excerptQualityReason(request.claim,source.excerpt)||!!sourceRelevanceReason(request.claim,source.excerpt));
   const rankings=new Map(evidence.map(source=>[source.url,retrievalRanking(request.claim,source,evidenceAt)]));
