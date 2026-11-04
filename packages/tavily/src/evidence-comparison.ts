@@ -1,3 +1,4 @@
+import {briefEvidence} from './brief-evidence';
 import {comparisonReason,sourceGateReason,type ComparisonDiagnostic} from './comparison-reason';
 import {z} from 'zod';
 import {EvidenceRetrievalReport,EvidenceComparisonReport} from '../../contracts/src/index';
@@ -116,7 +117,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   if(outcome==='inconclusive'&&!conflict)diagnostic.shortReason=Math.max(groups('supports'),groups('contradicts'))===1?'Only one independent source group provides matching evidence; two are required.':'Sources do not directly establish support or contradiction.';
   const historicalClaim=!!completedEventClaim(data.claim,assessedAt)||!!datedEndOfLifeClaim(data.claim);
   const freshness=outcome==='supported'&&!historicalClaim&&!sources.some(source=>source.historical)?'current':'unknown';
-  return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness,...evidenceFreshness({outcome,freshness,assessedAt,citations}),assessedAt,...diagnostic,explanation:explanation+(discardedRestatement?' A source-backed restatement of the original claim was omitted from corrections.':''),citations,correction,limitations});
+  return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness,evidenceBrief:briefEvidence(data.claim,outcome,citations),...evidenceFreshness({outcome,freshness,assessedAt,citations}),assessedAt,...diagnostic,explanation:explanation+(discardedRestatement?' A source-backed restatement of the original claim was omitted from corrections.':''),citations,correction,limitations});
  }catch(error){
   const reasons:Record<string,string>={
    'Every source must be assessed':'The model omitted or added source assessments.',
