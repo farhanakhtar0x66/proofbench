@@ -9,6 +9,13 @@ const text='Subscribers pay twenty USD monthly for Acme Pro.';
 const fact={entity:'Acme Pro',kind:'price',value:'twenty',currency:'USD',period:'monthly',time:null,region:null,tier:null};
 const env=(provider='gemini')=>({BIFROST_LLM_PROVIDER:provider,BIFROST_LLM_MODEL:`${provider}/test-model`,BIFROST_FREE_TIER_CONFIRMED:'true',BIFROST_LLM_MAX_REQUESTS:'10',GEMINI_API_KEY:'fake-gemini',GROQ_API_KEY:'fake-groq'});
 const envelope=(value:unknown=fact)=>Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(value)}}]});
+it('preserves a namespaced Groq model identifier for explicit future provider evaluation',()=>{
+ const configured={...env('groq'),BIFROST_LLM_MODEL:'groq/openai/gpt-oss-20b'};
+ expect(bifrostSettings(configured).model).toBe('groq/openai/gpt-oss-20b');
+ expect(buildBifrostConfig(configured).providers.groq.keys[0].models).toEqual(['openai/gpt-oss-20b']);
+ expect(()=>bifrostSettings({...configured,BIFROST_LLM_MODEL:'groq/../test'})).toThrow();
+ expect(()=>bifrostSettings({...configured,BIFROST_LLM_MODEL:'gemini/other'})).toThrow();
+});
 it.each(['gemini','groq'])('routes %s only through Bifrost with explicit strict schema and validates returned fields',async provider=>{
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
   expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');
