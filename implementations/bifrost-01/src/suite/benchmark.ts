@@ -1,6 +1,7 @@
 import { TaskSpec } from '../../../../packages/contracts/src/index';
 import { ProofBenchAgent } from '../runtime/agent';
 import { EmbeddedBifrostGateway } from '../gateway/embedded';
+import { BifrostClient } from '../gateway/client';
 import { createWorkspaceApprovalHandler } from '../governance/approval';
 
 export interface BenchmarkMeasurement {
@@ -55,12 +56,22 @@ export class ComparativeBenchmarkSuite {
   ): Promise<ComparativeEfficiencyReport> {
     const isLive = options.mode === 'live' || process.env.BIFROST_MODE === 'live';
     const embeddedGateway = isLive ? undefined : new EmbeddedBifrostGateway();
-    const approvalHandler = createWorkspaceApprovalHandler();
+    const bifrostClient = isLive
+      ? new BifrostClient({
+          mode: 'live',
+          gatewayUrl: process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089',
+          virtualKey: process.env.BIFROST_VIRTUAL_KEY,
+          userBudgetLimitUsd: 10.0,
+        })
+      : new BifrostClient({
+          mode: 'simulation',
+          embeddedGateway,
+        });
 
     // 1. Baseline Arm: Unbounded raw file reads, unguided loop control
     const baselineAgent = new ProofBenchAgent({
-      embeddedGateway,
-      approvalHandler,
+      bifrostClient,
+      approvalHandler: createWorkspaceApprovalHandler(),
       primaryModel: options.primaryModel,
       enableM1ContextBounding: false,
       enableM2StagnationBreaker: false,
@@ -90,8 +101,8 @@ export class ComparativeBenchmarkSuite {
 
     // 2. Experimental Arm: M1 Deterministic Context Bounding + M2 Stagnation Breaker + M3a Evidence Autopsy
     const expAgent = new ProofBenchAgent({
-      embeddedGateway,
-      approvalHandler,
+      bifrostClient,
+      approvalHandler: createWorkspaceApprovalHandler(),
       primaryModel: options.primaryModel,
       enableM1ContextBounding: true,
       enableM2StagnationBreaker: true,

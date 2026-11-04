@@ -5,6 +5,7 @@ export interface AttemptRecord {
   patchDigest: string; // SHA-256 of the patch content
   rawPatch: string;
   errorSignature: string; // Normalized compiler or test error
+  rawError?: string;
   testExitCode: number;
   testPassedCount: number;
   testFailedCount: number;
@@ -59,6 +60,7 @@ export class M2StagnationDetector {
       patchDigest,
       rawPatch: attempt.patch,
       errorSignature,
+      rawError: attempt.rawError,
       testExitCode: attempt.exitCode,
       testPassedCount: attempt.passedCount ?? 0,
       testFailedCount: attempt.failedCount ?? 1,
@@ -115,14 +117,17 @@ export class M2StagnationDetector {
       };
     }
 
-    // 4. Two consecutive failures with zero test progress
-    if (this.attempts.length >= 2 && curr.testPassedCount <= prev.testPassedCount) {
-      return {
-        shouldHalt: true,
-        reason: 'no_progress',
-        message: `Two consecutive repair attempts failed with no evidenced test progress. Controller halted before attempt 3 under M2 governance policy.`,
-        consecutiveFailures: this.attempts.length,
-      };
+    // 4. Three consecutive failures with zero evidenced test progress
+    if (this.attempts.length >= 3) {
+      const first = this.attempts[this.attempts.length - 3];
+      if (curr.testPassedCount <= first.testPassedCount && curr.testFailedCount >= first.testFailedCount) {
+        return {
+          shouldHalt: true,
+          reason: 'no_progress',
+          message: `Three consecutive repair attempts failed with no evidenced test progress. Controller halted under M2 governance policy.`,
+          consecutiveFailures: this.attempts.length,
+        };
+      }
     }
 
     return { shouldHalt: false, consecutiveFailures: this.attempts.length };

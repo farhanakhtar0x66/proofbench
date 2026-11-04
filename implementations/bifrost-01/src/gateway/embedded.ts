@@ -176,7 +176,21 @@ export class EmbeddedBifrostGateway {
     fallbackProviders: string[] = ['opencode', 'openai-cloud']
   ): Promise<ChatCompletionResponse> {
     const startTime = performance.now();
-    const vk = this.virtualKeys.get(virtualKeyId);
+    let vk = this.virtualKeys.get(virtualKeyId);
+    if (!vk && virtualKeyId && virtualKeyId.startsWith('sk-bf-')) {
+      // Auto-provision virtual key in simulation mode for arbitrary valid virtual key prefixes
+      vk = {
+        id: virtualKeyId,
+        name: `auto-${virtualKeyId.slice(0, 12)}`,
+        budgetLimitUsd: 10.0,
+        budgetSpentUsd: 0.0,
+        currentSpendUsd: 0.0,
+        allowedProviders: ['local', 'opencode', 'openai-cloud'],
+        allowedModels: ['*'],
+        active: true,
+      };
+      this.virtualKeys.set(virtualKeyId, vk);
+    }
     if (!vk) {
       throw new Error(`Invalid Bifrost virtual key: ${virtualKeyId}`);
     }

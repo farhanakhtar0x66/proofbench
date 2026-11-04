@@ -4,7 +4,7 @@ import {
   BifrostBudgetExceededError,
 } from './types';
 import { EmbeddedBifrostGateway } from './embedded';
-import { isLocalDestination } from '../governance/policy';
+import { isLocalDestination, TRUSTED_LOCAL_PROVIDERS } from '../governance/policy';
 
 export interface BifrostClientOptions {
   gatewayUrl?: string;
@@ -36,9 +36,20 @@ export class BifrostClient {
 
   constructor(options: BifrostClientOptions = {}) {
     this.gatewayUrl = options.gatewayUrl ?? process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
-    this.fallbackProviders = options.fallbackProviders ?? ['ollama', 'opencode'];
-    this.userBudgetLimitUsd = options.userBudgetLimitUsd ?? 5.0;
     this.confidential = options.confidential ?? false;
+    this.fallbackProviders = options.fallbackProviders ?? (this.confidential ? ['ollama', 'local'] : ['ollama', 'opencode']);
+    this.userBudgetLimitUsd = options.userBudgetLimitUsd ?? 5.0;
+
+    if (this.confidential) {
+      const unauthorized = this.fallbackProviders.filter(
+        (p) => !TRUSTED_LOCAL_PROVIDERS.includes(p.toLowerCase())
+      );
+      if (unauthorized.length > 0) {
+        throw new Error(
+          `Confidential repository policy violation: unauthorized external fallback provider(s) [${unauthorized.join(', ')}] detected. Confidential inference must be local-only end-to-end.`
+        );
+      }
+    }
     this.mode = options.mode ?? (process.env.BIFROST_MODE === 'live' ? 'live' : (options.embeddedGateway ? 'simulation' : 'simulation'));
     
     // In live mode, read virtual key from env or options. Never use hardcoded keys.
@@ -86,11 +97,21 @@ export class BifrostClient {
   ): Promise<ChatCompletionResponse> {
     const fallbackProviders = req.fallbackProviders ?? this.fallbackProviders;
 
-    // Confidentiality check: Never dispatch to remote endpoints when confidential mode is active
-    if (this.confidential && !isLocalDestination(this.gatewayUrl)) {
-      throw new Error(
-        `Confidential repository policy violation: gateway URL '${this.gatewayUrl}' is a remote or external endpoint. Only verified local loopback destinations (127.0.0.1 / localhost) are eligible.`
+    // Confidentiality check: Never dispatch to remote endpoints or external fallback paths
+    if (this.confidential) {
+      if (!isLocalDestination(this.gatewayUrl)) {
+        throw new Error(
+          `Confidential repository policy violation: gateway URL '${this.gatewayUrl}' is a remote or external endpoint. Only verified local loopback destinations (127.0.0.1 / localhost) are eligible.`
+        );
+      }
+      const unauthorized = fallbackProviders.filter(
+        (p) => !TRUSTED_LOCAL_PROVIDERS.includes(p.toLowerCase())
       );
+      if (unauthorized.length > 0) {
+        throw new Error(
+          `Confidential repository policy violation: unauthorized external fallback provider(s) [${unauthorized.join(', ')}] detected. Confidential inference must be local-only end-to-end.`
+        );
+      }
     }
 
     // 1. Conservative pre-request spending reservation check
@@ -148,10 +169,13 @@ export class BifrostClient {
       const isFallback = res.headers.get('x-bifrost-routing-info-is-fallback') === 'true';
       const upstreamLatency = Number(res.headers.get('x-bifrost-upstream-latency-ms')) || 0;
 
-      // Real token counts reported by provider through Bifrost
-      const promptTokens = data.usage?.prompt_tokens ?? 0;
-      const completionTokens = data.usage?.completion_tokens ?? 0;
-      const estimatedCostUsd = (promptTokens * 0.00000015) + (completionTokens * 0.0000006);
+      // Real token counts reported by provider through Bifrost (preserve missing as undefined)
+      const promptTokens = data.usage?.prompt_tokens;
+      const completionTokens = data.usage?.completion_tokens;
+      const hasTokens = typeof promptTokens === 'number' && typeof completionTokens === 'number';
+      const estimatedCostUsd = hasTokens
+        ? (promptTokens * 0.00000015) + (completionTokens * 0.0000006)
+        : 0;
 
       const metadata = {
         virtual_key_id: this.virtualKey,
@@ -160,7 +184,7 @@ export class BifrostClient {
         fallback_invoked: isFallback,
         latency_ms: upstreamLatency,
         cost_usd: Number(estimatedCostUsd.toFixed(6)),
-        cost_estimated: true,
+        cost_estimated: hasTokens,
       };
       data.bifrost_metadata = metadata;
 

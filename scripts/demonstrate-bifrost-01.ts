@@ -5,9 +5,15 @@ import {
   BifrostClient,
   ComparativeBenchmarkSuite,
   getCodingTasksDir,
-  createWorkspaceApprovalHandler,
+  createScopedPriorApprovalHandler,
 } from '../implementations/bifrost-01/src/index';
 import { TaskSpec } from '../packages/contracts/src/index';
+
+try {
+  process.loadEnvFile?.();
+} catch {
+  // Continue if .env is missing or node version doesn't support loadEnvFile
+}
 
 async function checkLiveGatewayReachable(url = 'http://127.0.0.1:8089'): Promise<boolean> {
   try {
@@ -46,13 +52,23 @@ async function main() {
   const isLiveReachable = await checkLiveGatewayReachable();
   console.log(`\n[GATEWAY CHECK] Maxim Bifrost Daemon on http://127.0.0.1:8089: ${isLiveReachable ? 'ONLINE (ACTIVE)' : 'OFFLINE'}`);
 
-  const approvalHandler = createWorkspaceApprovalHandler();
-  const liveVirtualKey = process.env.BIFROST_VIRTUAL_KEY || 'sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808';
+  const createFreshApprovalHandler = () =>
+    createScopedPriorApprovalHandler({
+      allowedFiles: [
+        'src/lib.rs',
+        'src/event.rs',
+        'src/parser.rs',
+        'src/sink.rs',
+      ],
+      maxWritesPerFile: 10,
+      maxTotalModifications: 20,
+    });
+  const liveVirtualKey = process.env.BIFROST_VIRTUAL_KEY;
 
   // --------------------------------------------------------------------------
   // 1. Genuine Live Execution against Real Maxim Bifrost + Qwen 2.5 Coder
   // --------------------------------------------------------------------------
-  if (isLiveReachable) {
+  if (isLiveReachable && liveVirtualKey) {
     console.log('\n' + '='.repeat(80));
     console.log('SECTION 1: GENUINE LIVE BIFROST GATEWAY & MODEL EXECUTION');
     console.log('Gateway: Maxim AI Bifrost (v2.4.0) on http://127.0.0.1:8089');
@@ -78,7 +94,7 @@ async function main() {
 
       const liveAgent = new ProofBenchAgent({
         bifrostClient: liveClient,
-        approvalHandler,
+        approvalHandler: createFreshApprovalHandler(),
         primaryModel: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
         enableM1ContextBounding: true,
         enableM2StagnationBreaker: true,
@@ -160,7 +176,7 @@ async function main() {
     const taskSpec = TaskSpec.parse(JSON.parse(taskRaw));
 
     console.log(`\n[SIMULATED RUN] Executing on Task: ${taskSpec.title} (${taskSpec.id})`);
-    const agent = new ProofBenchAgent({ approvalHandler });
+    const agent = new ProofBenchAgent({ approvalHandler: createFreshApprovalHandler() });
     const { run, trace, report } = await agent.runTask(taskSpec, Date.now());
 
     const inVal = run.usage.inputTokens.status === 'known' ? `${run.usage.inputTokens.value} (${run.usage.inputTokens.source})` : run.usage.inputTokens.status;

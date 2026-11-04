@@ -80,11 +80,22 @@ export class M1ContextSelector {
       }
 
       if (kind) {
+        // Look back for preceding attributes (e.g. #[derive(...)]) and doc comments (///)
+        let leadingStart = i;
+        while (leadingStart > 0) {
+          const prev = lines[leadingStart - 1].trim();
+          if (prev.startsWith('#[') || prev.startsWith('///') || prev.startsWith('//')) {
+            leadingStart--;
+          } else {
+            break;
+          }
+        }
+
         // Collect multi-line body with brace matching
         let braceCount = 0;
         let started = false;
         let endLine = i;
-        const bodyLines: string[] = [];
+        const bodyLines: string[] = lines.slice(leadingStart, i);
 
         for (let j = i; j < lines.length; j++) {
           const l = lines[j];
@@ -106,7 +117,7 @@ export class M1ContextSelector {
         symbols.push({
           name,
           kind,
-          startLine: i + 1,
+          startLine: leadingStart + 1,
           endLine: endLine + 1,
           signature: line.split('{')[0].trim(),
           content: bodyLines.join('\n'),
@@ -120,7 +131,11 @@ export class M1ContextSelector {
     return symbols;
   }
 
-  async selectContext(workspacePath: string, diagnostics = ''): Promise<M1ContextResult> {
+  async selectContext(
+    workspacePath: string,
+    diagnostics = '',
+    taskPrompt = ''
+  ): Promise<M1ContextResult> {
     const srcDir = path.join(workspacePath, 'src');
     let files: string[] = [];
     try {
@@ -134,10 +149,18 @@ export class M1ContextSelector {
     const omittedItems: M1ContextResult['omittedItems'] = [];
     let currentTokens = 0;
 
-    // Prioritize files mentioned in compiler diagnostics or test output
+    // Prioritize files mentioned in compiler diagnostics, task prompt, or test output
     const prioritizedFiles = files.sort((a, b) => {
-      const aMentioned = diagnostics.includes(a);
-      const bMentioned = diagnostics.includes(b);
+      const aBase = path.basename(a).toLowerCase();
+      const bBase = path.basename(b).toLowerCase();
+      const aMentioned =
+        diagnostics.includes(a) ||
+        diagnostics.includes(aBase) ||
+        (taskPrompt && taskPrompt.toLowerCase().includes(aBase));
+      const bMentioned =
+        diagnostics.includes(b) ||
+        diagnostics.includes(bBase) ||
+        (taskPrompt && taskPrompt.toLowerCase().includes(bBase));
       if (aMentioned && !bMentioned) return -1;
       if (!aMentioned && bMentioned) return 1;
       return a.localeCompare(b);
@@ -153,11 +176,33 @@ export class M1ContextSelector {
         continue;
       }
 
+      const fileTokens = this.estimateTokens(content);
+
+      // If the source file is small (<= 800 tokens), include the entire file intact.
+      // This preserves imports, struct definitions, derive macros, and impl blocks together.
+      if (fileTokens <= 800) {
+        if (currentTokens + fileTokens <= this.maxTokenBudget) {
+          selectedItems.push({
+            filePath: relPath,
+            symbolName: 'entire_file',
+            kind: 'file',
+            content,
+            tokens: fileTokens,
+          });
+          currentTokens += fileTokens;
+        } else {
+          omittedItems.push({
+            filePath: relPath,
+            reason: `File exceeded remaining token budget (${fileTokens} tokens required, ${this.maxTokenBudget - currentTokens} remaining)`,
+          });
+        }
+        continue;
+      }
+
+      // For larger files (> 800 tokens), extract prioritized symbols with leading attributes
       const symbols = this.parseRustSymbols(content);
 
       if (symbols.length === 0) {
-        // Include entire file if small enough
-        const fileTokens = this.estimateTokens(content);
         if (currentTokens + fileTokens <= this.maxTokenBudget) {
           selectedItems.push({
             filePath: relPath,

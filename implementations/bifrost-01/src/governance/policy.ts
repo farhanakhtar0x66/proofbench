@@ -43,12 +43,11 @@ export function isLocalDestination(urlOrHost?: string): boolean {
     const raw = urlOrHost.includes('://') ? urlOrHost : `http://${urlOrHost}`;
     const parsed = new URL(raw);
     const hostname = parsed.hostname.toLowerCase();
+    // Strictly require local loopback endpoints. Wildcard destinations (0.0.0.0, *) are explicitly rejected.
     return (
       hostname === 'localhost' ||
       hostname === '127.0.0.1' ||
-      hostname === '::1' ||
-      hostname === '0.0.0.0' ||
-      hostname.endsWith('.localhost')
+      hostname === '::1'
     );
   } catch {
     return false;
@@ -61,15 +60,15 @@ export const KNOWN_CLOUD_PROVIDERS = ['openai', 'anthropic', 'azure', 'cohere', 
 export function validateModelAgainstPolicy(
   model: string,
   policy: GovernancePolicy,
-  options?: { destinationUrl?: string; provider?: string }
+  options?: { destinationUrl?: string; provider?: string; fallbackProviders?: string[] }
 ): { valid: boolean; reason?: string } {
   if (policy.confidential) {
-    // 1. Verify Destination Endpoint (must be local loopback)
+    // 1. Verify Destination Endpoint (must be strict local loopback, no wildcards)
     if (options?.destinationUrl) {
       if (!isLocalDestination(options.destinationUrl)) {
         return {
           valid: false,
-          reason: `Confidential repository policy violation: destination '${options.destinationUrl}' is a remote or external endpoint. Only verified local loopback endpoints (127.0.0.1 / localhost) are eligible.`,
+          reason: `Confidential repository policy violation: destination '${options.destinationUrl}' is a remote or external endpoint. Only verified local loopback endpoints (127.0.0.1, localhost, ::1) are eligible.`,
         };
       }
     }
@@ -81,6 +80,19 @@ export function validateModelAgainstPolicy(
         return {
           valid: false,
           reason: `Confidential repository policy violation: provider '${options.provider}' is not a trusted local provider. Only [${TRUSTED_LOCAL_PROVIDERS.join(', ')}] are eligible.`,
+        };
+      }
+    }
+
+    // 3. Verify Unauthorized Fallback Paths
+    if (options?.fallbackProviders && options.fallbackProviders.length > 0) {
+      const unauthorized = options.fallbackProviders.filter(
+        (p) => !TRUSTED_LOCAL_PROVIDERS.includes(p.toLowerCase())
+      );
+      if (unauthorized.length > 0) {
+        return {
+          valid: false,
+          reason: `Confidential repository policy violation: unauthorized external fallback provider(s) [${unauthorized.join(', ')}] detected. Confidential inference must be local-only end-to-end.`,
         };
       }
     }

@@ -14,7 +14,11 @@ import {
   TRUSTED_LOCAL_PROVIDERS,
   KNOWN_CLOUD_PROVIDERS,
 } from './governance/policy';
-import { HostApprovalEngine, createWorkspaceApprovalHandler } from './governance/approval';
+import {
+  HostApprovalEngine,
+  createWorkspaceApprovalHandler,
+  createScopedPriorApprovalHandler,
+} from './governance/approval';
 import { M1ContextSelector } from './context/m1-selector';
 import { M2StagnationDetector } from './progress/m2-stagnation';
 import { M3aFailureAutopsyBuilder } from './handoff/m3a-autopsy';
@@ -34,6 +38,7 @@ export {
   KNOWN_CLOUD_PROVIDERS,
   HostApprovalEngine,
   createWorkspaceApprovalHandler,
+  createScopedPriorApprovalHandler,
   M1ContextSelector,
   M2StagnationDetector,
   M3aFailureAutopsyBuilder,

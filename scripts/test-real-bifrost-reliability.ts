@@ -2,6 +2,12 @@ import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { BifrostClient } from '../implementations/bifrost-01/src/gateway/client';
 
+try {
+  process.loadEnvFile?.();
+} catch {
+  // If .env does not exist or node doesn't support loadEnvFile, continue
+}
+
 interface TestResult {
   name: string;
   status: 'PASSED' | 'FAILED';
@@ -17,8 +23,14 @@ async function runBifrostReliabilitySuite() {
 
   const results: TestResult[] = [];
   const gatewayUrl = process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
-  const activeVirtualKey = process.env.BIFROST_VIRTUAL_KEY ?? 'sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808';
-  const revokedVirtualKey = 'sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e';
+  const activeVirtualKey = process.env.BIFROST_VIRTUAL_KEY;
+  if (!activeVirtualKey) {
+    throw new Error('BIFROST_VIRTUAL_KEY environment variable is required. Please set it in .env');
+  }
+  const revokedVirtualKeys = [
+    'sk-bf-91b1d004-b51e-4a78-b326-e09b840e4b6e',
+    'sk-bf-710b95b4-ced1-4450-85c4-4d2e4eb10808',
+  ];
 
   // 1. Healthcheck check
   console.log('\n[TEST 1] Verifying live gateway reachability (/healthz)...');
@@ -85,56 +97,57 @@ async function runBifrostReliabilitySuite() {
     });
   }
 
-  // 3. Real HTTP 401 Rejection on Revoked Virtual Key
-  console.log('\n[TEST 3] Verifying live gateway rejection (HTTP 401) on revoked virtual key...');
-  try {
-    const revokedClient = new BifrostClient({
-      mode: 'live',
-      gatewayUrl,
-      virtualKey: revokedVirtualKey,
-    });
-
-    let failedAsExpected = false;
-    let receivedStatus = 0;
-    let errorMessage = '';
-
+  // 3. Real HTTP 401 Rejection on Revoked Virtual Keys
+  console.log('\n[TEST 3] Verifying live gateway rejection (HTTP 401) on revoked virtual keys...');
+  for (const rk of revokedVirtualKeys) {
     try {
-      await revokedClient.createChatCompletion({
-        model: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
-        messages: [{ role: 'user', content: 'test revoked key' }],
+      const revokedClient = new BifrostClient({
+        mode: 'live',
+        gatewayUrl,
+        virtualKey: rk,
       });
-    } catch (reqErr) {
-      errorMessage = (reqErr as Error).message;
-      if (errorMessage.includes('401') || errorMessage.includes('revoked') || errorMessage.includes('access not found')) {
-        failedAsExpected = true;
-        receivedStatus = 401;
+
+      let failedAsExpected = false;
+      let receivedStatus = 0;
+      let errorMessage = '';
+
+      try {
+        await revokedClient.createChatCompletion({
+          model: 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+          messages: [{ role: 'user', content: 'test revoked key' }],
+        });
+      } catch (reqErr) {
+        errorMessage = (reqErr as Error).message;
+        if (errorMessage.includes('401') || errorMessage.includes('revoked') || errorMessage.includes('access not found')) {
+          failedAsExpected = true;
+          receivedStatus = 401;
+        }
       }
+
+      if (!failedAsExpected) {
+        throw new Error(`Expected HTTP 401 on revoked key ${rk.slice(0, 10)}..., but call did not fail properly: ${errorMessage}`);
+      }
+
+      console.log(`  PASSED: Gateway strictly rejected revoked key (${rk.slice(0, 10)}...) with status ${receivedStatus}`);
+
+      results.push({
+        name: `Gateway Rejection on Revoked Key (${rk.slice(0, 10)}...)`,
+        status: 'PASSED',
+        details: {
+          revokedKey: rk.slice(0, 10) + '...',
+          status: receivedStatus,
+          errorMessage,
+        },
+      });
+    } catch (err) {
+      console.error(`  FAILED: ${(err as Error).message}`);
+      results.push({
+        name: `Gateway Rejection on Revoked Key (${rk.slice(0, 10)}...)`,
+        status: 'FAILED',
+        details: {},
+        error: (err as Error).message,
+      });
     }
-
-    if (!failedAsExpected) {
-      throw new Error(`Expected HTTP 401 on revoked key, but call did not fail properly: ${errorMessage}`);
-    }
-
-    console.log(`  PASSED: Gateway strictly rejected revoked virtual key with status ${receivedStatus}`);
-    console.log(`  Error received: ${errorMessage}`);
-
-    results.push({
-      name: 'Gateway Rejection on Revoked Key',
-      status: 'PASSED',
-      details: {
-        revokedKey: revokedVirtualKey.slice(0, 10) + '...',
-        status: receivedStatus,
-        errorMessage,
-      },
-    });
-  } catch (err) {
-    console.error(`  FAILED: ${(err as Error).message}`);
-    results.push({
-      name: 'Gateway Rejection on Revoked Key',
-      status: 'FAILED',
-      details: {},
-      error: (err as Error).message,
-    });
   }
 
   // 4. Budget Limit Reservation & Enforcement
@@ -268,7 +281,7 @@ async function runBifrostReliabilitySuite() {
     timestamp: new Date().toISOString(),
     gatewayUrl,
     activeVirtualKeyPrefix: activeVirtualKey.slice(0, 10) + '...',
-    revokedVirtualKeyPrefix: revokedVirtualKey.slice(0, 10) + '...',
+    revokedVirtualKeys: revokedVirtualKeys.map((k) => k.slice(0, 10) + '...'),
     totalTests: results.length,
     passed: results.filter((r) => r.status === 'PASSED').length,
     failed: results.filter((r) => r.status === 'FAILED').length,

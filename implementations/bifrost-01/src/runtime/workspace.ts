@@ -179,13 +179,40 @@ export class TaskWorkspace {
     });
   }
 
-  async runAcceptanceTests(): Promise<{ passed: boolean; output: string; exitCode: number }> {
+  async runAcceptanceTests(): Promise<{
+    passed: boolean;
+    output: string;
+    exitCode: number;
+    passedCount?: number;
+    failedCount?: number;
+  }> {
     const res = await this.runCommand('cargo', ['test', '--quiet'], 30_000);
     const passed = res.exitCode === 0 && !res.timedOut;
+    const combinedOutput = `${res.stdout}\n${res.stderr}`;
+
+    let passedCount: number | undefined;
+    let failedCount: number | undefined;
+
+    const summaryMatch = combinedOutput.match(
+      /test result:\s*(?:ok|FAILED)\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i
+    );
+    if (summaryMatch) {
+      passedCount = parseInt(summaryMatch[1], 10);
+      failedCount = parseInt(summaryMatch[2], 10);
+    } else if (passed) {
+      passedCount = 1;
+      failedCount = 0;
+    } else if (res.exitCode !== 0) {
+      passedCount = 0;
+      failedCount = 1;
+    }
+
     return {
       passed,
-      output: (res.stderr.trim() || res.stdout.trim()).slice(0, 2000),
+      output: (res.stderr.trim() || res.stdout.trim()).slice(0, 4000),
       exitCode: res.exitCode ?? 1,
+      passedCount,
+      failedCount,
     };
   }
 

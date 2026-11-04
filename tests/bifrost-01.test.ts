@@ -10,6 +10,7 @@ import {
   KNOWN_CLOUD_PROVIDERS,
   HostApprovalEngine,
   createWorkspaceApprovalHandler,
+  createScopedPriorApprovalHandler,
   M1ContextSelector,
   M2StagnationDetector,
   M3aFailureAutopsyBuilder,
@@ -290,6 +291,95 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
         })
       ).rejects.toThrow(/Confidential repository policy violation/i);
     });
+
+    it('scoped prior approval permits whitelisted files and denies unlisted files, enforcing edit quotas', async () => {
+      const handler = createScopedPriorApprovalHandler({
+        allowedFiles: ['src/lib.rs'],
+        maxWritesPerFile: 2,
+        maxTotalModifications: 3,
+        allowCommands: false,
+        allowGit: false,
+      });
+      const policy = createDefaultPolicy();
+      const approvalEngine = new HostApprovalEngine(policy, handler);
+
+      // 1. First edit to whitelisted file: approved
+      const edit1 = await approvalEngine.evaluateAction({
+        id: 'act-w1',
+        tool: 'write_file',
+        parameters: { path: 'src/lib.rs', content: 'fn f1() {}' },
+        category: 'write',
+      });
+      expect(edit1.approved).toBe(true);
+
+      // 2. Second edit to whitelisted file: approved
+      const edit2 = await approvalEngine.evaluateAction({
+        id: 'act-w2',
+        tool: 'write_file',
+        parameters: { path: 'src/lib.rs', content: 'fn f2() {}' },
+        category: 'write',
+      });
+      expect(edit2.approved).toBe(true);
+
+      // 3. Third edit to same file exceeds per-file quota: denied
+      const edit3 = await approvalEngine.evaluateAction({
+        id: 'act-w3',
+        tool: 'write_file',
+        parameters: { path: 'src/lib.rs', content: 'fn f3() {}' },
+        category: 'write',
+      });
+      expect(edit3.approved).toBe(false);
+
+      // 4. Edit to unlisted file: denied
+      const unlisted = await approvalEngine.evaluateAction({
+        id: 'act-unlisted',
+        tool: 'write_file',
+        parameters: { path: 'src/other.rs', content: 'fn bad() {}' },
+        category: 'write',
+      });
+      expect(unlisted.approved).toBe(false);
+
+      // 5. Commands and Git mutations are default-denied
+      const cmd = await approvalEngine.evaluateAction({
+        id: 'act-cmd',
+        tool: 'run_command',
+        parameters: { command: 'cargo test' },
+        category: 'command',
+      });
+      expect(cmd.approved).toBe(false);
+    });
+
+    it('confidential mode rejects wildcard destinations and unauthorized fallback providers', async () => {
+      const confidentialPolicy = createDefaultPolicy({ confidential: true });
+
+      // Wildcard destinations (0.0.0.0, *.localhost) must be rejected
+      expect(isLocalDestination('http://0.0.0.0:8089')).toBe(false);
+      expect(isLocalDestination('http://evil.localhost:8089')).toBe(false);
+
+      const wildcardCheck = validateModelAgainstPolicy('local-deepseek-coder', confidentialPolicy, {
+        destinationUrl: 'http://0.0.0.0:8089',
+      });
+      expect(wildcardCheck.valid).toBe(false);
+      expect(wildcardCheck.reason).toContain('remote or external endpoint');
+
+      // Unauthorized external fallback providers must be rejected
+      const fallbackCheck = validateModelAgainstPolicy('local-deepseek-coder', confidentialPolicy, {
+        destinationUrl: 'http://127.0.0.1:8089',
+        provider: 'local',
+        fallbackProviders: ['opencode', 'openai-cloud'],
+      });
+      expect(fallbackCheck.valid).toBe(false);
+      expect(fallbackCheck.reason).toContain('unauthorized external fallback provider');
+
+      // BifrostClient in confidential mode enforces local-only fallbacks
+      expect(() => {
+        new BifrostClient({
+          gatewayUrl: 'http://127.0.0.1:8089',
+          confidential: true,
+          fallbackProviders: ['opencode'],
+        });
+      }).toThrow(/unauthorized external fallback provider/i);
+    });
   });
 
   // --------------------------------------------------------------------------
@@ -385,6 +475,81 @@ describe('Bifrost #01 — Deterministically Governed Coding Agent', () => {
       expect(autopsy.formattedPacket).toContain('# Structured Failure Autopsy (M3a - Evidence-Only)');
       expect(autopsy.formattedPacket).toContain('panicked at index 6');
       expect(autopsy.formattedPacket).not.toContain('I think the model was trying to');
+    });
+
+    it('M2: allows attempt 2 when errors or diagnostics change, halting on attempt 3 when no progress', () => {
+      const m2 = new M2StagnationDetector();
+
+      // Attempt 1: compiler error A (cannot find type)
+      const d1 = m2.recordAttempt({
+        patch: 'pub struct Bar;',
+        rawError: 'error[E0425]: cannot find type Foo in this scope',
+        exitCode: 101,
+        passedCount: 0,
+        failedCount: 1,
+      });
+      expect(d1.shouldHalt).toBe(false);
+
+      // Attempt 2: progress made (type found, now type mismatch error B)
+      const d2 = m2.recordAttempt({
+        patch: 'pub struct Foo; impl Foo { fn new() -> i32 { 1 } }',
+        rawError: 'error[E0308]: mismatched types: expected u64, found i32',
+        exitCode: 101,
+        passedCount: 0,
+        failedCount: 1,
+      });
+      // Should NOT prematurely halt on attempt 2 while errors are actively changing
+      expect(d2.shouldHalt).toBe(false);
+
+      // Attempt 3: still failing with 0 test progress across 3 attempts
+      const d3 = m2.recordAttempt({
+        patch: 'pub struct Foo; impl Foo { fn new() -> u32 { 1 } }',
+        rawError: 'error[E0308]: mismatched types: expected u64, found u32',
+        exitCode: 101,
+        passedCount: 0,
+        failedCount: 1,
+      });
+      expect(d3.shouldHalt).toBe(true);
+      expect(d3.reason).toBe('no_progress');
+      expect(d3.message).toContain('Three consecutive repair attempts failed with no evidenced test progress');
+    });
+
+    it('M3a: enforces maxTokenBudget, compacts oversized diagnostic blocks, and flags budget compaction', () => {
+      const m2 = new M2StagnationDetector();
+      // Generate a large diagnostic output (60 lines)
+      const verboseDiag = Array.from({ length: 60 }, (_, i) => `error[E000${i}]: verbose compiler error details at line ${i}`).join('\n');
+      m2.recordAttempt({
+        patch: 'let x = 1;',
+        rawError: verboseDiag,
+        exitCode: 101,
+      });
+
+      // 1. Packet with modest budget triggers compaction
+      const autopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
+        taskId: 'task-test',
+        taskTitle: 'Test Autopsy',
+        taskPrompt: 'Solve task',
+        attempts: m2.getAttempts(),
+        maxTokenBudget: 400,
+      });
+
+      expect(autopsy.budgetCompacted).toBe(true);
+      expect(autopsy.formattedPacket).toContain('compacted');
+      expect(autopsy.formattedPacket).toMatch(/compacted \d+ (?:lines|characters) of diagnostic output for M3a budget/);
+      expect(autopsy.heuristicNote).toContain('~3.8 characters per token');
+
+      // 2. Excessively small budget explicitly flags oversized with markdown alert
+      const tinyAutopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
+        taskId: 'task-test',
+        taskTitle: 'Test Autopsy',
+        taskPrompt: 'Solve task',
+        attempts: m2.getAttempts(),
+        maxTokenBudget: 20, // artificially tiny
+      });
+
+      expect(tinyAutopsy.oversized).toBe(true);
+      expect(tinyAutopsy.formattedPacket).toContain('> [!WARNING]');
+      expect(tinyAutopsy.formattedPacket).toContain('Budget Notice');
     });
 
     it('Tavily: verifies API claims for public tasks and blocks queries in confidential mode', async () => {

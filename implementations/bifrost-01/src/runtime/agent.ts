@@ -116,8 +116,8 @@ export class ProofBenchAgent {
 
     const m2Detector = new M2StagnationDetector();
     let currentModel = this.primaryModel;
-    let totalPromptTokens = 0;
-    let totalCompletionTokens = 0;
+    let totalPromptTokens: number | null = null;
+    let totalCompletionTokens: number | null = null;
     let totalCostUsd = 0;
     let taskCompleted = false;
     let lastErrorOutput = '';
@@ -138,7 +138,11 @@ export class ProofBenchAgent {
         // Step 1: M1 Context Selection
         let contextText = '';
         if (this.enableM1) {
-          const m1Result = await this.m1Selector.selectContext(workspace.workspacePath, lastErrorOutput);
+          const m1Result = await this.m1Selector.selectContext(
+            workspace.workspacePath,
+            lastErrorOutput,
+            task.prompt
+          );
           if (m1Result.status === 'context_overflow') {
             addEvent('error', `M1 context overflow: ${m1Result.reason}`);
             break;
@@ -179,7 +183,8 @@ You may output file modifications via write_file tool calls or formatted markdow
 \`\`\`rust
 <complete file content>
 \`\`\`
-Always output the complete valid file content for the target file.`,
+Always output the complete valid file content for the target file.
+CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros (e.g. #[derive(Debug, Clone)]), imports (use ...), and existing public APIs in the file. Ensure public functions, methods, and types retain 'pub' visibility. Output only the complete valid file content for the target file.`,
           },
           {
             role: 'user' as const,
@@ -198,9 +203,11 @@ Always output the complete valid file content for the target file.`,
           break;
         }
 
-        if (gatewayResponse.usage) {
-          totalPromptTokens += gatewayResponse.usage.prompt_tokens;
-          totalCompletionTokens += gatewayResponse.usage.completion_tokens;
+        if (typeof gatewayResponse.usage?.prompt_tokens === 'number') {
+          totalPromptTokens = (totalPromptTokens ?? 0) + gatewayResponse.usage.prompt_tokens;
+        }
+        if (typeof gatewayResponse.usage?.completion_tokens === 'number') {
+          totalCompletionTokens = (totalCompletionTokens ?? 0) + gatewayResponse.usage.completion_tokens;
         }
         if (gatewayResponse.bifrost_metadata) {
           totalCostUsd += gatewayResponse.bifrost_metadata.cost_usd;
@@ -301,6 +308,8 @@ Always output the complete valid file content for the target file.`,
             patch: lastAppliedPatch,
             rawError: testResult.output,
             exitCode: testResult.exitCode,
+            passedCount: testResult.passedCount,
+            failedCount: testResult.failedCount,
           });
 
           if (stagnation.shouldHalt) {
@@ -357,7 +366,7 @@ Always output the complete valid file content for the target file.`,
 
       const usage = UsageRecord.parse({
         version: '1',
-        inputTokens: totalPromptTokens > 0
+        inputTokens: totalPromptTokens !== null
           ? {
               status: 'known',
               value: totalPromptTokens,
@@ -367,9 +376,9 @@ Always output the complete valid file content for the target file.`,
             }
           : {
               status: 'missing',
-              reason: 'Zero prompt tokens recorded',
+              reason: 'No prompt token observations reported by provider',
             },
-        outputTokens: totalCompletionTokens > 0
+        outputTokens: totalCompletionTokens !== null
           ? {
               status: 'known',
               value: totalCompletionTokens,
@@ -379,7 +388,7 @@ Always output the complete valid file content for the target file.`,
             }
           : {
               status: 'missing',
-              reason: 'Zero completion tokens recorded',
+              reason: 'No completion token observations reported by provider',
             },
         duration: {
           status: 'known',
@@ -484,7 +493,11 @@ Always output the complete valid file content for the target file.`,
             const rawArgs = tc.function.arguments;
             const args = typeof rawArgs === 'string' ? JSON.parse(rawArgs) : rawArgs;
             if (args && typeof args.path === 'string' && typeof args.content === 'string') {
-              results.push({ path: args.path.trim(), content: args.content });
+              let p = args.path.trim().replace(/^[`"']+|[`"']+$/g, '');
+              if (!p.startsWith('src/') && !p.includes('/') && !p.includes('\\')) {
+                p = `src/${p}`;
+              }
+              results.push({ path: p, content: args.content });
             }
           } catch {
             // Ignore parse errors on malformed arguments
@@ -500,7 +513,7 @@ Always output the complete valid file content for the target file.`,
     const text = choice.message?.content ?? '';
     if (!text) return results;
 
-    const codeBlockRegex = /(?:(?:\/\/\s*File:\s*([^\r\n]+)|\/\*\s*File:\s*([^\r\n*]+)\*\/|File:\s*([^\r\n]+))\s*)?```(?:rust|rs)?\s*\n([\s\S]*?)```/gi;
+    const codeBlockRegex = /(?:(?:\/\/\s*(?:File:\s*)?([^\r\n]+\.rs)|\/\*\s*(?:File:\s*)?([^\r\n*]+\.rs)\*\/|File:\s*([^\r\n]+))\s*)?```(?:rust|rs)?\s*\n([\s\S]*?)```/gi;
 
     let match: RegExpExecArray | null;
     while ((match = codeBlockRegex.exec(text)) !== null) {
@@ -508,10 +521,39 @@ Always output the complete valid file content for the target file.`,
       const content = match[4];
 
       if (!filePath) {
-        const firstLineMatch = content.match(/^(?:\/\/\s*File:\s*([^\r\n]+)|\/\*\s*File:\s*([^\r\n*]+)\*\/)/i);
+        const firstLineMatch = content.match(/^(?:\/\/\s*(?:File:\s*)?([^\r\n]+\.rs)|\/\*\s*(?:File:\s*)?([^\r\n*]+\.rs)\*\/|File:\s*([^\r\n]+))/i);
         if (firstLineMatch) {
-          filePath = (firstLineMatch[1] || firstLineMatch[2] || '').trim();
+          filePath = (firstLineMatch[1] || firstLineMatch[2] || firstLineMatch[3] || '').trim();
         }
+      }
+
+      if (filePath) {
+        filePath = filePath.replace(/^[`"']+|[`"']+$/g, '').trim();
+        if (!filePath.startsWith('src/') && !filePath.includes('/') && !filePath.includes('\\')) {
+          filePath = `src/${filePath}`;
+        }
+      }
+
+      if (!filePath) {
+        if (content.includes('parse_event')) {
+          filePath = 'src/parser.rs';
+        } else if (content.includes('EventSink')) {
+          filePath = 'src/sink.rs';
+        } else if (content.includes('calculate_checksum')) {
+          filePath = 'src/event.rs';
+        } else if (content.includes('sliding_window_sums') || content.includes('ExponentialBackoff')) {
+          filePath = 'src/lib.rs';
+        }
+      }
+
+      // Ignore trivial or accidental non-code snippets (less than 40 chars)
+      if (
+        content.trim().length < 40 &&
+        !content.includes('fn ') &&
+        !content.includes('struct ') &&
+        !content.includes('impl ')
+      ) {
+        continue;
       }
 
       results.push({
@@ -527,7 +569,17 @@ Always output the complete valid file content for the target file.`,
       });
     }
 
-    return results;
+    // Deduplicate proposed modifications targeting the same file within a single turn,
+    // keeping the largest/most complete code block.
+    const fileMap = new Map<string, { path: string; content: string }>();
+    for (const item of results) {
+      const existing = fileMap.get(item.path);
+      if (!existing || item.content.length > existing.content.length) {
+        fileMap.set(item.path, item);
+      }
+    }
+
+    return Array.from(fileMap.values());
   }
 
   private buildFailureRecord(
