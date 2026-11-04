@@ -56,6 +56,8 @@ The [showcase context fix](docs/SHOWCASE-CONTEXT-FIX.md) addresses single-line p
 
 The [showcase validation](docs/SHOWCASE-VALIDATION.md) records the failed four-case phase, a successful saved-source historical pair, and a separately approved passing fresh combined-API check of that pair. Total usage was five Basic searches and four model comparisons. The website can [load saved assessments](docs/SHOWCASE-LOCAL-GUIDE.md) without new provider requests; these are labelled earlier results, not new live checks. Broader live topic coverage remains unresolved.
 
+To enter new statements using online evidence, follow [capped live website testing](docs/LIVE-USER-TESTING.md). It starts a temporary five-search/five-comparison session without editing saved offline settings. A replacement-key check of the user's exact India PM statement returned contradicted with one search and one model comparison; that single case is not a general accuracy result.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |
