@@ -8,7 +8,7 @@ it.each([
  ['Alex is not currently the club captain of Acme FC.','Acme FC',['captain','captains','captaincy']],
  ['Ada serves as CEO for Acme Corp.','Acme Corp',['CEO','chief executive officer']],
  ['Acme Corp’s current CEO is Ada.','Acme Corp',['CEO','chief executive officer']],
- ['Alex is prime minister of Exampleland.','Exampleland',['prime minister']],
+ ['Alex is prime minister of Exampleland.','Exampleland',['prime minister','PM']],
 ])('recognizes explicit role anchors without assuming a holder is correct: %s',(claim,entity,roles)=>expect(roleClaimAnchors(claim as string)).toEqual({entity,roles}));
 
 it.each([

@@ -4,6 +4,7 @@ import {priceCurrencyEvidenceReason} from './claim-ambiguity';
 import {selectSourcePassages,EXCERPT_LIMIT} from './source-passages';
 import {completedEventClaim} from './completed-event';
 import {claimEntity} from './comparison';
+import {reviewedOfficialDirect} from './reviewed-official';
 
 const tokens=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/([\p{L}])(?=\d)/gu,'$1 ').match(/[\p{L}\p{N}]+/gu)??[];
 const phrase=(text:string,term:string)=>` ${tokens(text).join(' ')} `.includes(` ${tokens(term).join(' ')} `);
@@ -26,7 +27,7 @@ export function excerptQualityReason(claim:string,excerpt:string):string|undefin
  if(subject&&(!phrase(excerpt,subject)||!supportTerms.test(excerpt)))return 'This support claim needs an explicit matching product/version and support context in the excerpt. Generic compatibility wording or another version cannot corroborate it.';
 }
 
-export function selectEvidenceExcerpt(claim:string,content:string){
+export function selectEvidenceExcerpt(claim:string,content:string,sourceUrl?:string){
  const sourceLength=content.length;
  const role=roleClaimAnchors(claim);const subject=supportClaimSubject(claim);
  const event=completedEventClaim(claim,new Date().toISOString());
@@ -37,7 +38,7 @@ export function selectEvidenceExcerpt(claim:string,content:string){
   const quality=excerptQualityReason(claim,text);
   if(quality&&/package identifiers|encoded images|login or subscription|image caption/u.test(quality))return -1;
   if(subject)return phrase(text,subject)&&supportTerms.test(text)?10:0;
-  if(role)return phrase(text,role.entity)&&role.roles.some(word=>phrase(text,word))?10:0;
+  if(role)return phrase(text,role.entity)&&role.roles.some(word=>phrase(text,word))||!!sourceUrl&&reviewedOfficialDirect(claim,{url:sourceUrl,excerpt:text})?10:0;
   if(priceSubject)return phrase(text,priceSubject)&&/\b(?:costs?|prices?|pricing|USD|dollars?|per user|monthly)\b|\$\s*\d/iu.test(text)?10:0;
   if(event){
    const subjects=tokens(event.subject).filter(word=>word.length>2&&word!=='the');

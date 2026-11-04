@@ -12,6 +12,7 @@ import {sourceRelevanceReason} from './evidence-relevance';
 import {retrievalRanking} from './retrieval-ranking';
 import {completedEventAssessment} from './completed-event';
 import {historicalSupportAssessment} from './historical-support';
+import {reviewedOfficialDirect} from './reviewed-official';
 
 type Options={mode?:string;allowPaidRequests?:string;apiKey?:string;maxRequests?:string|number;budget?:SearchBudget;fetch?:typeof fetch;cacheOnly?:boolean};
 const budgets=new WeakMap<typeof fetch,SearchBudget>();
@@ -47,13 +48,13 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
    const raw=!!result.raw_content?.trim();const body=raw?result.raw_content!:source.content;
    if(!body?.trim())continue;
    const canonical=canonicalUrl(source.url);if(seen.has(canonical))continue;seen.add(canonical);
-   const selected=selectEvidenceExcerpt(request.claim,body);const excerpt=selected.excerpt;
+   const selected=selectEvidenceExcerpt(request.claim,body,source.url);const excerpt=selected.excerpt;
    const dates=assessSourceDates({...source,content:body,contextContent:excerpt},evidenceAt);
    selected.selection.reason=`${raw?'From Tavily returned page text':'From Tavily search snippet; page text unavailable'}. ${selected.selection.reason}`;
    const scopeHint=seekAppointment?captainEvidenceHint(excerpt):undefined;
    evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,excerptPassages:selected.passages,excerptSelection:selected.selection,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
   }
-  const quality=(source:typeof evidence[number])=>Number(!!source.excerptSelection?.warning||!!excerptQualityReason(request.claim,source.excerpt)||!!sourceRelevanceReason(request.claim,source.excerpt));
+  const quality=(source:typeof evidence[number])=>Number(!!source.excerptSelection?.warning||!!excerptQualityReason(request.claim,source.excerpt)||!reviewedOfficialDirect(request.claim,source)&&!!sourceRelevanceReason(request.claim,source.excerpt));
   const rankings=new Map(evidence.map(source=>[source.url,retrievalRanking(request.claim,source,evidenceAt)]));
   const dateEligible=(source:typeof evidence[number])=>{
    const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},evidenceAt);

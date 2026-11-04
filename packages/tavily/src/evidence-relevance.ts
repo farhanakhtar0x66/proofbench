@@ -1,4 +1,4 @@
-const rolePattern='(?:(?:club|team|first[- ]team)\\s+)?captain|CEO|chief executive officer|president|prime minister|chairperson|head coach';
+const rolePattern='(?:(?:club|team|first[- ]team)\\s+)?captain|CEO|chief executive officer|president|prime minister|PM|chairperson|head coach';
 const words=(text:string)=>text.normalize('NFKC').toLowerCase().match(/[\p{L}\p{N}]+/gu)??[];
 function containsPhrase(text:string,phrase:string){
  const actual=words(text);const expected=words(phrase);
@@ -16,7 +16,7 @@ export function roleClaimAnchors(claim:string):{entity:string;roles:string[]}|un
  // Object-side qualifiers cannot safely be separated by this simple parser.
  if(/\b(?:in|during|since|until|against|as of|for|with|who|which|that)\b|\d/iu.test(entity)||words(entity).length>12)return;
  const role=direct?.[1]??possessive![2];
- const roles=/captain/iu.test(role)?['captain','captains','captaincy']:/^(?:CEO|chief executive officer)$/iu.test(role)?['CEO','chief executive officer']: [role];
+ const roles=/captain/iu.test(role)?['captain','captains','captaincy']:/^(?:CEO|chief executive officer)$/iu.test(role)?['CEO','chief executive officer']:/^(?:PM|prime minister)$/iu.test(role)?['prime minister','PM']: [role];
  return {entity,roles};
 }
 

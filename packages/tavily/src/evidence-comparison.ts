@@ -15,6 +15,7 @@ import {isClaimRestatement,sharedReplacementSentences} from './correction-candid
 import {evidenceFreshness} from './evidence-freshness';
 import {supportedQuantityReason} from './quantity-evidence';
 import {completedEventAssessment,completedEventClaim} from './completed-event';
+import {reviewedOfficialDirect} from './reviewed-official';
 import {validPassageBundle,EXCERPT_LIMIT} from './source-passages';
 import type {ComparisonCache} from './comparison-cache';
 
@@ -23,7 +24,7 @@ const relation=z.enum(['supports','contradicts','conflicting','insufficient']);
 export const ComparisonOutput=z.object({assessments:z.array(z.object({sourceId,relation,quote:z.string().min(1).max(EXCERPT_LIMIT)}).strict()).min(1).max(3),correction:z.object({text:z.string().min(1).max(1200),sourceIds:z.array(sourceId).min(2).max(3)}).strict().nullable()}).strict();
 export const COMPARISON_SCHEMA={type:'object',additionalProperties:false,required:['assessments','correction'],properties:{assessments:{type:'array',minItems:1,maxItems:3,items:{type:'object',additionalProperties:false,required:['sourceId','relation','quote'],properties:{sourceId:{type:'string',pattern:'^S[1-3]$'},relation:{type:'string',enum:relation.options},quote:{type:'string',minLength:1,maxLength:EXCERPT_LIMIT}}}},correction:{anyOf:[{type:'null'},{type:'object',additionalProperties:false,required:['text','sourceIds'],properties:{text:{type:'string',minLength:1,maxLength:1200},sourceIds:{type:'array',minItems:2,maxItems:3,items:{type:'string',pattern:'^S[1-3]$'}}}}]}}};
 export function comparisonSchemaFor(text:string){
- const context=z.object({claim:z.string(),sources:z.array(z.object({sourceId,excerpt:z.string().min(1).max(1200)})).min(2).max(3)}).parse(JSON.parse(text));
+ const context=z.object({claim:z.string(),sources:z.array(z.object({sourceId,excerpt:z.string().min(1).max(EXCERPT_LIMIT)})).min(1).max(3)}).parse(JSON.parse(text));
  if(context.sources.some((source,index)=>source.sourceId!==`S${index+1}`))throw new Error('Invalid source sequence');
  const shared=sharedReplacementSentences(context.claim,context.sources.map(source=>source.excerpt));
  const base=COMPARISON_SCHEMA.properties;
@@ -57,13 +58,14 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   // Conservative grouping, not a public-suffix or ownership verification service.
   const group=hostname.split('.').slice(-2).join('.');
   const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt},assessedAt);
+  const directOfficial=reviewedOfficialDirect(data.claim,source);
   // Publication age is recomputed now. Preserve omitted full-page temporal
   // warnings, rather than freezing an earlier age/future-publication check.
   const retainedDateWarning=!!source.dateReason&&source.dateReason!==dates.reason&&!source.dateReason.startsWith('Recent publication;')&&!source.dateReason.startsWith('The publication');
   const history=source.dateReason&&source.dateReason!==dates.reason?undefined:(historicalSupportAssessment(data.claim,source.excerpt,source.publishedAt,assessedAt)??completedEventAssessment(data.claim,source.excerpt,source.publishedAt,assessedAt));
-  const scopeReason=sourceScopeReason(data.claim,source.excerpt)??sourceRelevanceReason(data.claim,source.excerpt)??source.excerptSelection?.warning??excerptQualityReason(data.claim,source.excerpt)??(history&&!history.eligible?history.reason:undefined);
+  const scopeReason=sourceScopeReason(data.claim,source.excerpt)??(directOfficial?undefined:sourceRelevanceReason(data.claim,source.excerpt))??source.excerptSelection?.warning??excerptQualityReason(data.claim,source.excerpt)??(history&&!history.eligible?history.reason:undefined);
   const metadataConflict=!!source.updatedAt&&(Date.parse(source.updatedAt)>Date.parse(assessedAt)||!!source.publishedAt&&Date.parse(source.updatedAt)<Date.parse(source.publishedAt))||!!source.effectiveAt&&Date.parse(source.effectiveAt)>Date.parse(assessedAt);
-  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,historical:history?.eligible===true,eligible:(dates.eligible||history?.eligible===true)&&!retainedDateWarning&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL, long repeated excerpt or substantial shared sentence does not count as separate corroboration; source independence is not established.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':retainedDateWarning?source.dateReason!:history?.eligible?history.reason:dates.reason};
+  return {sourceId:`S${index+1}`,url:source.url,excerpt:source.excerpt,group,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt,scopeReason,directOfficial,historical:history?.eligible===true,eligible:(dates.eligible||history?.eligible===true)&&!retainedDateWarning&&!duplicate&&!metadataConflict&&!scopeReason,dateReason:duplicate?'Duplicate URL, long repeated excerpt or substantial shared sentence does not count as separate corroboration; source independence is not established.':metadataConflict?'Source update or effective metadata conflicts with the assessment date.':retainedDateWarning?source.dateReason!:history?.eligible?history.reason:dates.reason};
  });
  let sources:ReturnType<typeof prepareSources>;
  try{sources=prepareSources();}catch{return fallback('Source URLs, excerpts or retrieval metadata are invalid. No model request was made.');}
@@ -71,7 +73,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  // Disabled modes and ambiguous claims never reuse a model verdict. A depleted
  // allowance/cooldown may reuse one after the current evidence gates below.
  if(unavailable&&(options.mode!=='llm'||!options.interpreter?.compareEvidence||currencyAmbiguityReason(data.claim)))return fallback(unavailable);
- if(new Set(sources.filter(source=>source.eligible).map(source=>source.group)).size<2)return fallback('Fewer than two distinct source groups pass date, duplication and claim-scope checks. Review the source warnings. No model request was made.');
+ if(new Set(sources.filter(source=>source.eligible).map(source=>source.group)).size<2&&!sources.some(source=>source.eligible&&source.directOfficial))return fallback('Fewer than two distinct source groups pass date, duplication and claim-scope checks, and no eligible reviewed official source states the named role. No model request was made.');
  const payload=JSON.stringify({claim:data.claim,assessedAt,sources:sources.map(({sourceId,url,excerpt,publishedAt,retrievedAt})=>({sourceId,url,excerpt,publishedAt,retrievedAt}))});
  if(payload.length>10000)return fallback('Comparison input exceeds the bounded model context. No model request was made.');
  const execute=async()=>{
@@ -89,7 +91,9 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   });
   const groups=(kind:'supports'|'contradicts')=>new Set(citations.filter(citation=>citation.eligible&&citation.relation===kind).map(citation=>sources.find(source=>source.sourceId===citation.sourceId)!.group)).size;
   const conflict=citations.some(citation=>citation.relation==='conflicting')||(citations.some(citation=>citation.relation==='supports')&&citations.some(citation=>citation.relation==='contradicts'));
-  const outcome=conflict?'inconclusive':groups('supports')>=2?'supported':groups('contradicts')>=2?'contradicted':'inconclusive';
+  const official=(kind:'supports'|'contradicts')=>citations.some(citation=>citation.eligible&&citation.relation===kind&&sources.find(source=>source.sourceId===citation.sourceId)?.directOfficial);
+  const singleOfficial=groups('supports')<2&&groups('contradicts')<2;
+  const outcome=conflict?'inconclusive':groups('supports')>=2||official('supports')?'supported':groups('contradicts')>=2||official('contradicts')?'contradicted':'inconclusive';
   let correction:z.infer<typeof ComparisonOutput>['correction']=null;
   let discardedRestatement=false;
   if(parsed.correction){
@@ -106,7 +110,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
    if(restatement){if(outcome==='contradicted')throw new Error('Correction repeats the claim');discardedRestatement=true;}
    else if(outcome==='contradicted')correction=proposed;
   }
-  const explanation=conflict?'Source assessments conflict; no decisive verdict or correction is justified.':outcome==='inconclusive'?'Fewer than two distinct, nonduplicate source groups have agreeing assessments, eligible dates and matching claim scope. Review the cited excerpts and date warnings.':`At least two distinct source groups pass the applicable date and scope policy and were assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is a model-assisted evidence assessment, not independent proof of truth.`;
+  const explanation=conflict?'Source assessments conflict; no decisive verdict or correction is justified.':outcome==='inconclusive'?'Fewer than two distinct, nonduplicate source groups have agreeing assessments, eligible dates and matching claim scope. Review the cited excerpts and date warnings.':singleOfficial?`One reviewed official government domain supplied a recent, directly named role passage assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is one source, not independent corroboration; review the cited passage.`:`At least two distinct source groups pass the applicable date and scope policy and were assessed as ${outcome==='supported'?'supporting':'contradicting'} the claim. This is a model-assisted evidence assessment, not independent proof of truth.`;
   const historicalClaim=!!completedEventClaim(data.claim,assessedAt)||!!datedEndOfLifeClaim(data.claim);
   const freshness=outcome==='supported'&&!historicalClaim&&!sources.some(source=>source.historical)?'current':'unknown';
   return EvidenceComparisonReport.parse({version:'1',claim:data.claim,method:'llm',outcome,freshness,...evidenceFreshness({outcome,freshness,assessedAt,citations}),assessedAt,explanation:explanation+(discardedRestatement?' A source-backed restatement of the original claim was omitted from corrections.':''),citations,correction,limitations});
