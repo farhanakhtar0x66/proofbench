@@ -13,6 +13,11 @@ Canonical runtime schemas and inferred TypeScript types: `packages/contracts/src
 | AcceptanceResult | Passed/failed/unknown with per-check evidence; unknown check is null |
 | ClaimVerification | Claim text, temporal sensitivity, outcome, freshness, evidence, uncertainty |
 | EvidenceReport | Run linkage, acceptance, usage, optional verification, limitations |
+| AgentExecutionConfig | Execution binary, args, timeout, env policy, byte limit, model |
+| WorkspaceIdentity | Unique isolated directory path, task ID, agent ID, clean status |
+| PerAgentOutcome | Outcome, exit code, duration, acceptance result, usage telemetry |
+| BenchmarkSession | Multi-agent coordination session on identical task, outcomes, report |
+| ComparisonReport | Multi-agent comparative assessment with explicit token comparability rules |
 
 A known or estimated quantity includes source, scope and unit. Estimates additionally require method. Missing/incomparable quantities carry a reason and reject a value field. Missing is never zero. Only compare matching tokenizer/provider/accounting scope and measurement methods; do not rank missing observations. Context, cached, reasoning and billed token scopes need explicit normalization before future comparisons.
 

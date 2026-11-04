@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
-import { UsageObservation, RunRecord, VerifyRequest, EvidenceReport } from '../packages/contracts/src/index';
-import { demoRun, demoReport } from '../packages/contracts/src/examples';
+import { UsageObservation, RunRecord, VerifyRequest, EvidenceReport, AgentExecutionConfig, WorkspaceIdentity, PerAgentOutcome, BenchmarkSession, ComparisonReport } from '../packages/contracts/src/index';
+import { demoRun, demoReport, demoWorkspace, demoAgentConfig, demoOutcome, demoSession, demoComparisonReport } from '../packages/contracts/src/examples';
 describe('v1 runtime contracts',()=>{
  it('preserves missing usage and rejects invented zero',()=>{
   expect(UsageObservation.parse({status:'missing',reason:'not reported'})).not.toHaveProperty('value');
@@ -15,6 +15,15 @@ describe('v1 runtime contracts',()=>{
   expect(RunRecord.safeParse(demoRun).success).toBe(true);
   expect(EvidenceReport.safeParse(demoReport).success).toBe(true);
   expect(RunRecord.safeParse({...demoRun,version:'2'}).success).toBe(false);
+ });
+ it('validates benchmark session and comparison contracts',()=>{
+  expect(WorkspaceIdentity.safeParse(demoWorkspace).success).toBe(true);
+  expect(AgentExecutionConfig.safeParse(demoAgentConfig).success).toBe(true);
+  expect(PerAgentOutcome.safeParse(demoOutcome).success).toBe(true);
+  expect(BenchmarkSession.safeParse(demoSession).success).toBe(true);
+  expect(ComparisonReport.safeParse(demoComparisonReport).success).toBe(true);
+  expect(BenchmarkSession.safeParse({...demoSession,version:'2'}).success).toBe(false);
+  expect(ComparisonReport.safeParse({...demoComparisonReport,version:'2'}).success).toBe(false);
  });
  it('bounds arbitrary verification input',()=>{
   expect(VerifyRequest.safeParse({version:'1',text:'   '}).success).toBe(false);

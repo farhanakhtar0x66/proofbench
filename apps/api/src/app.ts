@@ -18,9 +18,14 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return reply.code(500).send({version:'1',error:'internal_error'});
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
- app.get('/api/capabilities',async()=>Capabilities.parse({version:'1',implementation:adapter.descriptor.implementation,agent:adapter.descriptor,capabilities:adapter.capabilities,limitations:['Tavily is offline fixture mode; arbitrary claims are inconclusive.','Native execution is not integrated.',...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:['Selected Bifrost implementation is not integrated.'])]}));
+ app.get('/api/capabilities',async()=>Capabilities.parse({version:'1',implementation:adapter.descriptor.implementation,agent:adapter.descriptor,capabilities:adapter.capabilities,limitations:['Tavily is offline fixture mode; arbitrary claims are inconclusive.','Native execution is not integrated.',...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:adapter.descriptor.implementation==='02'?['Real coding agent benchmark engine: tasks execute in isolated workspaces with independent acceptance suites.','Token observations from different agent accounting methods must not be directly compared.']:['Selected Bifrost implementation is not integrated.'])]}));
  app.get('/api/benchmarks',async()=>{
   if(!adapter.capabilities.benchmarks)throw new UnsupportedCapability('Benchmark catalog not integrated for selected adapter');
+  if(adapter.descriptor.implementation==='02'){
+   const {listTaskSpecs}=await import('../../../implementations/bifrost-02/src/index');
+   const tasks=await listTaskSpecs();
+   return {version:'1',tasks:tasks.length>0?tasks:[task]};
+  }
   return {version:'1',tasks:[task]};
  });
  app.post('/api/verify',async(request,reply)=>{

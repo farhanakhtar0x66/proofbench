@@ -10,11 +10,21 @@ it('unknown claims remain inconclusive and offline',async()=>{
  const report=await verifyAnswer({version:'1',text:'The moon is made of cheese.'});
  expect(report.mode).toBe('mock'); expect(report.claims[0].outcome).toBe('inconclusive'); expect(report.claims[0].evidence).toEqual([]);
 });
-it.each(['01','02'] as const)('%s rejects unavailable execution instead of simulating success',async mode=>{
- const adapter=selectAdapter(mode);
- expect(adapter.descriptor.implementation).toBe(mode);
+it('01 rejects unavailable execution instead of simulating success',async()=>{
+ const adapter=selectAdapter('01');
+ expect(adapter.descriptor.implementation).toBe('01');
  expect(adapter.capabilities.execute).toBe(false);
  await expect(adapter.run({version:'1',task,agentId:adapter.descriptor.id,seed:0})).rejects.toThrow('not integrated');
+});
+it('02 provides working benchmark execution engine and benchmarks catalog',async()=>{
+ const adapter=selectAdapter('02');
+ expect(adapter.descriptor.implementation).toBe('02');
+ expect(adapter.capabilities.execute).toBe(true);
+ expect(adapter.capabilities.benchmarks).toBe(true);
+ const {run,trace}=await adapter.run({version:'1',task,agentId:adapter.descriptor.id,seed:0});
+ expect(run.status).toBe('completed');
+ expect(run.acceptance.status).toBe('passed');
+ expect(trace.events.length).toBeGreaterThan(0);
 });
 it('rejects invalid configuration',()=>expect(()=>selectAdapter('oops')).toThrow());
 it('serves health, validates input, persists verification and links runs, reports, traces',async()=>{

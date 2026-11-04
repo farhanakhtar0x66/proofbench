@@ -26,17 +26,28 @@ export const VerifyRequest=z.object({version,text:z.string().trim().min(1).max(2
 export const RunRecord=z.object({version,id,task:TaskSpec,agent:AgentDescriptor,status:z.enum(['completed','failed']),output:z.string(),usage:UsageRecord,acceptance:AcceptanceResult,createdAt:date,reportId:id,reproducibility:z.object({seed:z.number().int(),adapterRevision:z.string(),fixtureRevision:z.string(),environment:z.string(),simulated:z.boolean()})}).strict();
 export const EvidenceReport=z.object({version,id,runId:id,createdAt:date,summary:z.string(),acceptance:AcceptanceResult,usage:UsageRecord,verification:VerificationReport.nullable(),limitations:z.array(z.string())}).strict();
 export const Capabilities=z.object({version,implementation:z.enum(['mock','01','02']),agent:AgentDescriptor,capabilities:z.object({execute:z.boolean(),benchmarks:z.boolean(),verify:z.boolean(),native:z.boolean()}),limitations:z.array(z.string())}).strict();
+export const AgentExecutionConfig=z.object({version,command:z.string().min(1),args:z.array(z.string()).default([]),timeoutMs:z.number().int().positive().default(60000),envPolicy:z.enum(['isolated','clean','custom']).default('isolated'),maxOutputBytes:z.number().int().positive().default(2097152),model:z.string().nullable().optional()}).strict();
+export const WorkspaceIdentity=z.object({version,workspaceId:id,path:z.string().min(1),taskId:id,agentId:id,clean:z.boolean(),createdAt:date}).strict();
+export const PerAgentOutcome=z.object({version,agentId:id,agentName:z.string(),status:z.enum(['completed','failed','timed_out','cancelled','error']),exitCode:z.number().int().nullable(),durationMs:z.number().nonnegative(),acceptance:AcceptanceResult,usage:UsageRecord,runId:id,reportId:id,error:z.string().optional()}).strict();
+export const BenchmarkSession=z.object({version,id,taskId:id,task:TaskSpec,status:z.enum(['pending','running','completed','cancelled','failed']),agents:z.array(AgentDescriptor),workspaces:z.array(WorkspaceIdentity),outcomes:z.array(PerAgentOutcome),startedAt:date,finishedAt:date.nullable(),comparisonReportId:id.nullable()}).strict();
+export const ComparisonReport=z.object({version,id,sessionId:id,taskId:id,createdAt:date,outcomes:z.array(PerAgentOutcome),comparability:z.object({comparableTokens:z.boolean(),tokenScopeNote:z.string(),comparableDurations:z.boolean()}).strict(),summary:z.string(),limitations:z.array(z.string())}).strict();
 export type TaskSpec=z.infer<typeof TaskSpec>;
 export type AgentDescriptor=z.infer<typeof AgentDescriptor>;
 export type RunRequest=z.infer<typeof RunRequest>;
 export type RunRecord=z.infer<typeof RunRecord>;
 export type ExecutionTrace=z.infer<typeof ExecutionTrace>;
 export type UsageRecord=z.infer<typeof UsageRecord>;
+export type AcceptanceResult=z.infer<typeof AcceptanceResult>;
 export type ClaimVerification=z.infer<typeof ClaimVerification>;
 export type VerificationReport=z.infer<typeof VerificationReport>;
 export type VerifyRequest=z.infer<typeof VerifyRequest>;
 export type EvidenceReport=z.infer<typeof EvidenceReport>;
 export type Capabilities=z.infer<typeof Capabilities>;
+export type AgentExecutionConfig=z.infer<typeof AgentExecutionConfig>;
+export type WorkspaceIdentity=z.infer<typeof WorkspaceIdentity>;
+export type PerAgentOutcome=z.infer<typeof PerAgentOutcome>;
+export type BenchmarkSession=z.infer<typeof BenchmarkSession>;
+export type ComparisonReport=z.infer<typeof ComparisonReport>;
 export interface AgentAdapter {
  descriptor:AgentDescriptor;
  capabilities:Capabilities['capabilities'];
