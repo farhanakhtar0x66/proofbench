@@ -44,6 +44,8 @@ Quick offline checks: `npm run smoke:api` exercises the API without server ports
 
 `npm run evaluate:topics` runs [ten statements across five topics](docs/TOPIC-VALIDATION.md), with separately checked official reference labels and simulated offline evidence/model responses. It prepares broader testing with zero Tavily/Gemini requests; the report explicitly marks live testing as not run.
 
+The [first real ten-case topic batch](docs/LIVE-TOPIC-RESULTS.md) used eight Basic searches and seven Gemini comparisons: four reference matches, six inconclusive known facts and no observed wrong decisive final verdicts. Review led to lifecycle-query, currency-scope, numeric-count and update-date fixes. Offline replay tightened rejection and reduced reference matches to three; it does not establish improved live coverage. The revised behavior still needs a bounded live recheck.
+
 `npm run benchmark:verification:prepare` prepares a [fixed ten-case rules/model benchmark](docs/VERIFICATION-BENCHMARK.md), locks the evidence snapshot with hashes and runs the deterministic baseline offline. Real model comparison remains pending; preparation uses zero provider requests.
 
 | Lead | First deliverable | Boundary |

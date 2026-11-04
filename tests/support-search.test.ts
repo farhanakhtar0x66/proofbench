@@ -11,6 +11,11 @@ it.each([
  ['Python 2 is no longer supported.','Python 2'],
  ['Node.js 18 is supported.','Node.js 18'],
  ['Acme SDK 2.1 is not supported.','Acme SDK 2.1'],
+ ['Python 2 currently receives upstream security updates.','Python 2'],
+ ['Python 2 no longer receives upstream security fixes.','Python 2'],
+ ['Acme SDK 2 receives security patches.','Acme SDK 2'],
+ ['Python 2 does not receive upstream security updates.','Python 2'],
+ ['Python 2 currently does not receive security patches.','Python 2'],
 ])('searches explicit lifecycle claims neutrally without a recent-publication filter: %s',(claim,subject)=>{
  expect(supportClaimSubject(claim)).toBe(subject);
  expect(evidenceSearchPlan(claim,'current')).toEqual({query:`${subject} support status end of life official documentation`,dateWindow:undefined});
@@ -26,6 +31,10 @@ it.each([
  'Python 2 in 2019 is supported.',
  'Python 2 and Acme SDK are supported.',
  'It is supported.',
+ 'Python 2 receives upstream security updates under a vendor contract.',
+ 'Python 2 might receive upstream security updates.',
+ 'Python 2 receives upstream security updates in India.',
+ 'According to the vendor, Python 2 receives security patches.',
 ])('does not silently remove conditions, time, attribution or ambiguity: %s',claim=>{
  expect(supportClaimSubject(claim)).toBeUndefined();
  const plan=evidenceSearchPlan(claim,'current');expect(plan.query).toBe(`${claim} current official sources`);expect(plan.dateWindow).toBeDefined();

@@ -1,9 +1,10 @@
 import {roleClaimAnchors} from './evidence-relevance';
 import {supportClaimSubject} from './support-scope';
+import {priceCurrencyEvidenceReason} from './claim-ambiguity';
 
 const tokens=(text:string)=>text.normalize('NFKC').toLowerCase().replace(/([\p{L}])(?=\d)/gu,'$1 ').match(/[\p{L}\p{N}]+/gu)??[];
 const phrase=(text:string,term:string)=>` ${tokens(text).join(' ')} `.includes(` ${tokens(term).join(' ')} `);
-const supportTerms=/\b(?:support(?:ed)?|end[- ]of[- ]life|eol|deprecated|sunset|maintenance|discontinued)\b/iu;
+const supportTerms=/\b(?:support(?:ed)?|end[- ]of[- ]life|eol|deprecated|sunset|maintenance|discontinued|security (?:updates|fixes|patches))\b/iu;
 
 export function excerptQualityReason(claim:string,excerpt:string):string|undefined{
  // Inspect artifacts without rewriting the exact text retained as evidence.
@@ -17,6 +18,7 @@ export function excerptQualityReason(claim:string,excerpt:string):string|undefin
  const lines=excerpt.split('\n').filter(line=>line.trim());
  const packageLines=lines.filter(line=>/^\s*(?:purl:|pkg:)/iu.test(line)).length;
  if(packageLines>=3&&packageLines>lines.length/2)return 'The excerpt is dominated by package identifiers rather than a support statement. Fuller explanatory evidence is required.';
+ const currencyReason=priceCurrencyEvidenceReason(claim,excerpt);if(currencyReason)return currencyReason;
  const subject=supportClaimSubject(claim);
  if(subject&&(!phrase(excerpt,subject)||!supportTerms.test(excerpt)))return 'This support claim needs an explicit matching product/version and support context in the excerpt. Generic compatibility wording or another version cannot corroborate it.';
 }

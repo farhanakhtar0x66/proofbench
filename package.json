@@ -32,6 +32,7 @@
     "benchmark:verification:prepare": "node --import tsx scripts/prepare-verification-benchmark.ts",
     "evaluate:general": "node --import tsx scripts/evaluate-general.ts",
     "evaluate:topics": "node --import tsx scripts/evaluate-topics.ts",
+    "evaluate:topics:live": "node --env-file-if-exists=.env --import tsx scripts/run-topic-validation.ts",
     "evaluate:verifier": "node --import tsx scripts/evaluate-verifier.ts",
     "benchmark:language": "node --import tsx scripts/benchmark-language.ts",
     "benchmark:bifrost": "node --env-file-if-exists=.env --import tsx scripts/benchmark-language.ts --bifrost",

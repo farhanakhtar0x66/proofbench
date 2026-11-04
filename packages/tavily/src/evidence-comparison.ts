@@ -13,6 +13,7 @@ import {historicalSupportAssessment} from './historical-support';
 import {currencyAmbiguityReason} from './claim-ambiguity';
 import {isClaimRestatement,sharedReplacementSentences} from './correction-candidates';
 import {evidenceFreshness} from './evidence-freshness';
+import {supportedQuantityReason} from './quantity-evidence';
 import type {ComparisonCache} from './comparison-cache';
 
 const sourceId=z.string().regex(/^S[1-3]$/u);
@@ -78,7 +79,8 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
   const citations=parsed.assessments.map((assessment,index)=>{
    const source=sources[index];
    if(assessment.sourceId!==source.sourceId||assessment.quote!==source.excerpt)throw new Error('Invalid citation or altered source context');
-   return {sourceId:source.sourceId,url:source.url,quote:assessment.quote,relation:assessment.relation,eligible:source.eligible,dateReason:source.dateReason,scopeReason:source.scopeReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt};
+   const quantityReason=assessment.relation==='supports'?supportedQuantityReason(data.claim,source.excerpt):undefined;
+   return {sourceId:source.sourceId,url:source.url,quote:assessment.quote,relation:assessment.relation,eligible:source.eligible&&!quantityReason,dateReason:source.dateReason,scopeReason:source.scopeReason??quantityReason,publishedAt:source.publishedAt,retrievedAt:source.retrievedAt};
   });
   const groups=(kind:'supports'|'contradicts')=>new Set(citations.filter(citation=>citation.eligible&&citation.relation===kind).map(citation=>sources.find(source=>source.sourceId===citation.sourceId)!.group)).size;
   const conflict=citations.some(citation=>citation.relation==='conflicting')||(citations.some(citation=>citation.relation==='supports')&&citations.some(citation=>citation.relation==='contradicts'));

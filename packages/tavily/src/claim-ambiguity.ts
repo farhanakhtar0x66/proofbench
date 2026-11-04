@@ -1,5 +1,23 @@
 const codes='(?:USD|CAD|AUD|NZD|HKD|SGD|MXN)';
 
+/** A model cannot establish an explicitly claimed currency from a bare symbol. */
+export function priceCurrencyEvidenceReason(claim:string,excerpt:string):string|undefined{
+ if(!/\b(?:costs?|prices?|pricing|fees?|charges?|subscription)\b/iu.test(claim))return;
+ const aliases:Record<string,RegExp>={
+  USD:/\bUSD\b|\bUS\$|\bUS dollars?\b|\bU\.S\. dollars?\b/iu,
+  CAD:/\bCAD\b|\bCA\$|\bCanadian dollars?\b/iu,
+  AUD:/\bAUD\b|\bAU\$|\bAustralian dollars?\b/iu,
+  NZD:/\bNZD\b|\bNZ\$|\bNew Zealand dollars?\b/iu,
+  HKD:/\bHKD\b|\bHK\$|\bHong Kong dollars?\b/iu,
+  SGD:/\bSGD\b|\bSG\$|\bSingapore dollars?\b/iu,
+  MXN:/\bMXN\b|\bMX\$|\bMexican pesos?\b/iu,
+ };
+ const currencies=Object.entries(aliases).filter(([,pattern])=>pattern.test(claim));
+ if(currencies.length!==1)return;
+ const [currency,pattern]=currencies[0];
+ if(!pattern.test(excerpt))return `The pricing claim explicitly specifies ${currency}, but the excerpt does not. A bare currency symbol or another currency cannot establish matching monetary scope.`;
+}
+
 /** Currency must be stated with each amount, never inferred from the evidence. */
 export function currencyAmbiguityReason(claim:string):string|undefined{
  if(!/\b(?:costs?|prices?|pricing|fees?|charges?|pay|pays|paid|payment|monthly|month|year|annually|subscription|dollars?)\b/iu.test(claim))return;

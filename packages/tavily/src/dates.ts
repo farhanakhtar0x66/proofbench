@@ -22,10 +22,19 @@ export function assessSourceDates(source:DatedSource,now:string){
  const publishedAt=sourceDate(source.published_date);
  const content=source.originalContent??source.content??'';
  const collect=(pattern:RegExp)=>[...new Set([...content.matchAll(pattern)].map(match=>match[1]))];
- const updates=collect(/\b(?:last updated|updated(?: on)?)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
+ const updates=collect(/\b(?:last updated(?: on)?|updated(?: on)?)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
+ // A readable page-update label can disagree with Tavily's publication estimate.
+ // Parse complete English month dates strictly; never replace publication with it.
+ const months=['january','february','march','april','may','june','july','august','september','october','november','december'];
+ const monthUpdates=collect(/\b(?:last updated(?: on)?|updated on)\s*:?\s*([A-Za-z]+ \d{1,2},? \d{4})\b/giu);
+ for(const text of monthUpdates){
+  const match=text.match(/^([A-Za-z]+) (\d{1,2}),? (\d{4})$/u)!;
+  const month=months.indexOf(match[1].toLowerCase())+1;
+  updates.push(month?`${match[3]}-${String(month).padStart(2,'0')}-${match[2].padStart(2,'0')}`:text);
+ }
  const effective=collect(/\b(?:effective(?: from| on)?|takes effect(?: on)?)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
  const scopes=collect(/\b(?:as of|historical as of)\s*:?\s*(\d{4}-\d{2}-\d{2})\b/giu);
- const updatedAt=updates.length===1?sourceDate(updates[0]):undefined;
+ const updatedAt=new Set(updates).size===1?sourceDate(updates[0]):undefined;
  const effectiveAt=effective.length===1?sourceDate(effective[0]):undefined;
  const age=publishedAt?Date.parse(now)-Date.parse(publishedAt):NaN;
  let reason:string|undefined;
@@ -33,6 +42,7 @@ export function assessSourceDates(source:DatedSource,now:string){
  else if(age<0)reason='The publication date is in the future.';
  else if(age>30*86400000)reason='The publication is older than 30 days; a recent page update does not prove that the fact was rechecked.';
  if([...updates,...effective,...scopes].some(value=>!sourceDate(value)))reason='An explicit source date is invalid.';
+ if(/\b(?:last updated(?: on)?|updated on)\s*:?\s*(?:[A-Za-z]+\s+\d|\d)/iu.test(content)&&!updates.length)reason='An explicit update date could not be parsed; its publication relationship is uncertain.';
  if(/\b(?:effective|takes effect)\b/iu.test(content)&&effective.length===0||/\bas of\b/iu.test(content)&&scopes.length===0)reason='An explicit effective or as-of date could not be parsed; its temporal scope is uncertain.';
  if(new Set(updates).size>1||new Set(effective).size>1||new Set(scopes).size>1)reason='Multiple explicit source dates cannot be safely assigned to the fact.';
  if(updatedAt&&(Date.parse(updatedAt)>Date.parse(now)||publishedAt&&updatedAt.slice(0,10)<publishedAt.slice(0,10)))reason='The update date conflicts with publication or current time.';
