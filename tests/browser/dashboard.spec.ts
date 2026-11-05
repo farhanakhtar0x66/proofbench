@@ -22,7 +22,7 @@ test('discovers stored runs, inspects truthful Task 9 escalation, and displays c
  await page.goto('/');
  await expect(page.getByRole('heading',{name:'Trust the evidence.'})).toBeVisible();
  // Verify stored runs are visible in the ledger
- await expect(page.getByText('Held-out Sensor Fusion & Telemetry Aggregation Service')).toBeVisible();
+ await expect(page.getByText('Multi-Module Sensor Fusion & Telemetry Aggregation Service')).toBeVisible();
  await expect(page.getByText('Multi-Module Bidirectional Event Pipeline Service')).toBeVisible();
  await expect(page.getByText('Zero-Token Deterministic Mechanical Repair')).toBeVisible();
 
@@ -45,7 +45,7 @@ test('discovers stored runs, inspects truthful Task 9 escalation, and displays c
  // Verify reload persistence
  await page.reload();
  await expect(page.getByRole('heading',{name:'Trust the evidence.'})).toBeVisible();
- await expect(page.getByText('Held-out Sensor Fusion & Telemetry Aggregation Service')).toBeVisible();
+ await expect(page.getByText('Multi-Module Sensor Fusion & Telemetry Aggregation Service')).toBeVisible();
  await expect(page.getByText('Multi-Module Bidirectional Event Pipeline Service')).toBeVisible();
  await expect(page.getByText('Zero-Token Deterministic Mechanical Repair')).toBeVisible();
 });

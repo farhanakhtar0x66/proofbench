@@ -26,7 +26,7 @@ describe('ProofBench — Multi-Module Sensor Fusion Task 10 (Simulation Validati
     const taskSpec = TaskSpec.parse({
       version: '1',
       id: 'task-10-sensor-fusion-aggregator',
-      title: 'Held-out Sensor Fusion & Telemetry Aggregation Service',
+      title: 'Multi-Module Sensor Fusion & Telemetry Aggregation Service',
       prompt: 'Fix telemetry frame parsing in src/sensor.rs and implement anomaly threshold filtering in src/aggregator.rs.',
       acceptance: ['cargo test exits with code 0'],
       fixtureId: 'task-10-v1',

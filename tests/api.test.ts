@@ -149,3 +149,65 @@ it('rejects jobs for tasks outside allowed scope', async () => {
   await app.close();
  }
 });
+
+it('returns 503 when Bifrost gateway is unreachable during live coding job preflight', async () => {
+ const oldUrl = process.env.BIFROST_GATEWAY_URL;
+ process.env.BIFROST_GATEWAY_URL = 'http://127.0.0.1:9998'; // Guaranteed dead port
+ const app = await createApp({ implementation: '01' });
+ try {
+  const codingTask = {
+   version: '1' as const,
+   id: 'task-1-fix-failing-func',
+   title: 'Fix bounds bug',
+   prompt: 'Fix sliding window',
+   acceptance: ['cargo test exits with 0'],
+  };
+  const res = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task: codingTask, agentId: 'bifrost-01' },
+  });
+  expect(res.statusCode).toBe(503);
+  expect(res.json().error).toBe('service_unavailable');
+  expect(res.json().message).toContain('Bifrost inference gateway unreachable');
+ } finally {
+  process.env.BIFROST_GATEWAY_URL = oldUrl;
+  await app.close();
+ }
+});
+
+it('gracefully handles job execution failure and records failed status', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-failed-job-'));
+ const app = await createApp({ dataDir: dir, implementation: 'mock' });
+ try {
+  // Submit a mock job with a task that fails acceptance
+  const failingTask = {
+   version: '1' as const,
+   id: 'task-sum',
+   fixtureId: 'sum-v1',
+   title: 'Failing sum task',
+   prompt: 'Produce wrong answer',
+   acceptance: ['Output exactly 999'],
+  };
+  const res = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task: failingTask, agentId: 'mock-local' },
+  });
+  expect(res.statusCode).toBe(202);
+  const { jobId } = res.json();
+
+  let job = null;
+  for (let i = 0; i < 20; i++) {
+   const poll = await app.inject(`/api/jobs/${jobId}`);
+   job = poll.json();
+   if (job.status === 'completed' || job.status === 'failed') break;
+   await new Promise((r) => setTimeout(r, 50));
+  }
+  expect(job.status).toBe('failed');
+  expect(job.error).toContain('Mock executes only the published sum fixture');
+ } finally {
+  await app.close();
+  await rm(dir, { recursive: true, force: true });
+ }
+});

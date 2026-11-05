@@ -163,6 +163,7 @@ export type {
 };
 
 export interface RunAdaptiveEngineOptions {
+  runId?: string;
   gatewayUrl?: string;
   virtualKey?: string;
   maxTurns?: number;
@@ -221,7 +222,7 @@ export async function runAdaptiveEngine(
   });
 
   options.onProgress?.('AdaptiveExecutionEngine initialized; running turns...');
-  const result = await engine.runTask(task, { workspacePath: ws.workspacePath });
+  const result = await engine.runTask(task, { workspacePath: ws.workspacePath, runId: options.runId });
 
   const { buildReport } = await import('../../../packages/report-engine/src/index');
   const report = buildReport(result.run);

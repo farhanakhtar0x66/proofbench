@@ -117,7 +117,7 @@ export class AdaptiveExecutionEngine {
   ): Promise<EngineExecutionResult> {
     const startTime = performance.now();
     const runCpuStart = process.cpuUsage();
-    const runId = randomUUID();
+    const runId = runOptions.runId ?? randomUUID();
     const reportId = randomUUID();
     const createdAt = new Date().toISOString();
 

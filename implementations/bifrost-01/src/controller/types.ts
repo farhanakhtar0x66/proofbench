@@ -32,6 +32,7 @@ export interface EngineRunOptions {
   workspacePath?: string;
   seed?: number;
   resumeFromCheckpointId?: string;
+  runId?: string;
 }
 
 export interface EngineExecutionResult {

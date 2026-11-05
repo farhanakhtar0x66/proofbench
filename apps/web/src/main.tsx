@@ -12,7 +12,7 @@ function runBadge(r:RunRecord){
  if(r.reproducibility.simulated)return <span className="badge-sub badge-mock">SIMULATED FIXTURE</span>;
  if(r.id.includes('task-6')||(r.usage.inputTokens.status==='known'&&r.usage.inputTokens.value===0))return <span className="badge-sub badge-zero">ZERO-TOKEN AST FIX</span>;
  if(r.id.includes('task-9'))return <span className="badge-sub badge-escalate">M3A ESCALATION (1.5B ➔ 9B)</span>;
- if(r.id.includes('task-10'))return <span className="badge-sub badge-live">HELD-OUT SENSOR FUSION</span>;
+ if(r.id.includes('task-10'))return <span className="badge-sub badge-live">SENSOR FUSION VALIDATION</span>;
  return <span className="badge-sub badge-live">MEASURED LIVE</span>;
 }
 function App(){
@@ -67,19 +67,21 @@ function App(){
    const taskToRun=tasks[0]??{version:'1',id:'task-6-deterministic-fix',title:'Deterministic mechanical fix',prompt:'Fix unused var',acceptance:['cargo test passes']};
    const submission=await api('/jobs',schemas.JobSubmissionResponse,{version:'1',task:taskToRun,agentId:caps?.agent.id,seed:0});
    const {jobId,runId}=submission;
+   let targetRunId=runId;
    setProgress('Job running in workspace…');
    let completed=false;
    for(let i=0;i<60;i++){
     await new Promise(r=>setTimeout(r,1200));
     const job=await api(`/jobs/${jobId}`,schemas.JobRecord);
     if(job.progress)setProgress(job.progress);
+    if(job.runId)targetRunId=job.runId;
     if(job.status==='completed'){completed=true;break;}
     if(job.status==='failed')throw new Error(job.error||'Execution job failed');
    }
    if(!completed)throw new Error('Execution job timed out after 75s');
    const list=await api('/runs',schemas.RunListResponse);
    setRuns(list.runs);
-   const target=list.runs.find(r=>r.id===runId)??list.runs[0];
+   const target=list.runs.find(r=>r.id===targetRunId)??list.runs[0];
    if(target){setSelected(target);await inspect(target);}
   }catch(e){setError((e as Error).message);}finally{setBusy(false);setProgress('');}
  }

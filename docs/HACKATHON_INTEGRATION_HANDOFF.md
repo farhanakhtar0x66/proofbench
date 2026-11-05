@@ -64,9 +64,9 @@ The ProofBench API implements strict, versioned Zod schemas defined in `packages
 
 To allow instant dashboard exploration without running live inference, three real, verified execution runs are preloaded in `.local/data/` conforming to runtime schemas:
 
-1. **Held-Out Task 10 Live Acceptance:**
+1. **Task 10 Live Sensor Fusion Validation:**
    - Files: `runs-task-10-live.json`, `trace-task-10-live.json`, `reports-task-10-live.json`
-   - Challenge: `task-10-sensor-fusion-aggregator` (unfamiliar symbols and multi-file dependencies)
+   - Challenge: `task-10-sensor-fusion-aggregator` (co-designed validation fixture for multi-file AST symbol resolution)
    - Metrics: 2 execution turns, 2,817 prompt tokens, 507 completion tokens, 0 USD, PASSED
    - Highlights: Generic AST symbol indexing, zero fixture heuristics, transactional multi-file commit across `src/sensor.rs` and `src/aggregator.rs`.
 

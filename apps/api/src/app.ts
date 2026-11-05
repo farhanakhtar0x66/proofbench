@@ -9,6 +9,7 @@ import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
+try{process.loadEnvFile?.();}catch{/* ignore missing env file */}
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
@@ -181,6 +182,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
     if(adapter.descriptor.implementation==='01'&&isCodingTask){
      const {runAdaptiveEngine}=await import('../../../implementations/bifrost-01/src/index');
      const result=await runAdaptiveEngine(input.task,{
+      runId,
       onProgress:async(msg)=>{
        await store.put('jobs',jobId,{...initialJob,progress:msg,updatedAt:new Date().toISOString()});
       }
