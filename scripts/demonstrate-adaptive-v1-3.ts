@@ -1,14 +1,12 @@
 /**
- * ProofBench Adaptive Execution Engine v1.3 — Empirical Evidence Demonstration Script
+ * ProofBench Adaptive Execution Engine v1.3 — Deterministic State Machine Simulation & Regression Test
  * 
- * Demonstrates:
- * 1. Pillar 1: True Deterministic CPU Time Measurement (process.cpuUsage() vs Wall Clock)
- * 2. Pillar 2: Universal Context Continuity & Resumption Across Inter-Tier Handoffs
- * 3. Pillar 3: Genuine Autonomous Bidirectional Multi-Tier Trajectory
- *    (NON_LLM ➔ SMALL_LLM ➔ STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM)
- * 4. Pillar 4: Fair Controlled Routing Benchmark (Equalizing AST Tools, Isolating Routing Policy)
- * 5. Pillar 5: Adversarial Governance & Security Invariant Enforcement
- * 6. Pillar 6: Aryan's UI Data Contract Export & Schema Validation (.local/data/adaptive-engine-v1-3-evidence.json)
+ * NOTE ON EVALUATION MODE:
+ * This script runs in DETERMINISTIC SIMULATION MODE using an EmbeddedBifrostGateway with
+ * mock response handlers. It exercises the host state machine, Tree-sitter AST pruning,
+ * mechanical transformations, durable checkpoints, and handoff protocol parsing.
+ * For genuine live LLM model inference through the Maxim Bifrost gateway, see v1.4 live suite:
+ * `npm run demonstrate:adaptive:v1-4:live`.
  */
 
 import * as fs from 'node:fs/promises';
@@ -247,23 +245,24 @@ Return true if event.severity >= self.min_severity and (self.allowed_types.is_em
 }
 
 async function main() {
-  const args = process.argv.slice(2);
-  const isLiveRequested = args.includes('--live');
   const gatewayUrl = process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
   const virtualKey = process.env.BIFROST_VIRTUAL_KEY;
   const isGatewayOnline = await checkLiveGateway(gatewayUrl);
 
   console.log('='.repeat(80));
-  console.log('ProofBench — Adaptive Execution Engine v1.3 Full Verification Suite');
+  console.log('ProofBench — Adaptive Execution Engine v1.3 State Machine Simulation Suite');
+  console.log('MODE: DETERMINISTIC SIMULATION & REGRESSION TESTING (MOCK MODEL GATEWAY)');
+  console.log('NOTICE: Exercises state machine, AST pruning, and checkpoints with mock handlers.');
   console.log(`Bifrost Gateway Daemon: ${isGatewayOnline ? `ONLINE (${gatewayUrl})` : `OFFLINE (${gatewayUrl})`}`);
   console.log(`Bifrost Virtual Key:    ${virtualKey ? 'CONFIGURED (.env)' : 'MISSING'}`);
-  console.log(`Execution Mode:         ${isLiveRequested ? 'LIVE' : 'AUTO (Live verification + deterministic evaluation)'}`);
   console.log(`Process ID:             ${process.pid}`);
   console.log(`Node.js Version:        ${process.version} (${process.platform} ${process.arch})`);
   console.log('='.repeat(80));
 
   interface EvidenceReportData {
     version: string;
+    mode: string;
+    notice: string;
     timestamp: string;
     gatewayUrl: string;
     isGatewayOnline: boolean;
@@ -272,6 +271,8 @@ async function main() {
 
   const evidenceReport: EvidenceReportData = {
     version: '1.3.0',
+    mode: 'deterministic_simulation_regression_test',
+    notice: 'Exercises state machine invariants and persistence under mock model responses; not a live LLM performance benchmark.',
     timestamp: new Date().toISOString(),
     gatewayUrl,
     isGatewayOnline,
@@ -365,10 +366,13 @@ async function main() {
 
   // ==========================================================================
   // PILLAR 2: UNIVERSAL CONTEXT CONTINUITY & RESUMPTION ACROSS INTER-TIER HANDOFFS
+  // (SIMULATED REGRESSION TEST)
   // ==========================================================================
   console.log('\n' + '-'.repeat(80));
-  console.log('PILLAR 2: UNIVERSAL CONTEXT CONTINUITY ACROSS INTER-TIER DELEGATION & PROCESS DEATH');
+  console.log('PILLAR 2: UNIVERSAL CONTEXT CONTINUITY & RESUMPTION (SIMULATED REGRESSION TEST)');
   console.log('-'.repeat(80));
+  console.log('Notice: Verifies durable checkpoint state restoration across controller termination');
+  console.log('using an EmbeddedBifrostGateway mock handler to evaluate state machine integrity.');
   console.log('Testing: Controller killed at Turn 3 during a pending Stronger ➔ Small model delegation.');
   console.log('Verifying: Checkpoint contains bounded instructions; Instance 2 resumes delegation without amnesia.\n');
 
@@ -437,11 +441,13 @@ async function main() {
   console.log('\n✅ PILLAR 2 PASSED: Controller killed during inter-tier delegation and resumed with zero amnesia.');
 
   // ==========================================================================
-  // PILLAR 3: GENUINE AUTONOMOUS BIDIRECTIONAL TRAJECTORY
+  // PILLAR 3: AUTONOMOUS BIDIRECTIONAL TRAJECTORY (SIMULATED REGRESSION TEST)
   // ==========================================================================
   console.log('\n' + '-'.repeat(80));
-  console.log('PILLAR 3: GENUINE AUTONOMOUS BIDIRECTIONAL MULTI-TIER TRAJECTORY');
+  console.log('PILLAR 3: AUTONOMOUS BIDIRECTIONAL STATE MACHINE TRAJECTORY (SIMULATED REGRESSION)');
   console.log('Sequence: NON_LLM ➔ SMALL_LLM ➔ STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM');
+  console.log('Notice: Validates controller handoff parsing and state transitions using mock handler.');
+  console.log('For genuine live LLM inference, see `npm run demonstrate:adaptive:v1-4:live`.');
   console.log('-'.repeat(80));
 
   const wsBi = await TaskWorkspace.create(task9Spec.id);
@@ -501,13 +507,13 @@ async function main() {
   console.log('\n✅ PILLAR 3 PASSED: Full bidirectional loop (Small ⇄ Stronger) autonomously completed.');
 
   // ==========================================================================
-  // PILLAR 4: FAIR CONTROLLED ROUTING BENCHMARK
+  // PILLAR 4: SIMULATED CONTROLLED ROUTING BENCHMARK (MOCK GATEWAY EVALUATION)
   // ==========================================================================
   console.log('\n' + '-'.repeat(80));
-  console.log('PILLAR 4: FAIR CONTROLLED ROUTING BENCHMARK (ISOLATING ROUTING POLICY)');
+  console.log('PILLAR 4: SIMULATED CONTROLLED ROUTING BENCHMARK (MOCK GATEWAY EVALUATION)');
   console.log('-'.repeat(80));
-  console.log('Note: To ensure scientific integrity, identical Tree-sitter AST Context Compilers,');
-  console.log('Mechanical Transformers, and Prompt Compilers are shared across ALL 4 arms.\n');
+  console.log('Notice: Evaluates policy dispatch and accounting mechanics under deterministic mock gateway.');
+  console.log('This demonstrates framework functionality under controlled synthetic responses, NOT real model generation.\n');
 
   console.log('Benchmarking 4 Controlled Policies on task-9-bidirectional-event-service...');
   const controlledBenchResult = await ComparativeBenchmarkSuite.benchmarkControlledRouting(task9Spec, {

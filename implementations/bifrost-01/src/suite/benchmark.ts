@@ -1,6 +1,7 @@
 import { TaskSpec } from '../../../../packages/contracts/src/index';
 import { ProofBenchAgent } from '../runtime/agent';
 import { AdaptiveExecutionEngine } from '../controller/engine';
+import { EngineRoutingPolicy } from '../controller/types';
 import { EmbeddedBifrostGateway } from '../gateway/embedded';
 import { BifrostClient } from '../gateway/client';
 import { createWorkspaceApprovalHandler } from '../governance/approval';
@@ -159,11 +160,12 @@ export interface ControlledRoutingAggregate {
 }
 
 export interface AttributionBreakdown {
-  deterministicToolingTokensSaved: number;
-  contextCompilationTokensSaved: number;
-  modelSelectionTokensSaved: number;
-  bidirectionalHandoffTokensSaved: number;
+  deterministicToolingTokensSaved: number | null;
+  contextCompilationTokensSaved: number | null;
+  modelSelectionTokensSaved: number | null;
+  bidirectionalHandoffTokensSaved: number | null;
   cpuOverheadMs: number;
+  unisolatedEffects?: string[];
 }
 
 export interface ControlledRoutingBenchmarkOptions {
@@ -1220,60 +1222,33 @@ export class ComparativeBenchmarkSuite {
         let detOps = 0;
         let avoidedReqs = 0;
 
-        if (p.policy === 'controlled_bidirectional_adaptive') {
-          const engine = new AdaptiveExecutionEngine({
-            bifrostClient,
-            approvalHandler: createWorkspaceApprovalHandler(),
-            smallModel,
-            strongerModel: largeModel,
-          });
+        const policyMapping: Record<ControlledRoutingPolicy, EngineRoutingPolicy> = {
+          controlled_direct_small: 'direct_small',
+          controlled_direct_frontier: 'direct_frontier',
+          controlled_escalation_only: 'escalation_only',
+          controlled_bidirectional_adaptive: 'bidirectional_adaptive',
+        };
 
-          const result = await engine.runTask(task, { seed: t });
-          inTok = extractObservation(result.run.usage.inputTokens);
-          outTok = extractObservation(result.run.usage.outputTokens);
-          totTok = inTok !== null && outTok !== null ? inTok + outTok : (inTok ?? outTok ?? null);
-          cost = extractObservation(result.run.usage.cost);
-          passed = result.run.acceptance.status === 'passed';
-          status = result.run.status;
-          turns = result.controllerState.turnCount || 1;
-          transitionsCount = result.controllerState.transitions.length;
-          detOps = result.deterministicOperationsCount;
-          avoidedReqs = result.avoidedModelRequests;
-          modelCalls = result.trace.events.filter((e) => e.message.includes('Dispatching turn')).length;
-        } else {
-          // Controlled baselines: use ProofBenchAgent with the shared deterministic context compiler enabled
-          const isEscalation = p.policy === 'controlled_escalation_only';
-          const primary = p.policy === 'controlled_direct_frontier' ? largeModel : smallModel;
-          const recovery = isEscalation ? largeModel : undefined;
+        const engine = new AdaptiveExecutionEngine({
+          bifrostClient,
+          approvalHandler: createWorkspaceApprovalHandler(),
+          smallModel,
+          strongerModel: largeModel,
+          routingPolicy: policyMapping[p.policy],
+        });
 
-          const agent = new ProofBenchAgent({
-            bifrostClient,
-            approvalHandler: createWorkspaceApprovalHandler(),
-            primaryModel: primary,
-            recoveryModel: recovery,
-            enableM1ContextBounding: true,
-            enableM2StagnationBreaker: true,
-            enableM3aAutopsyEscalation: isEscalation,
-            enableTavilyDocumentation: true,
-            enableContextCompiler: true,
-            enablePromptCompiler: true,
-            enableIncrementalEdits: true,
-            enableModelSelectionPolicy: false,
-          });
-
-          const result = await agent.runTask(task, t);
-          inTok = extractObservation(result.run.usage.inputTokens);
-          outTok = extractObservation(result.run.usage.outputTokens);
-          totTok = inTok !== null && outTok !== null ? inTok + outTok : null;
-          cost = extractObservation(result.run.usage.cost);
-          passed = result.run.acceptance.status === 'passed';
-          status = result.run.status;
-          modelCalls = result.trace.events.filter((e) => e.message.includes('Dispatching turn')).length;
-          turns = modelCalls;
-          transitionsCount = result.trace.events.some((e) => e.data?.isRecovery === true) ? 1 : 0;
-          detOps = 1; // compiler pass
-          avoidedReqs = 0;
-        }
+        const result = await engine.runTask(task, { seed: t });
+        inTok = extractObservation(result.run.usage.inputTokens);
+        outTok = extractObservation(result.run.usage.outputTokens);
+        totTok = inTok !== null && outTok !== null ? inTok + outTok : (inTok ?? outTok ?? null);
+        cost = extractObservation(result.run.usage.cost);
+        passed = result.run.acceptance.status === 'passed';
+        status = result.run.status;
+        turns = result.controllerState.turnCount || 1;
+        transitionsCount = result.controllerState.transitions.length;
+        detOps = result.deterministicOperationsCount;
+        avoidedReqs = result.avoidedModelRequests;
+        modelCalls = result.trace.events.filter((e) => e.message.includes('Dispatching turn')).length;
 
         const wallDurationMs = Math.max(1, Math.round(performance.now() - startWall));
         const cpuDiff = process.cpuUsage(startCpu);
@@ -1345,16 +1320,33 @@ export class ComparativeBenchmarkSuite {
       };
     }
 
-    // Attribution Calculations
+    // Attribution Calculations: report strictly measured values or null when unisolated
     const adaptiveSummary = summary.controlled_bidirectional_adaptive;
     const escalationSummary = summary.controlled_escalation_only;
     const frontierSummary = summary.controlled_direct_frontier;
 
-    const deterministicToolingTokensSaved = Math.max(0, (measurements.controlled_bidirectional_adaptive[0]?.avoidedModelRequests ?? 0) * 350);
-    const contextCompilationTokensSaved = 850; // Average tokens pruned by Tree-sitter AST compiler vs unpruned baseline
-    const modelSelectionTokensSaved = Math.max(0, (frontierSummary.avgTotalTokens ?? 0) - (escalationSummary.avgTotalTokens ?? 0));
-    const bidirectionalHandoffTokensSaved = Math.max(0, (escalationSummary.avgTotalTokens ?? 0) - (adaptiveSummary.avgTotalTokens ?? 0));
-    const cpuOverheadMs = adaptiveSummary.avgCpuDurationMs ?? 25;
+    // Deterministic tooling savings: measured if non-LLM pass completed task with 0 LLM tokens vs a model arm
+    const avoidedRequests = measurements.controlled_bidirectional_adaptive[0]?.avoidedModelRequests ?? 0;
+    const deterministicToolingTokensSaved = (avoidedRequests > 0 && frontierSummary.avgTotalTokens !== null)
+      ? Math.max(0, frontierSummary.avgTotalTokens - (adaptiveSummary.avgTotalTokens ?? 0))
+      : null;
+
+    // Context compilation is shared across all arms in this benchmark; differential effect requires independent ablation
+    const contextCompilationTokensSaved = null;
+
+    // Model selection savings: measured difference between starting in frontier vs escalating only on failure
+    const modelSelectionTokensSaved =
+      frontierSummary.avgTotalTokens !== null && escalationSummary.avgTotalTokens !== null
+        ? Math.max(0, frontierSummary.avgTotalTokens - escalationSummary.avgTotalTokens)
+        : null;
+
+    // Bidirectional handoff savings: measured difference between escalation-only vs full bidirectional adaptive
+    const bidirectionalHandoffTokensSaved =
+      escalationSummary.avgTotalTokens !== null && adaptiveSummary.avgTotalTokens !== null
+        ? Math.max(0, escalationSummary.avgTotalTokens - adaptiveSummary.avgTotalTokens)
+        : null;
+
+    const cpuOverheadMs = adaptiveSummary.avgCpuDurationMs ?? 0;
 
     const attribution: AttributionBreakdown = {
       deterministicToolingTokensSaved,
@@ -1362,9 +1354,13 @@ export class ComparativeBenchmarkSuite {
       modelSelectionTokensSaved,
       bidirectionalHandoffTokensSaved,
       cpuOverheadMs,
+      unisolatedEffects: [
+        'context_compilation_shared_across_all_controlled_arms',
+        'deterministic_tooling_requires_paired_ablation_when_not_zero_call',
+      ],
     };
 
-    const evidenceSummary = `Controlled Routing Benchmark on '${task.title}': Equalizing deterministic AST tools across all arms revealed bidirectional adaptive routing achieved ${adaptiveSummary.successRatePercent}% success rate with ${adaptiveSummary.totalTokensPerAcceptedCompletion ?? 'N/A'} tokens per accepted completion. Model delegation saved ${bidirectionalHandoffTokensSaved} tokens over escalation-only.`;
+    const evidenceSummary = `Controlled Routing Benchmark on '${task.title}': Equalizing deterministic AST tools across all arms revealed bidirectional adaptive routing achieved ${adaptiveSummary.successRatePercent}% success rate with ${adaptiveSummary.totalTokensPerAcceptedCompletion ?? 'N/A'} tokens per accepted completion. Model delegation saved ${bidirectionalHandoffTokensSaved ?? 'N/A'} tokens over escalation-only.`;
 
     return {
       taskId: task.id,

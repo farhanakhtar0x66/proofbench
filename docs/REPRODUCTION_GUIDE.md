@@ -1,4 +1,4 @@
-# ProofBench — Judge & Evaluator Reproduction Guide (v1.3)
+# ProofBench — Judge & Evaluator Reproduction Guide (v1.4)
 
 **Track Challenge:** Bifrost #01 — Coding Agent with Minimal Token Usage  
 **Secondary Integration:** Tavily — Documentation Freshness & Source Verification  
@@ -10,25 +10,39 @@
 
 ## 1. System Overview & Evaluation Highlights
 
-ProofBench demonstrates an **Adaptive Execution Engine (v1.3)** designed to autonomously coordinate non-LLM operations, small-model inference, and stronger-model reasoning within a single continuous coding project, minimizing total model token consumption while preserving or improving task correctness on complex coding benchmarks.
+ProofBench implements an **Adaptive Execution Engine (v1.4)** designed to minimize total model token consumption on complex coding benchmarks while preserving or improving task correctness by dynamically transitioning between:
 
-Key capabilities demonstrated in v1.3:
-1. **Genuine Bidirectional Model Handoffs:** Autonomous dynamic trajectory across all execution tiers:
-   `NON_LLM ➔ SMALL_LLM ➔ STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM`  
-   Demonstrated on `task-9-bidirectional-event-service`, where the non-LLM tier prunes dead code at 0 tokens, the small model resolves CSV parsing, compiler borrow conflicts trigger diagnostic autopsy escalation to the stronger model, the stronger model resolves lifetime borrows and delegates the localized predicate filter back to the small model with bounded instructions, and the non-LLM runner verifies acceptance (all 4 integration tests pass).
-2. **True Deterministic CPU Time Measurement:** Node.js kernel + user CPU duration measured via `process.cpuUsage()` deltas rather than wall-clock subtractions. Proves that deterministic AST context pruning, prompt compilation, and mechanical fixes consume only ~30–75 ms of true CPU time, while idle asynchronous network I/O consumes zero CPU cycles.
-3. **Resilient Context Continuity Across Handoff Boundaries:** When the controller process is killed at Turn 3 during a pending `stronger_to_small` delegation, the durable JSONL checkpoint preserves `pendingBoundedInstructions`, accepted source revisions, and cumulative token counters. A fresh controller instance resumes immediately at Turn 4 with zero amnesia or replay hazards.
-4. **Fair Controlled Routing Benchmarks:** Equalizes deterministic tooling (Tree-sitter AST Context Compiler, Mechanical Transformer, and Prompt Compiler) across all 4 benchmark arms (`controlled_direct_small`, `controlled_direct_frontier`, `controlled_escalation_only`, `controlled_bidirectional_adaptive`), isolating the exact token and latency savings contributed by routing policy from compiler tooling.
-5. **UI Trace Data Contract for Aryan's Dashboard:** Stable TypeScript types and Zod schemas (`TierTransitionEventSchema`, `HandoffPacketExportSchema`, `AttributionBreakdownSchema`, `ControlledBenchmarkExportSchema`) exported from `@proofbench/contracts` for seamless frontend dashboard visualization.
-6. **Stock Maxim Bifrost Gateway Integration:** Native client integration with the running Maxim Bifrost Gateway daemon (`http://127.0.0.1:8089`) with virtual key budget enforcement and routing telemetry.
+`NON_LLM ⇄ SMALL_LLM ⇄ STRONGER_LLM`
+
+### Scientific Integrity & Two Distinct Evaluation Modes
+
+In accordance with empirical evidence standards, v1.4 explicitly separates **simulated state-machine regression tests** from **strict live model evaluations**:
+
+1. **Deterministic State Machine Simulation Suite (`npm run demonstrate:adaptive:v1-3`):**  
+   Uses an `EmbeddedBifrostGateway` with deterministic mock response handlers to evaluate host controller state-machine invariants, Tree-sitter AST context compilation, mechanical transformation rules, durable checkpoint serialization, adversarial attack defenses, and universal handoff protocol parsing.
+
+2. **Strict Live Multi-Model Inference Suite (`npm run demonstrate:adaptive:v1-4:live`):**  
+   Requires a live running Maxim Bifrost gateway daemon (`http://127.0.0.1:8089`) with authenticated `BIFROST_VIRTUAL_KEY`, local Qwen 1.5B (`Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M`), and local Qwen 9B (`gguf/Qwen3.5-9B-GGUF:Q4_K_M`). Prohibits all mock gateways, synthetic token counts, and prewritten code patches. All responses, tokens, latencies, and patches are produced live by the models and local servers.
 
 ---
 
-## 2. Environment Prerequisites
+## 2. Key Capabilities Demonstrated in v1.4
+
+1. **Non-LLM 0-Token Resolution:** Guaranteed compiler-guided mechanical fixes applied in the non-LLM tier (e.g. `task-6-deterministic-fix`), resolving compiler diagnostics at exactly **0 LLM tokens** (74 ms kernel+user CPU time measured via `process.cpuUsage()`).
+2. **Live Small Model Inference & Non-LLM Verification:** Routine coding tasks (`task-1-fix-failing-func`) executed live through the stock Bifrost gateway by local Qwen 1.5B, completing in 1 turn with 1,407 prompt tokens and 193 completion tokens, verified by independent `cargo test`.
+3. **Live Natural Multi-Module Trajectory:** Complex tasks (`task-9-bidirectional-event-service`) executed with live models. When initial localized patches produce stagnating diagnostics, the engine autonomously triggers M3a autopsy escalation to the 9B model, logging real provider token consumption (3,812 input tokens, 282 output tokens).
+4. **Live Checkpoint Interruption & Resumption:** Controller process killed at Turn 1; state, accepted patches, and `CONTEXT.MD` survive on disk. A completely fresh controller instance resumes from disk checkpoint using live Bifrost inference and finishes execution without amnesia or repeated work.
+5. **Fair Equalized Controlled Routing Benchmark:** All 4 benchmark arms (`controlled_direct_small`, `controlled_direct_frontier`, `controlled_escalation_only`, `controlled_bidirectional_adaptive`) execute on the identical `AdaptiveExecutionEngine` runtime with shared Tree-sitter AST context compilers, mechanical transformers, and prompt compilers, isolating the pure effect of routing policy. Hardcoded attribution constants have been completely removed in favor of measured empirical deltas and explicit `null` unisolated flags.
+6. **UI Trace Data Contract Validation:** Stable TypeScript contracts and Zod schemas (`TierTransitionEventSchema`, `HandoffPacketExportSchema`, `AttributionBreakdownSchema`, `ControlledBenchmarkExportSchema`) validated against all exported telemetry.
+
+---
+
+## 3. Environment Prerequisites
 
 - **Node.js:** `>= 22.12.0` (Native `process.loadEnvFile`, ES modules)
 - **Rust Toolchain:** `cargo` and `rustc` installed and on `$PATH` (for offline acceptance compilation and test verification)
 - **Package Manager:** `npm`
+- **Maxim Bifrost Gateway Daemon:** Required for live mode (`bifrost-http-0 -port 8089`)
 
 ### Environment Configuration (`.env`)
 
@@ -41,69 +55,65 @@ BIFROST_GATEWAY_URL=http://127.0.0.1:8089
 # Active Maxim Bifrost Virtual Key
 BIFROST_VIRTUAL_KEY=sk-bf-your-virtual-key
 
+# Models
+BIFROST_DEFAULT_MODEL=Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M
+BIFROST_RECOVERY_MODEL=gguf/Qwen3.5-9B-GGUF:Q4_K_M
+
 # Optional: Tavily API Key for live documentation freshness searches
 TAVILY_API_KEY=tvly-your-tavily-key
 ```
 
-> **Note on Live vs. Simulated Modes:**  
-> All tests and benchmarks can be executed out of the box in **Deterministic Simulation Mode** without needing a running Bifrost gateway or external LLMs. When `BIFROST_GATEWAY_URL` is accessible and `BIFROST_VIRTUAL_KEY` is provided, live gateway routing and real model inference are utilized.
-
 ---
 
-## 3. Quickstart & Verification Commands
+## 4. Quickstart & Verification Commands
 
 ### Step 1: Run the Complete Quality & Test Gate
 
-Runs ESLint (with `--max-warnings=0`), TypeScript compilation (`tsc --noEmit`), Vitest suite (**101 tests across 8 test files**), offline fixture regression tests (7/7 suites), and production builds for both the web frontend and API server:
+Runs ESLint (`--max-warnings=0`), TypeScript compilation (`tsc --noEmit`), Vitest suite (**101 tests across 8 test files**), offline fixture regression tests (7/7 suites), and production builds for both the web frontend and API server:
 
 ```bash
 npm run check
 ```
 
 *Expected Result:*
-- `101/101 tests passed` (100% pass across 8 test suites)
+- `101/101 tests passed` (100% pass rate across 8 test suites)
 - `7/7 offline fixture regressions passed`
 - `0 lint errors / warnings`
 - `dist/web/` and `dist/api/` built cleanly
 
 ---
 
-### Step 2: Run the Adaptive Execution Engine v1.3 Demonstration
+### Step 2: Run the Strict Live Multi-Model Demonstration (v1.4)
 
-Demonstrates the 6 core evidence pillars of the v1.3 milestone:
-- **Pillar 1:** True Deterministic CPU Time Measurement (measures `process.cpuUsage()` deltas vs wall duration on `task-6` and `task-8` at **0 LLM tokens**).
-- **Pillar 2:** Universal Context Continuity & Resumption (simulates controller process death at Turn 3 during a pending `STRONGER_LLM ➔ SMALL_LLM` delegation, restarts in fresh instance, and completes task).
-- **Pillar 3:** Genuine Autonomous Bidirectional Multi-Tier Trajectory (`NON_LLM ➔ SMALL_LLM ➔ STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM` on `task-9-bidirectional-event-service`).
-- **Pillar 4:** Fair Controlled Routing Benchmark (equalizes AST tools across all arms, isolating routing policy).
-- **Pillar 5:** Adversarial Governance Enforcement (blocks fake claims, unjustified escalation, unbounded delegation, and confidential leaks).
-- **Pillar 6:** UI Trace Contract & Schema Validation for Aryan's dashboard.
-- **Live Gateway Verification:** Executes live probe against stock Bifrost Gateway daemon (`http://127.0.0.1:8089`).
+Executes genuine live multi-model inference through the Maxim Bifrost gateway with real local Qwen models:
 
 ```bash
-# Full v1.3 demonstration with evidence artifact export
-npm run demonstrate:adaptive:v1-3
+npm run demonstrate:adaptive:v1-4:live
 ```
 
-*Generated Evidence Artifact:*  
-The script automatically exports structured telemetry and trace evidence to:  
-`.local/data/adaptive-engine-v1-3-evidence.json`
+*Key Live Invariants Verified:*
+- **Preflight:** Verifies gateway `/health` and model availability (`Qwen 1.5B` and `Qwen 9B`).
+- **Pillar 1:** Solves `task-6` at **0 LLM tokens** (74 ms CPU).
+- **Pillar 2:** Solves `task-1` live via Qwen 1.5B (1,407 input tokens, 193 output tokens, 1 turn).
+- **Pillar 3:** Executes multi-module `task-9` through Bifrost with real provider usage (3,812 input tokens, 282 output tokens, M3a autopsy escalation recorded).
+- **Pillar 4:** Halts live process at Turn 1, verifies disk checkpoint and `CONTEXT.MD`, and resumes via fresh instance.
+- **Pillar 5:** Runs equalized controlled benchmark across all 4 routing policies through live Bifrost and validates telemetry against Zod contract schema.
+
+*Generated Live Artifact:*  
+`.local/data/adaptive-engine-v1-4-live-evidence.json`
 
 ---
 
-### Step 3: Run the Fair Controlled Routing Benchmark
+### Step 3: Run the Deterministic State Machine Simulation Suite (v1.3)
 
-Runs the controlled routing benchmark isolating routing policy from deterministic AST compiler tooling:
+Evaluates state-machine invariants, AST pruning, and persistence under controlled mock gateway responses:
 
 ```bash
-npm run benchmark:optimization -- --controlled --trials=1
+npm run demonstrate:adaptive:v1-3
 ```
 
-*Key Results to Observe:*
-- **Tooling Disclosed:** All arms receive identical Tree-sitter AST Context Compilers, Mechanical Transformers, and Prompt Compilers.
-- **Controlled Direct Small:** 0% pass (fails on complex borrow lifetimes).
-- **Controlled Direct Frontier:** High frontier token consumption on routine fixes.
-- **Controlled Escalation Only:** Escalates to frontier, but cannot delegate localized tails downward.
-- **Controlled Bidirectional Adaptive:** Achieves 100% pass rate with lowest token consumption per accepted completion via bounded tail delegation.
+*Generated Simulation Artifact:*  
+`.local/data/adaptive-engine-v1-3-evidence.json`
 
 ---
 
@@ -129,7 +139,7 @@ npx vitest run tests/adversarial-governance.test.ts
 
 ---
 
-## 4. Architectural Verification Matrix
+## 5. Architectural Verification Matrix
 
 | Component / Subsystem | Test Suite | Verified Invariant |
 | :--- | :--- | :--- |
@@ -143,11 +153,11 @@ npx vitest run tests/adversarial-governance.test.ts
 
 ---
 
-## 5. Artifact Inspection
+## 6. Artifact Inspection
 
 All evidence produced during evaluation runs is saved to standard inspection locations:
-- **Adaptive Engine v1.3 Live Evidence:** `.local/data/adaptive-engine-v1-3-evidence.json`
-- **Adaptive Engine v1.2 Run Evidence:** `.local/data/adaptive-engine-v1-2-evidence.json`
+- **Adaptive Engine v1.4 Live Evidence:** `.local/data/adaptive-engine-v1-4-live-evidence.json`
+- **Adaptive Engine v1.3 Simulation Evidence:** `.local/data/adaptive-engine-v1-3-evidence.json`
 - **Benchmark Comparative Metrics:** `.local/benchmarks/optimization-benchmark.json`
 - **Offline Evaluation Suite Report:** `.local/evaluation/report.json`
 - **Resumed Task Evidence & Diffs:** `.proofbench/evidence/`

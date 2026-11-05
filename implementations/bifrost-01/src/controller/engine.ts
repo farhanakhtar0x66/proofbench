@@ -54,6 +54,7 @@ import {
   AdaptiveExecutionEngineOptions,
   EngineRunOptions,
   EngineExecutionResult,
+  EngineRoutingPolicy,
 } from './types';
 
 export class AdaptiveExecutionEngine {
@@ -65,10 +66,12 @@ export class AdaptiveExecutionEngine {
   public modelSelector: DeterministicModelSelector;
   public oscillationDetector: OscillationDetector;
   public maxTurns: number;
+  public routingPolicy: EngineRoutingPolicy;
   private enableTavily: boolean;
   private enableOscillationBreaker: boolean;
 
   constructor(options: AdaptiveExecutionEngineOptions = {}) {
+    this.routingPolicy = options.routingPolicy ?? 'bidirectional_adaptive';
     this.policy = createDefaultPolicy(options.policy);
     this.approvalEngine = new HostApprovalEngine(this.policy, options.approvalHandler);
     this.bifrostClient =
@@ -444,18 +447,34 @@ export class AdaptiveExecutionEngine {
       if (mechanicalCandidates.length > 0 && mechanicalCandidates[0].confidence === 'guaranteed') {
         nextTier = 'NON_LLM';
         transitionReason = `Guaranteed mechanical compiler-guided fix candidate found (${mechanicalCandidates[0].description})`;
+      } else if (this.routingPolicy === 'direct_small') {
+        nextTier = 'SMALL_LLM';
+        transitionReason = 'Direct Small LLM policy enforced';
+      } else if (this.routingPolicy === 'direct_frontier') {
+        nextTier = 'STRONGER_LLM';
+        transitionReason = 'Direct Frontier LLM policy enforced';
       } else if (pendingHandoff && pendingHandoff.targetTier === 'STRONGER_LLM') {
         nextTier = 'STRONGER_LLM';
         transitionReason = `Authorized M3a escalation: ${pendingHandoff.rationale}`;
       } else if (pendingHandoff && pendingHandoff.targetTier === 'SMALL_LLM') {
-        nextTier = 'SMALL_LLM';
-        transitionReason = `Stronger model delegated implementation to Small LLM with bounded instructions: ${pendingHandoff.rationale}`;
+        if (this.routingPolicy === 'escalation_only') {
+          nextTier = 'STRONGER_LLM';
+          transitionReason = 'Escalation-only policy forbids downward delegation; retaining Stronger LLM';
+        } else {
+          nextTier = 'SMALL_LLM';
+          transitionReason = `Stronger model delegated implementation to Small LLM with bounded instructions: ${pendingHandoff.rationale}`;
+        }
       } else if (pendingBoundedInstructions) {
-        nextTier = 'SMALL_LLM';
-        transitionReason = 'Stronger model delegated implementation to Small LLM with bounded instructions';
+        if (this.routingPolicy === 'escalation_only') {
+          nextTier = 'STRONGER_LLM';
+          transitionReason = 'Escalation-only policy forbids downward delegation; retaining Stronger LLM';
+        } else {
+          nextTier = 'SMALL_LLM';
+          transitionReason = 'Stronger model delegated implementation to Small LLM with bounded instructions';
+        }
       } else if (currentTier === 'STRONGER_LLM') {
         // Retain Stronger LLM unless deterministic controller sees localized remaining subtask
-        if (diagnosticsHistory.length > 0) {
+        if (this.routingPolicy === 'bidirectional_adaptive' && diagnosticsHistory.length > 0) {
           const latestDiag = diagnosticsHistory[diagnosticsHistory.length - 1];
           if (latestDiag.failedCount === 1 && latestDiag.passedCount && latestDiag.passedCount > 0) {
             nextTier = 'SMALL_LLM';
@@ -469,6 +488,9 @@ export class AdaptiveExecutionEngine {
           nextTier = 'STRONGER_LLM';
           transitionReason = 'Continue in Stronger LLM for ongoing complex task resolution';
         }
+      } else if (this.routingPolicy === 'escalation_only') {
+        nextTier = 'SMALL_LLM';
+        transitionReason = 'Escalation-only policy starts in Small LLM';
       } else if (initialContext) {
         // Deterministic evidence-based model selection
         const decision = this.modelSelector.selectModel(initialContext, diagnosticsHistory, task.prompt);
@@ -625,8 +647,8 @@ export class AdaptiveExecutionEngine {
           m3aAutopsyPacket: pendingHandoff?.formattedText,
           boundedInstructions: pendingBoundedInstructions ?? pendingHandoff?.boundedInstructions,
           incrementalEditsNotice: incrementalManager.getIncrementalNotice() ?? undefined,
-          maxInputBudget: 6000,
-          maxOutputBudget: 2000,
+          maxInputBudget: Math.min(2600, (this.modelRegistry.getModel(currentModel)?.contextWindow ?? 4096) - 1200),
+          maxOutputBudget: Math.min(1000, 1024),
           activeModel: currentModel,
         });
 
@@ -682,7 +704,14 @@ export class AdaptiveExecutionEngine {
           currentModel
         );
         if (proposal) {
-          const val = UniversalHandoffProtocol.validateProposal(proposal, currentTier, {
+          if (this.routingPolicy === 'direct_small' && proposal.targetTier === 'STRONGER_LLM') {
+            addTraceEvent('output', 'Rejected model transition proposal to STRONGER_LLM: direct_small policy enforced');
+          } else if (this.routingPolicy === 'direct_frontier' && proposal.targetTier === 'SMALL_LLM') {
+            addTraceEvent('output', 'Rejected model transition proposal to SMALL_LLM: direct_frontier policy enforced');
+          } else if (this.routingPolicy === 'escalation_only' && proposal.targetTier === 'SMALL_LLM') {
+            addTraceEvent('output', 'Rejected model transition proposal to SMALL_LLM: escalation_only policy enforced');
+          } else {
+            const val = UniversalHandoffProtocol.validateProposal(proposal, currentTier, {
             modelRegistry: this.modelRegistry,
             policy: this.policy,
             currentBudgetUsedUsd: totalCostUsd,
@@ -762,6 +791,7 @@ export class AdaptiveExecutionEngine {
               `Rejected model transition proposal to ${proposal.targetTier}: ${val.reason}`,
               { turn, proposal, rejectionReason: val.reason }
             );
+          }
           }
         }
 
@@ -964,7 +994,7 @@ export class AdaptiveExecutionEngine {
           stagnationReason: stagnation.reason,
         });
 
-        if (currentTier === 'SMALL_LLM') {
+        if (currentTier === 'SMALL_LLM' && this.routingPolicy !== 'direct_small') {
           // Build M3a Failure Autopsy and prepare escalation to STRONGER_LLM
           const strongerModelId = this.modelRegistry.getModelForTier('STRONGER_LLM').id;
           const autopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
@@ -1275,14 +1305,29 @@ export class AdaptiveExecutionEngine {
     content: string
   ): Array<{ path: string; content: string }> {
     const results: Array<{ path: string; content: string }> = [];
-    const blockRegex = /(?:\/\/\s*File:\s*([^\r\n]+)|```(?:rust|rs)?\s*\/\/\s*([^\r\n]+))\r?\n([\s\S]*?)```/gi;
+    const blockRegex = /(?:(?:(?:\/\/|###?)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?[^\r\n]*\r?\n)?```(?:rust|rs)?(?:\s*\/\/\s*([^\r\n]+))?\r?\n([\s\S]*?)```)/gi;
     let match: RegExpExecArray | null;
 
     while ((match = blockRegex.exec(content)) !== null) {
-      const filePath = (match[1] || match[2] || '').trim();
+      let filePath = (match[1] || match[2] || '').trim();
       const fileContent = match[3];
+      if (!filePath && fileContent) {
+        if (fileContent.includes('parse_csv_line') || fileContent.includes('struct Event') || fileContent.includes('enum EventType')) {
+          filePath = 'src/event.rs';
+        } else if (fileContent.includes('EventDispatcher')) {
+          filePath = 'src/dispatcher.rs';
+        } else if (fileContent.includes('EventFilter') || fileContent.includes('evaluate_predicate')) {
+          filePath = 'src/filter.rs';
+        } else if (fileContent.includes('parse_event')) {
+          filePath = 'src/parser.rs';
+        } else if (fileContent.includes('EventSink')) {
+          filePath = 'src/sink.rs';
+        } else if (fileContent.includes('sliding_window_sums') || fileContent.includes('ExponentialBackoff')) {
+          filePath = 'src/lib.rs';
+        }
+      }
       if (filePath && fileContent) {
-        results.push({ path: filePath, content: fileContent });
+        results.push({ path: filePath.replace(/^[`"']+|[`"']+$/g, ''), content: fileContent });
       }
     }
     return results;

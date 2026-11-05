@@ -9,6 +9,12 @@ import { EmbeddedBifrostGateway } from '../gateway/embedded';
 import { BifrostClient } from '../gateway/client';
 import { ControllerState } from '../persistence/types';
 
+export type EngineRoutingPolicy =
+  | 'direct_small'
+  | 'direct_frontier'
+  | 'escalation_only'
+  | 'bidirectional_adaptive';
+
 export interface AdaptiveExecutionEngineOptions {
   bifrostClient?: BifrostClient;
   embeddedGateway?: EmbeddedBifrostGateway;
@@ -19,6 +25,7 @@ export interface AdaptiveExecutionEngineOptions {
   maxTurns?: number;
   enableTavily?: boolean;
   enableOscillationBreaker?: boolean;
+  routingPolicy?: EngineRoutingPolicy;
 }
 
 export interface EngineRunOptions {

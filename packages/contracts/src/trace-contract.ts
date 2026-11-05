@@ -33,11 +33,12 @@ export const HandoffPacketExportSchema = z.object({
 export type HandoffPacketExport = z.infer<typeof HandoffPacketExportSchema>;
 
 export const AttributionBreakdownSchema = z.object({
-  deterministicToolingTokensSaved: z.number().int().nonnegative(),
-  contextCompilationTokensSaved: z.number().int().nonnegative(),
-  modelSelectionTokensSaved: z.number().int().nonnegative(),
-  bidirectionalHandoffTokensSaved: z.number().int().nonnegative(),
+  deterministicToolingTokensSaved: z.number().int().nonnegative().nullable(),
+  contextCompilationTokensSaved: z.number().int().nonnegative().nullable(),
+  modelSelectionTokensSaved: z.number().int().nonnegative().nullable(),
+  bidirectionalHandoffTokensSaved: z.number().int().nonnegative().nullable(),
   cpuOverheadMs: z.number().nonnegative(),
+  unisolatedEffects: z.array(z.string()).optional(),
 }).strict();
 
 export type AttributionBreakdownContract = z.infer<typeof AttributionBreakdownSchema>;

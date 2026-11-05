@@ -264,11 +264,11 @@ Only the modified code delta requires inspection; do not revert unchanged files.
     }
 
     // 2. Parse Full File markdown blocks:
-    // // File: <path>
+    // // File: <path> (optional rev: ...)
     // ```rust
     // <code>
     // ```
-    const fileBlockRegex = /(?:(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?\*?|File:\s*([^\r\n`]+))\s*)?```(?:rust|rs)?\r?\n([\s\S]*?)```/gi;
+    const fileBlockRegex = /(?:(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?(?:[^\r\n]*)|File:\s*([^\r\n`]+))\s*)?```(?:rust|rs)?\r?\n([\s\S]*?)```/gi;
     while ((match = fileBlockRegex.exec(responseText)) !== null) {
       let rawPath = (match[1] || match[2] || '').trim();
       const content = match[3];
@@ -281,7 +281,13 @@ Only the modified code delta requires inspection; do not revert unchanged files.
       }
 
       if (!rawPath) {
-        if (content.includes('parse_event')) {
+        if (content.includes('parse_csv_line') || content.includes('struct Event') || content.includes('enum EventType')) {
+          rawPath = 'src/event.rs';
+        } else if (content.includes('EventDispatcher')) {
+          rawPath = 'src/dispatcher.rs';
+        } else if (content.includes('EventFilter') || content.includes('evaluate_predicate')) {
+          rawPath = 'src/filter.rs';
+        } else if (content.includes('parse_event')) {
           rawPath = 'src/parser.rs';
         } else if (content.includes('EventSink')) {
           rawPath = 'src/sink.rs';

@@ -86,7 +86,7 @@ export class ModelRegistry {
       tier: 'STRONGER_LLM',
       provider: isLive ? 'bifrost' : 'simulation',
       isLocal,
-      contextWindow: 32768,
+      contextWindow: isLive ? 4096 : 32768,
       costPerInputToken: 0.0000015,
       costPerOutputToken: 0.000005,
       capabilities: [
