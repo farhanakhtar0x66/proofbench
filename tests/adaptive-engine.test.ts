@@ -71,6 +71,44 @@ describe('ProofBench — Adaptive Execution Engine v1 Scenarios (A through F)', 
     await workspace.destroy();
   }, 35000);
 
+  it('Scenario A2: resolves unused variable compiler failure with zero LLM tokens via mechanical prefixing', async () => {
+    const taskSpec = TaskSpec.parse({
+      version: '1',
+      id: 'task-8-deterministic-unused-var',
+      title: 'Fix Unused Variable Lint in Numeric Normalizer',
+      prompt: 'Fix compilation failure in normalizer crate caused by #![deny(unused_variables)]. Prefix the unused parameter with an underscore.',
+      acceptance: [
+        'cargo test passes cleanly with zero warnings or errors under #![deny(unused_variables)]',
+        'acceptance tests verify correct normalized calculation',
+      ],
+      fixtureId: 'task-8-v1',
+    });
+
+    const workspace = await TaskWorkspace.create(taskSpec.id);
+
+    const engine = new AdaptiveExecutionEngine({
+      approvalHandler: createWorkspaceApprovalHandler(),
+    });
+
+    const result = await engine.runTask(taskSpec, { workspacePath: workspace.workspacePath });
+
+    expect(result.run.status).toBe('completed');
+    expect(result.run.acceptance.status).toBe('passed');
+    expect(result.run.usage.inputTokens.status).toBe('known');
+    if (result.run.usage.inputTokens.status === 'known') {
+      expect(result.run.usage.inputTokens.value).toBe(0);
+    }
+    expect(result.run.usage.outputTokens.status).toBe('known');
+    if (result.run.usage.outputTokens.status === 'known') {
+      expect(result.run.usage.outputTokens.value).toBe(0);
+    }
+    expect(result.avoidedModelRequests).toBeGreaterThan(0);
+    expect(result.deterministicCpuDurationMs).toBeGreaterThan(0);
+    expect(result.inferenceDurationMs).toBe(0);
+
+    await workspace.destroy();
+  }, 35000);
+
   // --------------------------------------------------------------------------
   // Scenario B: Non-LLM ➔ Small Model Completion
   // --------------------------------------------------------------------------
@@ -405,6 +443,21 @@ pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
     expect(result2.run.status).toBe('completed');
     expect(result2.run.acceptance.status).toBe('passed');
     expect(result2.controllerState.turnCount).toBe(2);
+
+    // Verify cumulative tokens survived restart without zeroing out
+    expect(result2.controllerState.totalTokens.prompt).toBeGreaterThanOrEqual(550);
+    expect(result2.controllerState.totalTokens.completion).toBeGreaterThanOrEqual(115);
+
+    // Verify diagnostics history survived restart
+    const ev1 = await store.getEvidence('test-turn-1');
+    const ev2 = await store.getEvidence('test-turn-2');
+    expect(ev1).not.toBeNull();
+    expect(ev2).not.toBeNull();
+
+    // Verify CONTEXT.MD contains accurate verified facts
+    const finalContext = await fs.readFile(path.join(workspacePath, 'CONTEXT.MD'), 'utf8');
+    expect(finalContext).toContain('## Verified Progress');
+    expect(finalContext).toContain('Task verified and complete');
 
     await workspace.destroy();
   }, 35000);

@@ -59,6 +59,8 @@ async function main() {
     'task-4-version-freshness',
     'task-5-context-filtering',
     'task-6-deterministic-fix',
+    'task-7-adaptive-pipeline',
+    'task-8-deterministic-unused-var',
   ];
 
   const targetTaskDirs = cliArgs.taskFilter

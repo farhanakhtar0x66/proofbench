@@ -137,6 +137,41 @@ export class MechanicalTransformer {
           }
         }
       }
+
+      // Match: warning/error: unused variable: `...`
+      const unusedVarMatch = line.match(/(?:warning|error):\s*unused variable:\s*`([^`]+)`/i);
+      if (unusedVarMatch) {
+        const varName = unusedVarMatch[1];
+        const locLine = lines.slice(i, i + 3).find((l) => l.trim().startsWith('-->'));
+        if (locLine) {
+          const m = locLine.match(/-->\s*([^:]+):(\d+):(\d+)/);
+          if (m) {
+            const relPath = m[1].trim();
+            const content = sourceFiles.get(relPath);
+            if (content) {
+              const fileLines = content.split('\n');
+              const lineIdx = parseInt(m[2], 10) - 1;
+              if (fileLines[lineIdx] && fileLines[lineIdx].includes(varName)) {
+                const targetLine = fileLines[lineIdx];
+                const regex = new RegExp(`\\b${varName}\\b`);
+                const fixedLine = targetLine.replace(regex, `_${varName}`);
+                if (fixedLine !== targetLine) {
+                  fileLines[lineIdx] = fixedLine;
+                  candidates.push({
+                    type: 'compiler_suggested_fix',
+                    filePath: relPath,
+                    description: `Prefix unused variable '${varName}' with underscore at ${relPath}:${m[2]} as recommended by compiler`,
+                    originalText: targetLine,
+                    replacementText: fixedLine,
+                    fullFileContent: fileLines.join('\n'),
+                    confidence: 'guaranteed',
+                  });
+                }
+              }
+            }
+          }
+        }
+      }
     }
 
     return candidates;

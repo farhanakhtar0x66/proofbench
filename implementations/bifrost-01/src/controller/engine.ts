@@ -430,16 +430,24 @@ export class AdaptiveExecutionEngine {
       } else if (pendingHandoff && pendingHandoff.targetTier === 'STRONGER_LLM') {
         nextTier = 'STRONGER_LLM';
         transitionReason = `Authorized M3a escalation: ${pendingHandoff.rationale}`;
+      } else if (pendingHandoff && pendingHandoff.targetTier === 'SMALL_LLM') {
+        nextTier = 'SMALL_LLM';
+        transitionReason = `Stronger model delegated implementation to Small LLM with bounded instructions: ${pendingHandoff.rationale}`;
       } else if (pendingBoundedInstructions) {
         nextTier = 'SMALL_LLM';
         transitionReason = 'Stronger model delegated implementation to Small LLM with bounded instructions';
-      } else if (currentTier === 'STRONGER_LLM' && initialContext && diagnosticsHistory.length > 0) {
-        // Deterministic controller downgrade if multi-file roadblock is solved and remaining work is bounded
-        const latestDiag = diagnosticsHistory[diagnosticsHistory.length - 1];
-        if (latestDiag.failedCount === 1 && latestDiag.passedCount && latestDiag.passedCount > 0) {
-          nextTier = 'SMALL_LLM';
-          transitionReason = 'Deterministic controller downgrade: complex architectural pass passed, localized test failure remaining';
-          pendingBoundedInstructions = `Resolve remaining localized failure in ${latestDiag.rawOutput.slice(0, 300)}`;
+      } else if (currentTier === 'STRONGER_LLM') {
+        // Retain Stronger LLM unless deterministic controller sees localized remaining subtask
+        if (diagnosticsHistory.length > 0) {
+          const latestDiag = diagnosticsHistory[diagnosticsHistory.length - 1];
+          if (latestDiag.failedCount === 1 && latestDiag.passedCount && latestDiag.passedCount > 0) {
+            nextTier = 'SMALL_LLM';
+            transitionReason = 'Deterministic controller downgrade: complex architectural pass passed, localized test failure remaining';
+            pendingBoundedInstructions = `Resolve remaining localized failure in ${latestDiag.rawOutput.slice(0, 300)}`;
+          } else {
+            nextTier = 'STRONGER_LLM';
+            transitionReason = 'Continue in Stronger LLM for ongoing complex task resolution';
+          }
         } else {
           nextTier = 'STRONGER_LLM';
           transitionReason = 'Continue in Stronger LLM for ongoing complex task resolution';
@@ -598,6 +606,7 @@ export class AdaptiveExecutionEngine {
               }
             : undefined,
           m3aAutopsyPacket: pendingHandoff?.formattedText,
+          boundedInstructions: pendingBoundedInstructions ?? pendingHandoff?.boundedInstructions,
           incrementalEditsNotice: incrementalManager.getIncrementalNotice() ?? undefined,
           maxInputBudget: 6000,
           maxOutputBudget: 2000,
@@ -670,6 +679,65 @@ export class AdaptiveExecutionEngine {
             );
             if (proposal.targetTier === 'SMALL_LLM' && proposal.boundedInstructions) {
               pendingBoundedInstructions = proposal.boundedInstructions;
+              const smallModelId = this.modelRegistry.getModelForTier('SMALL_LLM').id;
+              pendingHandoff = UniversalHandoffProtocol.createHandoff({
+                id: `handoff-turn-${turn}-delegation`,
+                direction: 'stronger_to_small',
+                sourceTier: 'STRONGER_LLM',
+                targetTier: 'SMALL_LLM',
+                sourceModel: currentModel,
+                targetModel: smallModelId,
+                rationale: proposal.rationale,
+                taskId: task.id,
+                relevantFiles: Object.keys(sourceFiles),
+                boundedInstructions: proposal.boundedInstructions,
+              });
+              await durableStore.saveEvidence(
+                `handoff-turn-${turn}-delegation`,
+                pendingHandoff.formattedText
+              );
+              await durableStore.appendEvent(
+                'handoff_created',
+                'INFER_OR_EXECUTE',
+                currentTier,
+                await ContextDocumentManager.computeSourceRevision(workspacePath),
+                { handoffId: pendingHandoff.id, direction: pendingHandoff.direction, targetTier: 'SMALL_LLM' }
+              );
+            } else if (proposal.targetTier === 'STRONGER_LLM') {
+              const strongerModelId = this.modelRegistry.getModelForTier('STRONGER_LLM').id;
+              const latestDiag = diagnosticsHistory[diagnosticsHistory.length - 1];
+              pendingHandoff = UniversalHandoffProtocol.createHandoff({
+                id: `handoff-turn-${turn}-escalation`,
+                direction: 'small_to_stronger',
+                sourceTier: 'SMALL_LLM',
+                targetTier: 'STRONGER_LLM',
+                sourceModel: currentModel,
+                targetModel: strongerModelId,
+                rationale: proposal.rationale,
+                taskId: task.id,
+                relevantFiles: Object.keys(sourceFiles),
+                diagnostics: latestDiag
+                  ? {
+                      exitCode: latestDiag.exitCode,
+                      passedCount: latestDiag.passedCount ?? 0,
+                      failedCount: latestDiag.failedCount ?? 1,
+                      failingTestNames: [],
+                      compilerErrorCodes: [],
+                      rawOutputSnippet: latestDiag.rawOutput.slice(0, 500),
+                    }
+                  : undefined,
+              });
+              await durableStore.saveEvidence(
+                `handoff-turn-${turn}-escalation`,
+                pendingHandoff.formattedText
+              );
+              await durableStore.appendEvent(
+                'handoff_created',
+                'INFER_OR_EXECUTE',
+                currentTier,
+                await ContextDocumentManager.computeSourceRevision(workspacePath),
+                { handoffId: pendingHandoff.id, direction: pendingHandoff.direction, targetTier: 'STRONGER_LLM' }
+              );
             }
           } else {
             addTraceEvent(

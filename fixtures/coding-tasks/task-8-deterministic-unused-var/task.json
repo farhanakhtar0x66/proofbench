@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-8-deterministic-unused-var",
+  "title": "Fix Unused Variable Lint in Numeric Normalizer",
+  "prompt": "Fix compilation failure in normalizer crate caused by #![deny(unused_variables)]. The unused parameter must be prefixed with an underscore to comply with compiler lint policy while preserving function signature.",
+  "acceptance": [
+    "cargo test passes cleanly with zero warnings or errors under #![deny(unused_variables)]",
+    "acceptance tests verify correct normalized calculation"
+  ],
+  "fixtureId": "task-8-v1"
+}

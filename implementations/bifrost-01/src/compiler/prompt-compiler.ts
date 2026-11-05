@@ -22,6 +22,7 @@ export interface PromptCompilerInput {
     injectedContext?: string;
   };
   m3aAutopsyPacket?: string | null;
+  boundedInstructions?: string;
   incrementalEditsNotice?: string;
   maxInputBudget?: number;
   maxOutputBudget?: number;
@@ -171,7 +172,7 @@ INSTRUCTIONS & FORMAT RULES:
    * Compiles the complete deterministic prompt with explicit XML trust boundaries.
    */
   static compile(input: PromptCompilerInput): CompiledPrompt {
-    const { task, contextResult, diagnosticsHistory, tavilyEvidence, m3aAutopsyPacket, incrementalEditsNotice } = input;
+    const { task, contextResult, diagnosticsHistory, tavilyEvidence, m3aAutopsyPacket, boundedInstructions, incrementalEditsNotice } = input;
 
     const { actionableOutput, prunedCount } = this.pruneDiagnostics(diagnosticsHistory);
 
@@ -186,6 +187,15 @@ INSTRUCTIONS & FORMAT RULES:
     }
     userPrompt += '</acceptance_criteria>\n';
     userPrompt += '</trusted_task_specification>\n\n';
+
+    // 1b. Delegated Bounded Task (if active via Stronger -> Small handoff)
+    if (boundedInstructions) {
+      userPrompt += '<delegated_bounded_task>\n';
+      userPrompt += 'You have been delegated a bounded subtask by the Stronger Model / Host Controller:\n';
+      userPrompt += `${boundedInstructions}\n`;
+      userPrompt += 'Focus your modifications exclusively on implementing this bounded requirement.\n';
+      userPrompt += '</delegated_bounded_task>\n\n';
+    }
 
     // 2. M3a Failure Autopsy (if escalation is active)
     if (m3aAutopsyPacket) {
