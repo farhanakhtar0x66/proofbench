@@ -15,7 +15,8 @@ ProofBench now unites our two independently developed challenge implementations 
 
 1. **Bifrost Track (#01 — Farhan):**
    - Deterministic `AdaptiveExecutionEngine` with M1 context bounding, M2 stagnation loop breaker, M3a diagnostic failure autopsy, and AST Tree-sitter repair.
-   - Real bidirectional routing and escalation across local small (Qwen 1.5B) and stronger (Qwen 9B) models.
+   - Empirically verified live model escalation (Qwen 1.5B ➔ 9B on Task 9); bidirectional routing architecture supported without claiming unobserved stronger-to-small downward delegation in live benchmark runs.
+   - Task 6 deterministic mechanical repair completes in 85 ms of controller CPU time (1,673 ms total run wall duration including workspace setup and cargo test subprocess execution).
    - Async job polling with pause/resume monitoring, durable recovery across reloads, crash recovery, and canonical task catalogue validation.
    - **139 tests passing** across 11 test suites.
 
@@ -23,6 +24,7 @@ ProofBench now unites our two independently developed challenge implementations 
    - Authoritative B05 verifier integrated cleanly from `origin/integration/tavily-b05-final` SHA `528ece77201490308a0bd5e1086da3d4e38eb36d`.
    - General `/api/analysis` claim verification pipeline, supporting rules-based extraction, tiered evidence retrieval, temporal relevance analysis, source corroborate ranking, and model comparison.
    - Enforces strict spending consent (`ALLOW_LIVE_REQUESTS=true`), request limits, and source tiering.
+   - Verified completely in offline/mock mode across 824 unit tests and 4 browser specs. No completed unified live external Tavily browser demo is claimed without user-authorized credentials and explicit request budgeting.
    - **824 tests passing** across 66 test suites.
 
 3. **Unified Application & Frontend:**
