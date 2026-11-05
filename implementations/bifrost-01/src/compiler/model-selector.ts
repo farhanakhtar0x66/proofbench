@@ -55,15 +55,13 @@ export class DeterministicModelSelector {
     diagnosticsHistory: DiagnosticRecord[],
     _taskPrompt = ''
   ): TaskEngineeringFeatures {
-    const relevantFiles = Object.keys(contextResult.workspaceRevisions);
-    const relevantFileCount = relevantFiles.length;
-    const symbolCount = contextResult.selectedItems.length;
-
-    // Check if dependencies cross multiple files
+    // Check if dependencies cross multiple files from active selected symbols
     const fileSet = new Set<string>();
     for (const item of contextResult.selectedItems) {
       fileSet.add(item.symbol.provenance.filePath);
     }
+    const relevantFileCount = fileSet.size > 0 ? fileSet.size : Object.keys(contextResult.workspaceRevisions).length;
+    const symbolCount = contextResult.selectedItems.length;
     const hasMultiFileDependency = fileSet.size > 1;
 
     const contextTokenSize = contextResult.totalTokens;

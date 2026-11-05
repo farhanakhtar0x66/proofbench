@@ -112,6 +112,7 @@ export class AdaptiveExecutionEngine {
     runOptions: EngineRunOptions = {}
   ): Promise<EngineExecutionResult> {
     const startTime = performance.now();
+    const runCpuStart = process.cpuUsage();
     const runId = randomUUID();
     const reportId = randomUUID();
     const createdAt = new Date().toISOString();
@@ -161,7 +162,8 @@ export class AdaptiveExecutionEngine {
           task,
           startTime,
           traceEvents,
-          'Workspace admission failure'
+          'Workspace admission failure',
+          runCpuStart
         );
       }
     }
@@ -350,7 +352,22 @@ export class AdaptiveExecutionEngine {
       }
 
       if (contextData?.nextAction?.step?.includes('bounded instructions') && contextData.nextAction.suggestedTier === 'SMALL_LLM') {
-        pendingBoundedInstructions = contextData.nextAction.step;
+        const stepText = contextData.nextAction.step;
+        pendingBoundedInstructions = stepText.includes(': ')
+          ? stepText.slice(stepText.indexOf(': ') + 2).trim()
+          : stepText;
+      }
+
+      // Check durable evidence for pending delegation handoff
+      for (let t = controllerState.turnCount; t >= 1; t--) {
+        const delegationEv = await durableStore.getEvidence(`handoff-turn-${t}-delegation`);
+        if (delegationEv) {
+          const match = delegationEv.match(/Bounded Instructions:\s*([\s\S]*?)(?:\n---|\nRelevant Files|$)/i);
+          if (match && match[1].trim()) {
+            pendingBoundedInstructions = match[1].trim();
+            break;
+          }
+        }
       }
 
       addTraceEvent('output', `Restored ${diagnosticsHistory.length} diagnostic records and M2 loop breaker history from durable store.`);
@@ -910,7 +927,7 @@ export class AdaptiveExecutionEngine {
           });
           contextData.nextAction = {
             step: pendingBoundedInstructions
-              ? 'Execute bounded instructions in Small LLM'
+              ? `Execute bounded instructions in Small LLM: ${pendingBoundedInstructions}`
               : 'Escalate to stronger model via diagnostic handoff',
             requiredEvidence: 'Compiler error resolution',
             suggestedTier: pendingBoundedInstructions ? 'SMALL_LLM' : 'STRONGER_LLM',
@@ -1056,7 +1073,8 @@ export class AdaptiveExecutionEngine {
       })),
     });
 
-    deterministicCpuDurationMs = Math.max(1, (performance.now() - startTime) - inferenceDurationMs);
+    const runCpuUsage = process.cpuUsage(runCpuStart);
+    deterministicCpuDurationMs = Math.max(1, (runCpuUsage.user + runCpuUsage.system) / 1000);
 
     const usage: UsageRecord = UsageRecord.parse({
       version: '1',
@@ -1107,7 +1125,7 @@ export class AdaptiveExecutionEngine {
         value: Math.max(1, Math.round(executionDurationMs)),
         unit: 'ms',
         source: 'performance.now',
-        scope: `total engine session duration (CPU: ${Math.round(deterministicCpuDurationMs)}ms, Inference: ${Math.round(inferenceDurationMs)}ms)`,
+        scope: `total engine session duration (CPU: ${Math.round(deterministicCpuDurationMs)}ms via process.cpuUsage, Inference: ${Math.round(inferenceDurationMs)}ms)`,
       },
       cost:
         this.bifrostClient.mode === 'live' && isLocalDestination(this.bifrostClient.gatewayUrl)
@@ -1277,9 +1295,13 @@ export class AdaptiveExecutionEngine {
     task: TaskSpec,
     startTime: number,
     traceEvents: ExecutionTrace['events'],
-    reason: string
+    reason: string,
+    runCpuStart?: NodeJS.CpuUsage
   ): EngineExecutionResult {
     const duration = performance.now() - startTime;
+    const cpuDuration = runCpuStart
+      ? Math.max(1, Math.round((process.cpuUsage(runCpuStart).user + process.cpuUsage(runCpuStart).system) / 1000))
+      : Math.max(1, Math.round(duration));
     const finalTrace = ExecutionTrace.parse({
       version: '1',
       runId,
@@ -1369,7 +1391,7 @@ export class AdaptiveExecutionEngine {
       avoidedModelRequests: 0,
       deterministicOperationsCount: 0,
       transitionsCount: 0,
-      deterministicCpuDurationMs: Math.max(1, Math.round(duration)),
+      deterministicCpuDurationMs: cpuDuration,
       inferenceDurationMs: 0,
     };
   }

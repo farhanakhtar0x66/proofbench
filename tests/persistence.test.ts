@@ -9,6 +9,10 @@ import {
   type ProjectContextData,
   type ControllerState,
   getCodingTasksDir,
+  AdaptiveExecutionEngine,
+  EmbeddedBifrostGateway,
+  BifrostClient,
+  createWorkspaceApprovalHandler,
 } from '../implementations/bifrost-01/src/index';
 import { TaskSpec } from '../packages/contracts/src/index';
 
@@ -398,5 +402,251 @@ describe('ProofBench — Milestone 1: Context Persistence & Durable State (.proo
       expect(mismatchEvent).toBeDefined();
       expect(mismatchEvent?.data.currentRev).toBe(freshRev);
     });
+
+    it('verifies persistent continuation during inter-tier model delegation across controller death and restart', async () => {
+      const task9Source = path.join(tasksDir, 'task-9-bidirectional-event-service/workspace');
+      const testWorkspace = path.join(os.tmpdir(), `proofbench-test-persist-handoff-${randomUUID().slice(0, 8)}`);
+      await fs.mkdir(testWorkspace, { recursive: true });
+      await fs.cp(task9Source, testWorkspace, { recursive: true });
+
+      const taskSpec = TaskSpec.parse({
+        version: '1',
+        id: 'task-9-bidirectional-event-service',
+        title: 'Bidirectional Multi-Stage Event Processing Service',
+        prompt: 'Fix event payload parsing in src/event.rs and complete the event service dispatch pipeline.',
+        acceptance: ['cargo test exits with code 0'],
+        fixtureId: 'task-9-v1',
+      });
+
+      const embeddedGateway = new EmbeddedBifrostGateway();
+      let smallCalls = 0;
+      let strongerCalls = 0;
+
+      embeddedGateway.setCustomHandler(async (_req, _provider, model) => {
+        if (model.includes('frontier') || model.includes('9B')) {
+          strongerCalls++;
+          const fixedDispatcher = `// File: src/dispatcher.rs
+use crate::event::Event;
+use crate::filter::EventFilter;
+
+pub trait EventHandler: Send {
+    fn handle(&mut self, event: &Event);
+}
+
+pub struct EventDispatcher<'a> {
+    filter: Option<&'a EventFilter>,
+    handlers: Vec<Box<dyn EventHandler + 'a>>,
+    dispatched_count: usize,
+}
+
+impl<'a> EventDispatcher<'a> {
+    pub fn new() -> Self {
+        Self {
+            filter: None,
+            handlers: Vec::new(),
+            dispatched_count: 0,
+        }
+    }
+
+    pub fn with_filter(mut self, filter: &'a EventFilter) -> Self {
+        self.filter = Some(filter);
+        self
+    }
+
+    pub fn register_handler(&mut self, handler: Box<dyn EventHandler + 'a>) {
+        self.handlers.push(handler);
+    }
+
+    pub fn dispatched_count(&self) -> usize {
+        self.dispatched_count
+    }
+
+    pub fn dispatch(&mut self, event: &Event) -> bool {
+        let allowed = match self.filter {
+            Some(f) => f.evaluate_predicate(event),
+            None => true,
+        };
+
+        if !allowed {
+            return false;
+        }
+
+        if self.handlers.is_empty() {
+            return false;
+        }
+
+        for handler in &mut self.handlers {
+            handler.handle(event);
+        }
+        self.dispatched_count += 1;
+        true
+    }
+}
+`;
+          return {
+            content: `Resolved EventDispatcher borrow conflict and handler loop.
+Delegating localized predicate filter in src/filter.rs to Small LLM.
+
+\`\`\`rust
+${fixedDispatcher}
+\`\`\`
+
+<tier_transition target="SMALL_LLM" rationale="EventDispatcher borrow conflict resolved. Delegating localized predicate filter in src/filter.rs to Small LLM.">
+<bounded_instructions>
+In src/filter.rs, implement evaluate_predicate on EventFilter:
+Return true if event.severity >= self.min_severity and (self.allowed_types.is_empty() || self.allowed_types.contains(&event.event_type)).
+</bounded_instructions>
+</tier_transition>`,
+            usage: { prompt_tokens: 600, completion_tokens: 150 },
+          };
+        }
+
+        smallCalls++;
+        if (smallCalls === 1) {
+          const fixedEvent = `// File: src/event.rs
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EventType {
+    Metric,
+    Alert,
+    Audit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub id: u64,
+    pub event_type: EventType,
+    pub severity: u8,
+    pub payload: String,
+}
+
+impl Event {
+    pub fn new(id: u64, event_type: EventType, severity: u8, payload: impl Into<String>) -> Self {
+        Self {
+            id,
+            event_type,
+            severity,
+            payload: payload.into(),
+        }
+    }
+
+    pub fn parse_csv_line(line: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = line.trim().splitn(4, ',').collect();
+        if parts.len() < 4 {
+            return Err("Invalid CSV line format: expected 4 comma-separated values".into());
+        }
+        let id = parts[0].parse::<u64>().map_err(|e| e.to_string())?;
+        let event_type = match parts[1] {
+            "Metric" => EventType::Metric,
+            "Alert" => EventType::Alert,
+            "Audit" => EventType::Audit,
+            other => return Err(format!("Unknown event type: {}", other)),
+        };
+        let severity = parts[2].parse::<u8>().map_err(|e| e.to_string())?;
+        let payload = parts[3].to_string();
+        Ok(Self {
+            id,
+            event_type,
+            severity,
+            payload,
+        })
+    }
+}
+`;
+          return {
+            content: `Fixed CSV payload parsing in src/event.rs:\n\n\`\`\`rust\n${fixedEvent}\`\`\``,
+            usage: { prompt_tokens: 350, completion_tokens: 90 },
+          };
+        } else {
+          const fixedFilter = `// File: src/filter.rs
+use crate::event::{Event, EventType};
+
+#[derive(Debug, Clone)]
+pub struct EventFilter {
+    pub min_severity: u8,
+    pub allowed_types: Vec<EventType>,
+}
+
+impl EventFilter {
+    pub fn new(min_severity: u8, allowed_types: Vec<EventType>) -> Self {
+        Self {
+            min_severity,
+            allowed_types,
+        }
+    }
+
+    pub fn evaluate_predicate(&self, event: &Event) -> bool {
+        if event.severity < self.min_severity {
+            return false;
+        }
+        if self.allowed_types.is_empty() {
+            return true;
+        }
+        self.allowed_types.contains(&event.event_type)
+    }
+}
+`;
+          return {
+            content: `Implemented delegated evaluate_predicate in src/filter.rs:\n\n\`\`\`rust\n${fixedFilter}\`\`\``,
+            usage: { prompt_tokens: 380, completion_tokens: 80 },
+          };
+        }
+      });
+
+      const client = new BifrostClient({ embeddedGateway });
+
+      // Run instance 1 for exactly 3 turns (terminates right after Stronger model delegates to Small model)
+      const engine1 = new AdaptiveExecutionEngine({
+        bifrostClient: client,
+        approvalHandler: createWorkspaceApprovalHandler(),
+        strongerModel: 'escalation-frontier-model',
+        maxTurns: 3,
+      });
+
+      const result1 = await engine1.runTask(taskSpec, { workspacePath: testWorkspace });
+      expect(result1.run.status).toBe('failed');
+      expect(result1.controllerState.status).toBe('halted');
+      expect(result1.controllerState.turnCount).toBe(3);
+      expect(result1.controllerState.currentTier).toBe('STRONGER_LLM');
+      expect(strongerCalls).toBe(1);
+
+      // Verify checkpoint exists on disk
+      const store = new DurableStore(testWorkspace);
+      await store.initialize();
+      const cp = await store.getLatestCheckpoint();
+      expect(cp).not.toBeNull();
+      expect(cp?.stateSnapshot.turnCount).toBe(3);
+      expect(cp?.contextSnapshot.nextAction.suggestedTier).toBe('SMALL_LLM');
+
+      // Verify accepted source edits survive (src/dispatcher.rs and src/event.rs are preserved)
+      const dispatcherContent = await fs.readFile(path.join(testWorkspace, 'src/dispatcher.rs'), 'utf8');
+      expect(dispatcherContent).toContain('self.dispatched_count += 1');
+
+      // Now simulate controller death and instantiate fresh engine2
+      const engine2 = new AdaptiveExecutionEngine({
+        bifrostClient: client,
+        approvalHandler: createWorkspaceApprovalHandler(),
+        strongerModel: 'escalation-frontier-model',
+        maxTurns: 6,
+      });
+
+      const result2 = await engine2.runTask(taskSpec, { workspacePath: testWorkspace });
+      expect(result2.run.status).toBe('completed');
+      expect(result2.run.acceptance.status).toBe('passed');
+
+      // Verify cumulative accounting preserved from engine1 into engine2
+      expect(result2.controllerState.totalTokens.total).toBeGreaterThan(
+        result1.controllerState.totalTokens.total
+      );
+
+      // Verify small model executed bounded instructions without repeating Turn 2 or Turn 3 work
+      expect(smallCalls).toBe(2); // 1 before restart, 1 after restart
+      expect(strongerCalls).toBe(1); // 0 stronger calls after restart
+
+      // Verify context document contains complete history across both sessions
+      expect(result2.contextDocument).toContain('Stronger model delegated implementation to Small LLM');
+      expect(result2.contextDocument).toContain('Acceptance tests passed on turn 4');
+
+      await fs.rm(testWorkspace, { recursive: true, force: true }).catch(() => {});
+    }, 45000);
   });
 });

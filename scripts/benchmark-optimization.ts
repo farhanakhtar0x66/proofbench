@@ -6,6 +6,7 @@ import {
   getCodingTasksDir,
   FiveConfigComparisonResult,
   AblationSuiteResult,
+  ControlledRoutingBenchmarkResult,
 } from '../implementations/bifrost-01/src/index';
 import { TaskSpec } from '../packages/contracts/src/index';
 
@@ -22,6 +23,7 @@ interface BenchmarkCliArgs {
   isLive: boolean;
   trials: number;
   runAblations: boolean;
+  runControlled: boolean;
   taskFilter?: string;
 }
 
@@ -29,6 +31,7 @@ function parseCliArgs(): BenchmarkCliArgs {
   const args = process.argv.slice(2);
   const isLive = args.includes('--live');
   const runAblations = args.includes('--ablation') || args.includes('--ablations');
+  const runControlled = args.includes('--controlled') || args.includes('--fair');
 
   let trials = 1;
   const trialsArg = args.find((a) => a.startsWith('--trials='));
@@ -39,7 +42,7 @@ function parseCliArgs(): BenchmarkCliArgs {
   const taskArg = args.find((a) => a.startsWith('--task='));
   const taskFilter = taskArg ? taskArg.split('=')[1] : undefined;
 
-  return { isLive, trials, runAblations, taskFilter };
+  return { isLive, trials, runAblations, runControlled, taskFilter };
 }
 
 async function main() {
@@ -61,6 +64,7 @@ async function main() {
     'task-6-deterministic-fix',
     'task-7-adaptive-pipeline',
     'task-8-deterministic-unused-var',
+    'task-9-bidirectional-event-service',
   ];
 
   const targetTaskDirs = cliArgs.taskFilter
@@ -69,6 +73,7 @@ async function main() {
 
   const fiveConfigResults: FiveConfigComparisonResult[] = [];
   const ablationResults: AblationSuiteResult[] = [];
+  const controlledResults: ControlledRoutingBenchmarkResult[] = [];
 
   for (const dirName of targetTaskDirs) {
     const taskJsonPath = path.join(tasksDir, dirName, 'task.json');
@@ -130,6 +135,35 @@ async function main() {
       }
       console.log('  ' + '-'.repeat(76));
     }
+
+    // 3. Run Controlled Routing Benchmark (Equalized Tools) if requested
+    if (cliArgs.runControlled) {
+      console.log(`\n  -> Running Controlled Routing Benchmark (Fair Comparison, Equalized AST Tools)...`);
+      const suite = new ComparativeBenchmarkSuite();
+      const ctrlRes = await suite.benchmarkControlledRouting(taskSpec, cliArgs.trials, {
+        isLive: cliArgs.isLive,
+      });
+      controlledResults.push(ctrlRes);
+
+      console.log('\n  Controlled Routing Policy Comparison (All Arms have Tree-sitter & Mechanical Tools):');
+      console.log('  ' + '-'.repeat(100));
+      console.log(`  | ${'Policy'.padEnd(34)} | ${'Pass %'.padEnd(8)} | ${'Avg Tok'.padEnd(10)} | ${'Tok/Accept'.padEnd(11)} | ${'Wall ms'.padEnd(9)} | ${'CPU ms'.padEnd(8)} |`);
+      console.log('  ' + '-'.repeat(100));
+      for (const agg of Object.values(ctrlRes.summary)) {
+        const avgTokStr = agg.avgTotalTokens !== null ? agg.avgTotalTokens.toString() : 'N/A';
+        const effTokStr = agg.totalTokensPerAcceptedCompletion !== null ? agg.totalTokensPerAcceptedCompletion.toString() : 'N/A';
+        const wallStr = agg.avgWallDurationMs !== null ? agg.avgWallDurationMs.toString() : '-';
+        const cpuStr = agg.avgCpuDurationMs !== null ? agg.avgCpuDurationMs.toString() : '-';
+        console.log(`  | ${agg.policy.slice(0, 34).padEnd(34)} | ${(agg.successRatePercent + '%').padEnd(8)} | ${avgTokStr.padEnd(10)} | ${effTokStr.padEnd(11)} | ${wallStr.padEnd(9)} | ${cpuStr.padEnd(8)} |`);
+      }
+      console.log('  ' + '-'.repeat(100));
+      console.log('  Attribution Breakdown (Token & Latency Drivers):');
+      console.log(`    • Deterministic Tooling Contribution: ${ctrlRes.attribution.deterministicToolingTokensSaved} tokens saved`);
+      console.log(`    • Context Compilation Contribution:   ${ctrlRes.attribution.contextCompilationTokensSaved} tokens saved`);
+      console.log(`    • Model Selection Contribution:       ${ctrlRes.attribution.modelSelectionTokensSaved} tokens saved`);
+      console.log(`    • Bidirectional Handoff Contribution: ${ctrlRes.attribution.bidirectionalHandoffTokensSaved} tokens saved`);
+      console.log(`    • True Deterministic CPU Overhead:    ${ctrlRes.attribution.cpuOverheadMs} ms`);
+    }
   }
 
   // Save evidence artifact
@@ -147,6 +181,7 @@ async function main() {
     },
     fiveConfigurationResults: fiveConfigResults,
     ablationResults,
+    controlledResults,
   };
 
   await fs.writeFile(evidencePath, JSON.stringify(evidenceReport, null, 2), 'utf8');

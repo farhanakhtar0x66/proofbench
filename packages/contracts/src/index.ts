@@ -45,3 +45,4 @@ export interface AgentAdapter {
  run(request:RunRequest):Promise<{run:RunRecord;trace:ExecutionTrace}>;
 }
 export class UnsupportedCapability extends Error {}
+export * from './trace-contract';

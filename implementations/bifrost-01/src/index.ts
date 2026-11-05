@@ -36,6 +36,12 @@ import {
   type FiveConfigComparisonResult,
   type AblationMeasurement,
   type AblationSuiteResult,
+  type ControlledRoutingPolicy,
+  type ControlledRoutingMeasurement,
+  type ControlledRoutingAggregate,
+  type ControlledRoutingBenchmarkOptions,
+  type AttributionBreakdown,
+  type ControlledRoutingBenchmarkResult,
 } from './suite/benchmark';
 import { TaskWorkspace, getCodingTasksDir } from './runtime/workspace';
 import {
@@ -144,6 +150,15 @@ export {
   UniversalHandoffProtocol,
   OscillationDetector,
   AdaptiveExecutionEngine,
+};
+
+export type {
+  ControlledRoutingPolicy,
+  ControlledRoutingMeasurement,
+  ControlledRoutingAggregate,
+  ControlledRoutingBenchmarkOptions,
+  AttributionBreakdown,
+  ControlledRoutingBenchmarkResult,
 };
 
 export const bifrost01: AgentAdapter = {

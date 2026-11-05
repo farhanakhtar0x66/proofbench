@@ -463,6 +463,238 @@ pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
   }, 35000);
 
   // --------------------------------------------------------------------------
+  // Scenario G: Genuine Autonomous Bidirectional Multi-Tier Trajectory
+  // (NON_LLM ➔ SMALL_LLM ➔ STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM)
+  // --------------------------------------------------------------------------
+  it('Scenario G: executes genuine bidirectional routing across NON_LLM ➔ SMALL_LLM ➔ STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM on task-9', async () => {
+    const taskSpec = TaskSpec.parse({
+      version: '1',
+      id: 'task-9-bidirectional-event-service',
+      title: 'Bidirectional Multi-Stage Event Processing Service',
+      prompt: 'Fix event payload parsing in src/event.rs and complete the event service dispatch pipeline.',
+      acceptance: ['cargo test exits with code 0'],
+      fixtureId: 'task-9-v1',
+    });
+
+    const embeddedGateway = new EmbeddedBifrostGateway();
+    let smallModelCalls = 0;
+    let strongerModelCalls = 0;
+
+    embeddedGateway.setCustomHandler(async (_req, _provider, model) => {
+      if (model.includes('frontier') || model.includes('9B')) {
+        strongerModelCalls++;
+        // Stronger model resolves complex dispatcher lifetime borrow and delegates filter to small model
+        const fixedDispatcher = `// File: src/dispatcher.rs
+use crate::event::Event;
+use crate::filter::EventFilter;
+
+pub trait EventHandler: Send {
+    fn handle(&mut self, event: &Event);
+}
+
+pub struct EventDispatcher<'a> {
+    filter: Option<&'a EventFilter>,
+    handlers: Vec<Box<dyn EventHandler + 'a>>,
+    dispatched_count: usize,
+}
+
+impl<'a> EventDispatcher<'a> {
+    pub fn new() -> Self {
+        Self {
+            filter: None,
+            handlers: Vec::new(),
+            dispatched_count: 0,
+        }
+    }
+
+    pub fn with_filter(mut self, filter: &'a EventFilter) -> Self {
+        self.filter = Some(filter);
+        self
+    }
+
+    pub fn register_handler(&mut self, handler: Box<dyn EventHandler + 'a>) {
+        self.handlers.push(handler);
+    }
+
+    pub fn dispatched_count(&self) -> usize {
+        self.dispatched_count
+    }
+
+    pub fn dispatch(&mut self, event: &Event) -> bool {
+        let allowed = match self.filter {
+            Some(f) => f.evaluate_predicate(event),
+            None => true,
+        };
+
+        if !allowed {
+            return false;
+        }
+
+        if self.handlers.is_empty() {
+            return false;
+        }
+
+        for handler in &mut self.handlers {
+            handler.handle(event);
+        }
+        self.dispatched_count += 1;
+        true
+    }
+}
+`;
+        return {
+          content: `Resolved EventDispatcher borrow conflict and handler loop.
+Delegating localized predicate filter in src/filter.rs to Small LLM.
+
+\`\`\`rust
+${fixedDispatcher}
+\`\`\`
+
+<tier_transition target="SMALL_LLM" rationale="EventDispatcher borrow conflict resolved. Delegating localized predicate filter in src/filter.rs to Small LLM.">
+<bounded_instructions>
+In src/filter.rs, implement evaluate_predicate on EventFilter:
+Return true if event.severity >= self.min_severity and (self.allowed_types.is_empty() || self.allowed_types.contains(&event.event_type)).
+</bounded_instructions>
+</tier_transition>`,
+          usage: { prompt_tokens: 600, completion_tokens: 150 },
+        };
+      }
+
+      // Small model calls
+      smallModelCalls++;
+      if (smallModelCalls === 1) {
+        // Turn 2: Small model fixes payload parsing in src/event.rs
+        const fixedEvent = `// File: src/event.rs
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum EventType {
+    Metric,
+    Alert,
+    Audit,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Event {
+    pub id: u64,
+    pub event_type: EventType,
+    pub severity: u8,
+    pub payload: String,
+}
+
+impl Event {
+    pub fn new(id: u64, event_type: EventType, severity: u8, payload: impl Into<String>) -> Self {
+        Self {
+            id,
+            event_type,
+            severity,
+            payload: payload.into(),
+        }
+    }
+
+    pub fn parse_csv_line(line: &str) -> Result<Self, String> {
+        let parts: Vec<&str> = line.trim().splitn(4, ',').collect();
+        if parts.len() < 4 {
+            return Err("Invalid CSV line format: expected 4 comma-separated values".into());
+        }
+        let id = parts[0].parse::<u64>().map_err(|e| e.to_string())?;
+        let event_type = match parts[1] {
+            "Metric" => EventType::Metric,
+            "Alert" => EventType::Alert,
+            "Audit" => EventType::Audit,
+            other => return Err(format!("Unknown event type: {}", other)),
+        };
+        let severity = parts[2].parse::<u8>().map_err(|e| e.to_string())?;
+        let payload = parts[3].to_string();
+        Ok(Self {
+            id,
+            event_type,
+            severity,
+            payload,
+        })
+    }
+}
+`;
+        return {
+          content: `Fixed CSV payload parsing in src/event.rs:\n\n\`\`\`rust\n${fixedEvent}\`\`\``,
+          usage: { prompt_tokens: 350, completion_tokens: 90 },
+        };
+      } else {
+        // Turn 4: Small model receives bounded instructions from Stronger model and implements src/filter.rs
+        const fixedFilter = `// File: src/filter.rs
+use crate::event::{Event, EventType};
+
+#[derive(Debug, Clone)]
+pub struct EventFilter {
+    pub min_severity: u8,
+    pub allowed_types: Vec<EventType>,
+}
+
+impl EventFilter {
+    pub fn new(min_severity: u8, allowed_types: Vec<EventType>) -> Self {
+        Self {
+            min_severity,
+            allowed_types,
+        }
+    }
+
+    pub fn evaluate_predicate(&self, event: &Event) -> bool {
+        if event.severity < self.min_severity {
+            return false;
+        }
+        if self.allowed_types.is_empty() {
+            return true;
+        }
+        self.allowed_types.contains(&event.event_type)
+    }
+}
+`;
+        return {
+          content: `Implemented delegated evaluate_predicate in src/filter.rs:\n\n\`\`\`rust\n${fixedFilter}\`\`\``,
+          usage: { prompt_tokens: 380, completion_tokens: 80 },
+        };
+      }
+    });
+
+    const bifrostClient = new BifrostClient({ embeddedGateway });
+    const engine = new AdaptiveExecutionEngine({
+      bifrostClient,
+      approvalHandler: createWorkspaceApprovalHandler(),
+      strongerModel: 'escalation-frontier-model',
+      maxTurns: 7,
+    });
+
+    const result = await engine.runTask(taskSpec);
+
+    expect(result.run.status).toBe('completed');
+    expect(result.run.acceptance.status).toBe('passed');
+
+    // Verify complete bidirectional trajectory:
+    // 1. Initial Non-LLM mechanical pass (unused import removed)
+    expect(result.avoidedModelRequests).toBeGreaterThanOrEqual(1);
+
+    // 2. Escalation transition from Small LLM to Stronger LLM
+    const transitions = result.controllerState.transitions;
+    const smallToStronger = transitions.find(
+      (t) => t.fromTier === 'SMALL_LLM' && t.toTier === 'STRONGER_LLM'
+    );
+    expect(smallToStronger).toBeDefined();
+
+    // 3. Delegation transition from Stronger LLM back to Small LLM with bounded instructions
+    const strongerToSmall = transitions.find(
+      (t) => t.fromTier === 'STRONGER_LLM' && t.toTier === 'SMALL_LLM'
+    );
+    expect(strongerToSmall).toBeDefined();
+    expect(strongerToSmall?.reason).toContain('bounded instructions');
+
+    // 4. Model call counts confirm bidirectional execution
+    expect(smallModelCalls).toBe(2); // Turn 2 (event), Turn 4 (filter)
+    expect(strongerModelCalls).toBe(1); // Turn 3 (dispatcher + delegation)
+
+    // 5. Evidence artifacts generated
+    const evidenceList = result.trace.events.filter((e) => e.message.includes('Handoff') || e.message.includes('Tier transition'));
+    expect(evidenceList.length).toBeGreaterThan(0);
+  }, 45000);
+
+  // --------------------------------------------------------------------------
   // Live Gateway Verification against Stock Bifrost Daemon
   // --------------------------------------------------------------------------
   it('verifies live execution capability against stock Bifrost gateway daemon', async () => {
