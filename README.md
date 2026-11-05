@@ -32,6 +32,8 @@ Default mock development and automated checks make no paid Tavily requests. Live
 
 For teammate setup, command explanations, current validation limits and production hosting checks, use the [B05 running guide](docs/TEAM-RUNNING-GUIDE.md). After `npm run build`, `npm run smoke:deployment` checks the compiled API offline, including report persistence across a restart. `npm start` serves the API only; the built website needs separate static hosting and an `/api` proxy.
 
+General analysis distinguishes [stable reference facts from changing facts](docs/STABLE-EVIDENCE.md). Older or undated reference evidence can qualify for a model-interpreted stable fact without claiming current freshness; changing claims retain temporal guards.
+
 General supported current assessments now include an [evidence-recency freshness score](docs/EVIDENCE-FRESHNESS.md). It measures the oldest qualifying supporting publication within the existing 30-day policy, not truth confidence. Contradicted, inconclusive, historical and offline results remain unscored.
 
 The general flow also [caches validated comparisons for five minutes](docs/COMPARISON-CACHE.md), rechecking evidence gates before reuse. A hit avoids another comparison request and preserves the original assessment time; optional model extraction may still make a request.

@@ -52,6 +52,14 @@ export function assessSourceDates(source:DatedSource,now:string){
   const month=months.indexOf(match[1].toLowerCase())+1;
   updates.push(month?`${match[3]}-${String(month).padStart(2,'0')}-${match[2].padStart(2,'0')}`:text);
  }
+ // Accept numeric page-update labels only when month/day order is unambiguous.
+ // This never supplies a missing publication date, and impossible days still fail sourceDate.
+ for(const text of collect(/\b(?:last updated(?: on)?|updated on)\s*:?\s*(\d{1,2}\/\d{1,2}\/\d{4})\b/giu)){
+  const [first,second,year]=text.split('/').map(Number);
+  const dayFirst=first>12&&second<=12;
+  const monthFirst=second>12&&first<=12||first===second&&first<=12;
+  if(dayFirst||monthFirst)updates.push(`${year}-${String(dayFirst?second:first).padStart(2,'0')}-${String(dayFirst?first:second).padStart(2,'0')}`);
+ }
  const effective=collect(new RegExp(`\\b(?:effective(?: from| on)?|takes effect(?: on)?)\\s*:?\\s*(${explicitDatePattern})\\b`,'giu'),context).map(explicitDate);
  const scopeContext=claimDateContext(source.claim,context);
  const scopes:string[]=[];let unparsedScope=false;

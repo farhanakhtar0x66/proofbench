@@ -1,5 +1,8 @@
 # General evidence comparison and quoted corrections
 
+Current policy update: [stable-fact interpretation](STABLE-EVIDENCE.md) can admit older or undated reference evidence in general current-scope analysis. It does not assign current freshness, remove corroboration requirements or waive conflicting dates/qualifications. The older 30-day-only description below still applies to changing claims and the literal comparison path.
+
+
 For current website integration see [WEBSITE-ANALYSIS.md](WEBSITE-ANALYSIS.md). Supported current results now have a backend-computed [evidence-recency score](EVIDENCE-FRESHNESS.md); other results remain unscored. Earlier implementation/validation notes below describe the original endpoint stage.
 
 `POST /api/claims/compare` is the next backend building block after extraction and retrieval. It accepts only `{version: "1", claim: "..."}`. Evidence is retrieved server-side through the existing capped Tavily path. The client cannot submit its own citations, dates, provider or request limit. The old `/api/verify` route and the website's current behavior remain unchanged. Connecting the new flow to the website is still a separate step.

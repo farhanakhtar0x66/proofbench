@@ -22,3 +22,10 @@ it('allows compatible dates, rejects future dates and does not mistake ordinary 
 it('treats equivalent ISO and English update labels as one date',()=>{
  expect(assessSourceDates({published_date:'2026-11-01',content:'Updated on 2026-11-03. Last updated on November 3, 2026.'},now)).toMatchObject({updatedAt:'2026-11-03T00:00:00.000Z',eligible:true});
 });
+
+it.each(['07/13/2019','13/07/2019'])('parses unambiguous numeric update labels without manufacturing a publication date: %s',text=>{
+ const result=assessSourceDates({content:'Updated on '+text},now);expect(result.updatedAt).toBe('2019-07-13T00:00:00.000Z');expect(result.publishedAt).toBeUndefined();expect(result.eligible).toBe(false);expect(result.reason).toContain('missing');
+});
+it.each(['02/30/2026','30/02/2026','03/04/2026','13/14/2026'])('does not guess ambiguous or impossible numeric update labels: %s',text=>{
+ const result=assessSourceDates({published_date:'2026-01-01',content:'Updated on '+text},now);expect(result.updatedAt).toBeUndefined();expect(result.eligible).toBe(false);expect(result.reason).toMatch(/invalid|parsed/u);
+});

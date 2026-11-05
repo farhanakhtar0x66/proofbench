@@ -17,7 +17,7 @@ it('still warns when equally strong evidence is omitted',()=>{
 });
 it('still warns when weaker contradictory or qualifying evidence cannot fit',()=>{
  const direct=`Strong explicit evidence. ${'Complete sentence. '.repeat(90)}`;
- const denial=`However, this is not the current policy. ${'Qualification details. '.repeat(100)}`;
+ const denial=`However, this is not the current policy because ${'qualification details '.repeat(200)}`;
  const result=selectSourcePassages(`${direct}\n${denial}`,text=>text.includes('Strong')?5:2);
  expect(result.warning).toBeDefined();
 });

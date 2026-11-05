@@ -1,3 +1,4 @@
+import {requiresRecentEvidence} from './temporal-policy';
 import {captainClaimScope} from './captain-scope';
 import {supportClaimSubject} from './support-scope';
 import {datedEndOfLifeClaim} from './historical-support';
@@ -14,8 +15,6 @@ export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_
  // Support lifecycles may be documented in older announcements. Retrieve those
  // without declaring them current; comparison's date rules still apply.
  if(supportSubject)return {query:`${supportSubject} support status end of life official documentation`,dateWindow:undefined};
- const start=new Date(now.getTime()-30*86400000);
- const end=new Date(now.getTime()+86400000);
  // Search the role rather than presuming the asserted holder is correct.
  // Keep the original claim for comparison; retain any object-side qualifiers.
  const qualified=/^(?:if|unless|according to)\b|\b(?:may|might|could|would)\s+(?:be|serve)\b|\b(?:formerly|previously|was|will be)\b|[“”"]/iu.test(literal);
@@ -33,5 +32,8 @@ export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_
   const roleName=/^PM$/iu.test(role[1])?'prime minister':role[1];
   query=/\bcaptain\b/iu.test(role[1])&&captainClaimScope(literal)==='appointment'?`${target} current club captains captaincy appointment official sources`:`${target} current ${roleName} official sources`;
  }else if(possessive&&captainClaimScope(literal)==='appointment')query=`${possessive[1]} current club captains captaincy appointment official sources`;
- return {query,dateWindow:{startDate:start.toISOString().slice(0,10),endDate:end.toISOString().slice(0,10)}};
+ // Keep current searches for explicitly volatile claims; do not exclude evergreen
+ // references for definitions and other potentially stable facts.
+ const dateWindow=requiresRecentEvidence(literal)?{startDate:new Date(now.getTime()-30*86400000).toISOString().slice(0,10),endDate:new Date(now.getTime()+86400000).toISOString().slice(0,10)}:undefined;
+ return {query,dateWindow};
 }

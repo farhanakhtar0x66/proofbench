@@ -35,6 +35,7 @@ export function selectEvidenceExcerpt(claim:string,content:string,sourceUrl?:str
  const priceSubject=/\b(?:costs?|prices?|pricing)\b/iu.test(claim)?claimEntity(claim):undefined;
  const countUnit=claim.match(/\b(?:at most|at least|maximum of|minimum of)\s+(?:\d+|[a-z]+)\s+(players?|members?|seats?|users?|requests?|items?)\b/iu)?.[1].replace(/s$/u,'');
  const anchors=[...new Set(tokens(claim).filter(word=>word.length>2&&!/^\d+$/u.test(word)&&!/^(?:the|and|for|are|not|currently|supported|costs|with|from|that|this|became|was|may|january|february|march|april|june|july|august|september|october|november|december|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)$/u.test(word)))];
+ const superlative=claim.match(/\bis\s+(?:not\s+)?(?:the\s+)?([a-z]+est)\b/iu)?.[1];
  const score=(text:string)=>{
   const quality=excerptQualityReason(claim,text);
   if(quality&&/package identifiers|encoded images|login or subscription|image caption/u.test(quality))return -1;
@@ -54,13 +55,16 @@ export function selectEvidenceExcerpt(claim:string,content:string,sourceUrl?:str
    return subjects.some(word=>phrase(text,word))&&target.test(text)&&/\b\d{4}\b/u.test(text)?10:0;
   }
   if(countUnit)return new RegExp(`\\b(?:\\d+|one|two|three|four|five|six|seven|eight|nine|ten|eleven|twelve)\\s+${countUnit}s?\\b|\\b${countUnit}s?\\b.{0,60}\\b\\d+\\b`,'iu').test(text)?10:0;
+  // A superlative assertion needs its property in the passage, not merely the
+  // same subject in unrelated qualified background. Adjacent qualifiers remain attached.
+  if(superlative&&!phrase(text,superlative))return 0;
   return Math.min(5,anchors.filter(word=>phrase(text,word)).length);
  };
  if(content.trim().length>EXCERPT_LIMIT||/package identifiers/u.test(excerptQualityReason(claim,content)??'')){
   const selected=selectSourcePassages(content,score);
   const first=selected.passages[0];const last=selected.passages.at(-1)!;
   const warning=selected.warning??excerptQualityReason(claim,selected.excerpt);
-  return {excerpt:selected.excerpt,passages:selected.passages.length>1?selected.passages:undefined,selection:{start:first.start,end:last.end,sourceLength,reason:selected.passages.length>1?'Selected exact source blocks in source order; [...] marks omitted text.':'Selected a complete source block using claim anchors; wording is unchanged.',...(warning?{warning}:{})}};
+  return {excerpt:selected.excerpt,passages:selected.passages.length>1?selected.passages:undefined,selection:{start:first.start,end:last.end,sourceLength,reason:(selected.passages.length>1?'Selected exact source blocks in source order; [...] marks omitted text.':'Selected a complete source block using claim anchors; wording is unchanged.'),...(selected.omissionRisk?{omissionRisk:selected.omissionRisk}:{}),...(warning?{warning}:{})}};
  }
  const start=Math.max(0,content.search(/\S/u));const end=content.trimEnd().length;
  const excerpt=content.slice(start,end);const warning=excerptQualityReason(claim,excerpt);

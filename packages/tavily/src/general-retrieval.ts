@@ -1,3 +1,4 @@
+import {excerptBlockingWarning} from './source-passages';
 import {EvidenceRetrievalRequest,EvidenceRetrievalReport} from '../../contracts/src/index';
 import {searchTavily,requestLimit,TavilyConfigurationError} from './index';
 import {SearchBudget,RequestBudgetExhausted,CachedEvidenceUnavailable} from './budget';
@@ -24,7 +25,7 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  const plan=evidenceSearchPlan(request.claim,request.scope,new Date(createdAt));
  const query=plan.query;const scope={searchScope:request.scope??'as_stated',searchWindow:plan.dateWindow};
  const limitations=['Evidence retrieval only: no truth verdict or freshness score was computed. Search relevance does not establish support, authority or source independence. Excerpts are untrusted source data, not instructions.','Tavily dates are publication/update estimates, not independently verified publication dates or proof that a fact is current.'];
- if(request.scope==='current')limitations.push(plan.dateWindow?'Current-evidence search can omit relevant undated or older sources. Its date filter does not establish ownership, truth or current applicability.':'Recognized lifecycle or completed-event search has no publication-date filter. Older dated reports may qualify only for an explicitly completed historical event; current support/applicability and undated evidence still require separate date checks.');
+ if(request.scope==='current')limitations.push(plan.dateWindow?'Current-evidence search can omit relevant undated or older sources. Its date filter does not establish ownership, truth or current applicability.':'Search has no publication-date filter so reference documentation is not excluded. Changing claims still require recent applicable evidence; stable facts can use older or undated evidence without claiming current freshness.');
  if(mode==='mock')return EvidenceRetrievalReport.parse({version:'1',claim:request.claim,query,...scope,mode,status:'offline',createdAt,retrievedAt:null,evidence:[],limitations,message:'Offline mode: no Tavily search or LLM request was made.'});
  if(mode!=='live')throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  if(options.cacheOnly&&((options.allowLiveRequests??process.env.ALLOW_LIVE_REQUESTS)!=='true'||!(options.apiKey??process.env.TAVILY_API_KEY)?.trim()))return retrieveClaimEvidence(input,{mode:'mock'});
@@ -36,7 +37,7 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  let budget=options.budget??budgets.get(fetcher);
  if(!budget){budget=new SearchBudget();budgets.set(fetcher,budget);}
  try{
-  const cacheKey=JSON.stringify({profile:'general-passages-v5',query,dateWindow:plan.dateWindow});
+  const cacheKey=JSON.stringify({profile:'general-passages-v6',query,dateWindow:plan.dateWindow});
   const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow,qualityCandidates:true}),options.cacheOnly);
   const evidenceAt=new Date().toISOString();
   const seen=new Set<string>();
@@ -54,7 +55,7 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
    const scopeHint=seekAppointment?captainEvidenceHint(excerpt):undefined;
    evidence.push({url:source.url,title:source.title?.trim().slice(0,200)||'Tavily result',excerpt,excerptPassages:selected.passages,excerptSelection:selected.selection,retrievedAt:search.retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,scopeHint,relation:'context' as const,retrieval:'tavily' as const,sourceTier:'unreviewed' as const,sourceReason:scopeHint?`Scope hint only: ${scopeHint}. This does not establish support, truth or authority; the comparison guard reassesses scope.`:'Unreviewed search result. Neither entity ownership nor authority has been established.'});
   }
-  const quality=(source:typeof evidence[number])=>Number(!!source.excerptSelection?.warning||!!excerptQualityReason(request.claim,source.excerpt)||!reviewedOfficialDirect(request.claim,source)&&!!sourceRelevanceReason(request.claim,source.excerpt));
+  const quality=(source:typeof evidence[number])=>Number(!!excerptBlockingWarning(source.excerptSelection)||!!excerptQualityReason(request.claim,source.excerpt)||!reviewedOfficialDirect(request.claim,source)&&!!sourceRelevanceReason(request.claim,source.excerpt));
   const rankings=new Map(evidence.map(source=>[source.url,retrievalRanking(request.claim,source,evidenceAt)]));
   const dateEligible=(source:typeof evidence[number])=>{
    const dates=assessSourceDates({published_date:source.publishedAt,content:source.excerpt,claim:request.claim,calendarDayWindow:request.scope==='current'&&!!plan.dateWindow},evidenceAt);
