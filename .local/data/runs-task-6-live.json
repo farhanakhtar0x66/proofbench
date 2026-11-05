@@ -1,0 +1,77 @@
+{
+  "version": "1",
+  "id": "task-6-live",
+  "task": {
+    "version": "1",
+    "id": "task-6-deterministic-fix",
+    "title": "Zero-Token Deterministic Mechanical Repair",
+    "prompt": "Fix syntax, visibility, or type diagnostics in src/lib.rs without LLM inference.",
+    "acceptance": [
+      "cargo test exits with code 0"
+    ],
+    "fixtureId": "task-6-v1"
+  },
+  "agent": {
+    "version": "1",
+    "id": "bifrost-01",
+    "name": "ProofBench Adaptive Execution Engine v1.5",
+    "implementation": "01",
+    "runtime": "typescript",
+    "revision": "0.1.0",
+    "model": null
+  },
+  "status": "completed",
+  "output": "Successfully fixed diagnostic via zero-token deterministic AST transformation (MechanicalTransformer). 0 LLM tokens consumed; 1 model request avoided.",
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "known",
+      "value": 0,
+      "unit": "tokens",
+      "source": "deterministic_tooling",
+      "scope": "run"
+    },
+    "outputTokens": {
+      "status": "known",
+      "value": 0,
+      "unit": "tokens",
+      "source": "deterministic_tooling",
+      "scope": "run"
+    },
+    "duration": {
+      "status": "known",
+      "value": 1673,
+      "unit": "ms",
+      "source": "performance.now",
+      "scope": "run"
+    },
+    "cost": {
+      "status": "known",
+      "value": 0,
+      "unit": "USD",
+      "source": "zero_cost",
+      "scope": "run"
+    }
+  },
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "cargo test exits with code 0",
+        "passed": true,
+        "evidence": "cargo test exited with code 0, 1 passed; 0 failed"
+      }
+    ],
+    "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
+  },
+  "createdAt": "2026-11-05T03:41:42.000Z",
+  "reportId": "report-task-6-live",
+  "reproducibility": {
+    "seed": 0,
+    "adapterRevision": "31e9ebf",
+    "fixtureRevision": "task-6-v1",
+    "environment": "macOS local deterministic engine",
+    "simulated": false
+  }
+}

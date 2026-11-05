@@ -3,7 +3,14 @@ dist/
 .env
 .env.*
 !.env.example
-.local/
+.local/*
+!.local/data/
+.local/data/*
+!.local/data/runs-task-*.json
+!.local/data/trace-task-*.json
+!.local/data/reports-task-*.json
+!.local/data/optimization-benchmark-evidence.json
+!.local/data/adaptive-engine-v1-5-live-evidence.json
 .superpowers/
 *.log
 coverage/

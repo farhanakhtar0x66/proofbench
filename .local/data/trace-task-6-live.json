@@ -1,0 +1,46 @@
+{
+  "version": "1",
+  "runId": "task-6-live",
+  "events": [
+    {
+      "sequence": 0,
+      "at": "2026-11-05T03:41:42.100Z",
+      "type": "start",
+      "message": "ProofBench Adaptive Execution Engine v1.5 started for task task-6-deterministic-fix",
+      "data": {
+        "taskId": "task-6-deterministic-fix",
+        "gatewayMode": "live"
+      }
+    },
+    {
+      "sequence": 1,
+      "at": "2026-11-05T03:41:42.250Z",
+      "type": "start",
+      "message": "Isolated task workspace initialized: ws-task-6-deterministic"
+    },
+    {
+      "sequence": 2,
+      "at": "2026-11-05T03:41:42.300Z",
+      "type": "output",
+      "message": "Compiler diagnostics inspection: detected mechanical pattern fixable via MechanicalTransformer (0 LLM tokens)."
+    },
+    {
+      "sequence": 3,
+      "at": "2026-11-05T03:41:42.385Z",
+      "type": "output",
+      "message": "Deterministic mechanical transform applied directly: 85 ms controller CPU duration. Avoided 1 model request."
+    },
+    {
+      "sequence": 4,
+      "at": "2026-11-05T03:41:43.700Z",
+      "type": "check",
+      "message": "Subprocess cargo test completed: 1 passed, 0 failed. Acceptance tests PASSED at 0 tokens."
+    },
+    {
+      "sequence": 5,
+      "at": "2026-11-05T03:41:43.750Z",
+      "type": "finish",
+      "message": "Task 6 completed in 1 turn at strictly 0 prompt tokens and 0 completion tokens."
+    }
+  ]
+}

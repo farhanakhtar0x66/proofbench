@@ -1,0 +1,54 @@
+{
+  "version": "1",
+  "id": "report-task-6-live",
+  "runId": "task-6-live",
+  "createdAt": "2026-11-05T03:41:44.000Z",
+  "summary": "Task 6 resolved deterministically in 1 turn with zero LLM tokens. The Non-LLM tier (MechanicalTransformer) identified the mechanical fix pattern directly from Tree-sitter AST diagnostics, synthesized the patch in 85 ms of controller CPU time, and avoided a model inference call completely.",
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "cargo test exits with code 0",
+        "passed": true,
+        "evidence": "cargo test exited with code 0, 1 passed; 0 failed"
+      }
+    ],
+    "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
+  },
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "known",
+      "value": 0,
+      "unit": "tokens",
+      "source": "deterministic_tooling",
+      "scope": "run"
+    },
+    "outputTokens": {
+      "status": "known",
+      "value": 0,
+      "unit": "tokens",
+      "source": "deterministic_tooling",
+      "scope": "run"
+    },
+    "duration": {
+      "status": "known",
+      "value": 1673,
+      "unit": "ms",
+      "source": "performance.now",
+      "scope": "run"
+    },
+    "cost": {
+      "status": "known",
+      "value": 0,
+      "unit": "USD",
+      "source": "zero_cost",
+      "scope": "run"
+    }
+  },
+  "verification": null,
+  "limitations": [
+    "Mechanical fixes are deterministic pattern-matched transformations; complex algorithmic bugs require model tiers."
+  ]
+}

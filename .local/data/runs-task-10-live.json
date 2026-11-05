@@ -1,0 +1,83 @@
+{
+  "version": "1",
+  "id": "task-10-live",
+  "task": {
+    "version": "1",
+    "id": "task-10-sensor-fusion-aggregator",
+    "title": "Held-out Sensor Fusion & Telemetry Aggregation Service",
+    "prompt": "Fix telemetry frame parsing in src/sensor.rs and implement anomaly threshold filtering in src/aggregator.rs.",
+    "acceptance": [
+      "cargo test exits with code 0",
+      "all 3 integration tests pass"
+    ],
+    "fixtureId": "task-10-v1"
+  },
+  "agent": {
+    "version": "1",
+    "id": "bifrost-01",
+    "name": "ProofBench Adaptive Execution Engine v1.5",
+    "implementation": "01",
+    "runtime": "typescript",
+    "revision": "0.1.0",
+    "model": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M"
+  },
+  "status": "completed",
+  "output": "Successfully fixed telemetry parsing in src/sensor.rs and anomaly filtering in src/aggregator.rs via transactional AST modifications. All 3 tests passed.",
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "known",
+      "value": 2817,
+      "unit": "tokens",
+      "source": "bifrost.live",
+      "scope": "run"
+    },
+    "outputTokens": {
+      "status": "known",
+      "value": 507,
+      "unit": "tokens",
+      "source": "bifrost.live",
+      "scope": "run"
+    },
+    "duration": {
+      "status": "known",
+      "value": 14650,
+      "unit": "ms",
+      "source": "performance.now",
+      "scope": "run"
+    },
+    "cost": {
+      "status": "known",
+      "value": 0,
+      "unit": "USD",
+      "source": "local_gguf",
+      "scope": "run"
+    }
+  },
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "cargo test exits with code 0",
+        "passed": true,
+        "evidence": "cargo test exited with code 0, 3 passed; 0 failed"
+      },
+      {
+        "name": "all 3 integration tests pass",
+        "passed": true,
+        "evidence": "test test_sensor_frame_parsing ... ok\ntest test_aggregator_anomaly_filtering ... ok\ntest test_end_to_end_sensor_fusion ... ok"
+      }
+    ],
+    "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
+  },
+  "createdAt": "2026-11-05T04:15:20.000Z",
+  "reportId": "report-task-10-live",
+  "reproducibility": {
+    "seed": 42,
+    "adapterRevision": "cc2c6f4",
+    "fixtureRevision": "task-10-v1",
+    "environment": "macOS stock Bifrost local daemon :8089",
+    "simulated": false
+  }
+}
