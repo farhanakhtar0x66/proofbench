@@ -1,9 +1,12 @@
-import React,{useState,useEffect} from 'react';
+import React,{useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import {type Capabilities,type RunRecord,type ExecutionTrace,type VerificationReport,type EvidenceReport,type TaskSpec,type UsageRecord} from '../../../packages/contracts/src/index';
+import {type Capabilities,type RunRecord,type ExecutionTrace,type VerificationReport,type EvidenceReport,type TaskSpec,type UsageRecord,type JobRecord} from '../../../packages/contracts/src/index';
 import {api,schemas,modeLabel} from './client';
 import {demoRun,demoTrace,demoReport} from '../../../packages/contracts/src/examples';
 import './style.css';
+
+const ACTIVE_JOB_KEY='proofbench_active_job_id';
+
 function metric(value:UsageRecord['inputTokens']){
  if(value.status==='missing')return 'Not reported';if(value.status==='incomparable')return 'Incomparable';
  return `${value.status==='estimated'?'≈ ':''}${Number(value.value.toFixed(2)).toLocaleString()} ${value.unit}`;
@@ -15,13 +18,19 @@ function runBadge(r:RunRecord){
  if(r.id.includes('task-10'))return <span className="badge-sub badge-live">SENSOR FUSION VALIDATION</span>;
  return <span className="badge-sub badge-live">MEASURED LIVE</span>;
 }
+
 function App(){
  const [tab,setTab]=useState<'runs'|'verify'>('runs');const [caps,setCaps]=useState<Capabilities>();
- const [tasks,setTasks]=useState<TaskSpec[]>([]);const [runs,setRuns]=useState<RunRecord[]>([]);
+ const [tasks,setTasks]=useState<TaskSpec[]>([]);const [selectedTaskId,setSelectedTaskId]=useState<string>('');
+ const [runs,setRuns]=useState<RunRecord[]>([]);
  const [selected,setSelected]=useState<RunRecord>();const [trace,setTrace]=useState<ExecutionTrace>();const [report,setReport]=useState<EvidenceReport>();
  const [verification,setVerification]=useState<VerificationReport>();const [answer,setAnswer]=useState('Python 2 is currently supported.');
  const [busy,setBusy]=useState(false);const [progress,setProgress]=useState('');const [loading,setLoading]=useState(true);const [error,setError]=useState('');
  const [compare,setCompare]=useState(false);
+ const [activeJobId,setActiveJobId]=useState<string|null>(null);
+ const [monitoringPaused,setMonitoringPaused]=useState(false);
+ const pollingRef=useRef<{jobId:string;cancelled:boolean}|null>(null);
+
  async function inspect(run:RunRecord){
   setSelected(run);setTrace(undefined);setReport(undefined);setError('');
   if(run.id==='demo-run'){setTrace(demoTrace);setReport(demoReport);return;}
@@ -30,10 +39,106 @@ function App(){
    setTrace(t);setReport(r);
   }catch(e){setError((e as Error).message);}
  }
+
+ async function pollJob(jobId:string){
+  setBusy(true);
+  setActiveJobId(jobId);
+  setMonitoringPaused(false);
+  localStorage.setItem(ACTIVE_JOB_KEY,jobId);
+  const pollSession={jobId,cancelled:false};
+  pollingRef.current=pollSession;
+  let targetRunId:string|undefined;
+  const maxIterations=300; // ~7.5 minutes (300 * 1.5s)
+  let iteration=0;
+  let consecutiveErrors=0;
+
+  try{
+   while(iteration<maxIterations){
+    if(pollSession.cancelled){
+     setProgress('Monitoring stopped by user.');
+     return;
+    }
+    await new Promise(r=>setTimeout(r,1500));
+    if(pollSession.cancelled)return;
+    iteration++;
+
+    let job:JobRecord;
+    try{
+     job=await api(`/jobs/${jobId}`,schemas.JobRecord);
+     consecutiveErrors=0;
+    }catch(err){
+     consecutiveErrors++;
+     if(consecutiveErrors>=5){
+      throw new Error(`Lost connection to server while monitoring job (${(err as Error).message})`);
+     }
+     setProgress(`Reconnecting to job monitor (retry ${consecutiveErrors}/5)…`);
+     continue;
+    }
+
+    if(job.progress)setProgress(job.progress);
+    if(job.runId)targetRunId=job.runId;
+
+    if(job.status==='completed'){
+     localStorage.removeItem(ACTIVE_JOB_KEY);
+     setActiveJobId(null);
+     setProgress('Job completed. Loading results…');
+     const list=await api('/runs',schemas.RunListResponse);
+     setRuns(list.runs);
+     const target=(targetRunId?list.runs.find(r=>r.id===targetRunId):undefined)??list.runs[0];
+     if(target){setSelected(target);await inspect(target);}
+     return;
+    }
+
+    if(job.status==='failed'){
+     localStorage.removeItem(ACTIVE_JOB_KEY);
+     setActiveJobId(null);
+     throw new Error(job.error||job.progress||'Execution job failed on server.');
+    }
+   }
+
+   // Max iterations reached without completion: do NOT claim the job failed on backend
+   setMonitoringPaused(true);
+   setProgress('Monitoring paused (maximum poll duration reached).');
+   setError(`Monitoring paused after 7 minutes. The job may still be executing on the server (Job ID: ${jobId}). You can resume monitoring or check status.`);
+  }catch(e){
+   setError((e as Error).message);
+  }finally{
+   if(pollingRef.current===pollSession){
+    setBusy(false);
+    if(!monitoringPaused)setProgress('');
+   }
+  }
+ }
+
+ function stopMonitoring(){
+  if(pollingRef.current){
+   pollingRef.current.cancelled=true;
+  }
+  setBusy(false);
+  setMonitoringPaused(true);
+  setProgress('Monitoring paused by user. Computation continues on server.');
+ }
+
+ function resumeMonitoring(){
+  if(activeJobId){
+   setError('');
+   void pollJob(activeJobId);
+  }
+ }
+
  async function connect(){
   setLoading(true);setError('');try{
    const c=await api('/capabilities',schemas.Capabilities);setCaps(c);
-   if(c.capabilities.benchmarks)setTasks((await api('/benchmarks',schemas.benchmarks)).tasks);else setTasks([]);
+   let loadedTasks:TaskSpec[]=[];
+   if(c.capabilities.benchmarks){
+    const bench=await api('/benchmarks',schemas.benchmarks);
+    loadedTasks=bench.tasks;
+    setTasks(loadedTasks);
+    if(loadedTasks.length>0){
+     setSelectedTaskId(prev=>prev||loadedTasks[0].id);
+    }
+   }else{setTasks([]);}
+
    try{
     const list=await api('/runs',schemas.RunListResponse);
     if(list.runs.length>0){
@@ -52,39 +157,55 @@ function App(){
      void inspect(demoRun);
     }
    }
+
+   // Recover active or completed job after page reload without creating duplicate executions
+   const savedJobId=localStorage.getItem(ACTIVE_JOB_KEY);
+   if(savedJobId){
+    try{
+     const job=await api(`/jobs/${savedJobId}`,schemas.JobRecord);
+     if(job.status==='running'){
+      setActiveJobId(savedJobId);
+      void pollJob(savedJobId);
+     }else if(job.status==='completed'){
+      localStorage.removeItem(ACTIVE_JOB_KEY);
+      if(job.runId){
+       const list=await api('/runs',schemas.RunListResponse);
+       setRuns(list.runs);
+       const target=list.runs.find(r=>r.id===job.runId)??list.runs[0];
+       if(target){setSelected(target);void inspect(target);}
+      }
+     }else if(job.status==='failed'){
+      localStorage.removeItem(ACTIVE_JOB_KEY);
+      setError(`Prior job (${savedJobId}) ended: ${job.error||job.progress||'Failed'}`);
+     }
+    }catch{
+     localStorage.removeItem(ACTIVE_JOB_KEY);
+    }
+   }
   }catch(e){setError((e as Error).message);}finally{setLoading(false);}
  }
+
  useEffect(()=>{void connect();},[]);
+
  async function execute(){
-  setBusy(true);setProgress('Submitting execution job…');setError('');
+  setBusy(true);setProgress('Submitting execution job…');setError('');setMonitoringPaused(false);
   try{
+   const taskToRun=tasks.find(t=>t.id===selectedTaskId)??tasks[0];
+   if(!taskToRun)throw new Error('No task selected');
+
    if(caps?.implementation==='mock'){
-    const run=await api('/runs',schemas.RunRecord,{version:'1',task:tasks[0],agentId:caps?.agent.id,seed:0});
+    const run=await api('/runs',schemas.RunRecord,{version:'1',task:taskToRun,agentId:caps?.agent.id,seed:0});
     setRuns(previous=>[run,...previous]);
     await inspect(run);
+    setBusy(false);setProgress('');
     return;
    }
-   const taskToRun=tasks[0]??{version:'1',id:'task-6-deterministic-fix',title:'Deterministic mechanical fix',prompt:'Fix unused var',acceptance:['cargo test passes']};
+
    const submission=await api('/jobs',schemas.JobSubmissionResponse,{version:'1',task:taskToRun,agentId:caps?.agent.id,seed:0});
-   const {jobId,runId}=submission;
-   let targetRunId=runId;
-   setProgress('Job running in workspace…');
-   let completed=false;
-   for(let i=0;i<60;i++){
-    await new Promise(r=>setTimeout(r,1200));
-    const job=await api(`/jobs/${jobId}`,schemas.JobRecord);
-    if(job.progress)setProgress(job.progress);
-    if(job.runId)targetRunId=job.runId;
-    if(job.status==='completed'){completed=true;break;}
-    if(job.status==='failed')throw new Error(job.error||'Execution job failed');
-   }
-   if(!completed)throw new Error('Execution job timed out after 75s');
-   const list=await api('/runs',schemas.RunListResponse);
-   setRuns(list.runs);
-   const target=list.runs.find(r=>r.id===targetRunId)??list.runs[0];
-   if(target){setSelected(target);await inspect(target);}
-  }catch(e){setError((e as Error).message);}finally{setBusy(false);setProgress('');}
+   await pollJob(submission.jobId);
+  }catch(e){setError((e as Error).message);setBusy(false);setProgress('');}
  }
+
  async function verify(e:React.FormEvent){
   e.preventDefault();setBusy(true);setError('');try{
    setVerification(await api('/verify',schemas.VerificationReport,{version:'1',text:answer}));
@@ -96,7 +217,20 @@ function App(){
   <nav aria-label="Workspace"><button aria-current={tab==='runs'?'page':undefined} onClick={()=>setTab('runs')}><span>▤</span> Execution lab <small>01</small></button><button aria-current={tab==='verify'?'page':undefined} onClick={()=>setTab('verify')}><span>◎</span> Freshness verifier <small>02</small></button></nav>
   <div className="sidebar-bottom"><span className="dot"/> {modeLabel}<p>One Bifrost track.<br/>Evidence at every step.</p><small>Tavily #01 · Permanent module</small></div></aside>
   <main><header className="topbar"><span>Workspace <span className="slash">/</span> {tab==='runs'?'Execution lab':'Freshness verifier'}</span><span className="badge">{caps?.implementation==='mock'?'OFFLINE MOCK':caps?`BIFROST ${caps.implementation}`:'CONNECTING'}</span></header>
-  <div className="content"><div className="eyebrow">{tab==='runs'?'EXECUTION & EVIDENCE':isTavilyLive?'TAVILY #01 / LIVE WEB RESEARCH':'TAVILY #01 / ANSWER VERIFICATION'}</div><div className="page-heading"><div><h1>{tab==='runs'?'Trust the evidence.':'Check what changed.'}</h1><p>{tab==='runs'?'Inspect completion, usage, and the work behind every result.':'Separate outdated claims from uncertainty, with sources you can inspect.'}</p></div>{tab==='runs'&&<button className="primary" disabled={busy||loading||!caps?.capabilities.execute||!tasks.length} onClick={()=>void execute()}>{busy?`Running… ${progress}`:'+ Run fixture'}</button>}</div>
+  <div className="content"><div className="eyebrow">{tab==='runs'?'EXECUTION & EVIDENCE':isTavilyLive?'TAVILY #01 / LIVE WEB RESEARCH':'TAVILY #01 / ANSWER VERIFICATION'}</div>
+  <div className="page-heading">
+   <div><h1>{tab==='runs'?'Trust the evidence.':'Check what changed.'}</h1><p>{tab==='runs'?'Inspect completion, usage, and the work behind every result.':'Separate outdated claims from uncertainty, with sources you can inspect.'}</p></div>
+   {tab==='runs'&&<div className="task-runner-controls">
+    {tasks.length>1&&<select className="task-select" value={selectedTaskId} onChange={e=>setSelectedTaskId(e.target.value)} disabled={busy||loading} aria-label="Select task">
+     {tasks.map(t=><option key={t.id} value={t.id}>{t.id}: {t.title}</option>)}
+    </select>}
+    <button className="primary" disabled={busy||loading||!caps?.capabilities.execute||!tasks.length} onClick={()=>void execute()}>
+     {busy?`Running… ${progress}`:caps?.implementation==='mock'?'+ Run fixture':'+ Run task'}
+    </button>
+    {busy&&<button type="button" className="secondary" onClick={()=>stopMonitoring()} title="Stop monitoring without stopping backend execution">Stop monitoring</button>}
+    {monitoringPaused&&activeJobId&&<button type="button" className="secondary" onClick={()=>resumeMonitoring()} title="Resume monitoring active job">Resume monitoring</button>}
+   </div>}
+  </div>
   <div className="notice"><span>ⓘ</span><div><strong>{caps?.implementation==='mock'?'Offline development workspace':'Integration workspace'}</strong><p>{tab==='runs'?'Fixture checks are simulated. Token telemetry stays unknown until a real agent reports it.':isTavilyLive?'Live web research active: Tavily Search API verifies factual claims against live web sources.':'Offline fixtures only. Unrecognized text returns inconclusive; no live search or paid request is made.'}</p></div></div>
   {error&&<div className="error" role="alert">{error} <button onClick={()=>void connect()}>Retry connection</button></div>}
   {loading?<p role="status" className="empty">Connecting to workspace…</p>:tab==='runs'?<>

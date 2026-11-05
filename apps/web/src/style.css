@@ -11,3 +11,6 @@
 .bench-table th{background:#18201b;font:9px ui-monospace,monospace;color:#859e8d;letter-spacing:.5px}
 .bench-note{font-size:10px;color:#85998a;line-height:1.6;padding:12px 14px;margin:0;background:#151b17;border-top:1px solid #202923}
 .job-progress{display:inline-flex;align-items:center;gap:8px;font:10px ui-monospace,monospace;color:#b4e5bf;margin-left:14px}
+.task-runner-controls{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.task-select{background:#151b17;border:1px solid #303832;color:#d6e7da;font-size:11px;padding:9px 12px;border-radius:3px;max-width:340px}
+.task-select:focus-visible{outline:2px solid #b6e7bc;outline-offset:2px}

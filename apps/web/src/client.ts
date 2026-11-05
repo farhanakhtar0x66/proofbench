@@ -39,7 +39,16 @@ export async function api<T>(path:string,schema:z.ZodType<T>,body?:unknown):Prom
   return schema.parse(fixtures[path]);
  }
  const response=await fetch(`/api${path}`,{method:body?'POST':'GET',headers:body?{'Content-Type':'application/json'}:undefined,body:body?JSON.stringify(body):undefined,signal:AbortSignal.timeout(15000)});
- if(!response.ok)throw new Error(`Request failed (${response.status}). ${response.status===501?'Selected capability is not integrated.':response.status===503?'Inference gateway is offline. Start the Bifrost HTTP daemon on :8089.':'Check that the API is running, then retry.'}`);
+ if(!response.ok){
+  let serverMessage='';
+  try{
+   const errorJson=await response.json();
+   if(errorJson.message)serverMessage=errorJson.message;
+   else if(errorJson.error)serverMessage=`Error: ${errorJson.error}`;
+  }catch{/* ignore non-json */}
+  if(serverMessage)throw new Error(serverMessage);
+  throw new Error(`Request failed (${response.status}). ${response.status===501?'Selected capability is not integrated.':response.status===503?'Inference gateway is offline. Start the Bifrost HTTP daemon on :8089.':'Check that the API is running, then retry.'}`);
+ }
  return schema.parse(await response.json());
 }
 export const schemas={Capabilities,RunRecord,RunListResponse,JobRecord,JobSubmissionResponse,ExecutionTrace,EvidenceReport,VerificationReport,benchmarks:z.object({version:z.literal('1'),tasks:z.array(TaskSpec)})};

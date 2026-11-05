@@ -49,3 +49,76 @@ test('discovers stored runs, inspects truthful Task 9 escalation, and displays c
  await expect(page.getByText('Multi-Module Bidirectional Event Pipeline Service')).toBeVisible();
  await expect(page.getByText('Zero-Token Deterministic Mechanical Repair')).toBeVisible();
 });
+
+test('handles active job lifecycle, stop/resume monitoring, and reload recovery', async ({ page }) => {
+ await page.goto('/');
+ await expect(page.getByRole('heading', { name: 'Trust the evidence.' })).toBeVisible();
+
+ await page.evaluate(() => {
+  localStorage.setItem('proofbench_active_job_id', 'test-job-recovery-1');
+ });
+ await page.route('**/api/jobs/test-job-recovery-1', (route) => {
+  route.fulfill({
+   status: 200,
+   contentType: 'application/json',
+   body: JSON.stringify({
+    version: '1',
+    id: 'test-job-recovery-1',
+    status: 'running',
+    task: {
+     version: '1',
+     id: 'task-1-fix-failing-func',
+     title: 'Fix bounds bug',
+     prompt: 'Fix bounds',
+     acceptance: ['test passes'],
+    },
+    agentId: 'bifrost-01',
+    runId: 'run-recovered-1',
+    progress: 'Executing Turn 2 in workspace…',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+   }),
+  });
+ });
+
+ await page.reload();
+ await expect(page.getByText('Executing Turn 2 in workspace…')).toBeVisible();
+ await expect(page.getByRole('button', { name: 'Stop monitoring' })).toBeVisible();
+
+ // User clicks stop monitoring
+ await page.getByRole('button', { name: 'Stop monitoring' }).click();
+ await expect(page.getByRole('button', { name: 'Resume monitoring' })).toBeVisible();
+});
+
+test('handles server restart during in-flight job honestly', async ({ page }) => {
+ await page.goto('/');
+ await page.evaluate(() => {
+  localStorage.setItem('proofbench_active_job_id', 'stale-restarted-job');
+ });
+ await page.route('**/api/jobs/stale-restarted-job', (route) => {
+  route.fulfill({
+   status: 200,
+   contentType: 'application/json',
+   body: JSON.stringify({
+    version: '1',
+    id: 'stale-restarted-job',
+    status: 'failed',
+    task: {
+     version: '1',
+     id: 'task-1-fix-failing-func',
+     title: 'Fix bounds bug',
+     prompt: 'Fix bounds',
+     acceptance: ['test passes'],
+    },
+    agentId: 'bifrost-01',
+    error: 'Interrupted by server restart; computation did not survive process restart.',
+    progress: 'Execution interrupted: server restarted while job was in-flight.',
+    createdAt: new Date().toISOString(),
+    updatedAt: new Date().toISOString(),
+   }),
+  });
+ });
+
+ await page.reload();
+ await expect(page.getByRole('alert')).toContainText('Interrupted by server restart');
+});

@@ -211,3 +211,91 @@ it('gracefully handles job execution failure and records failed status', async (
   await rm(dir, { recursive: true, force: true });
  }
 });
+
+it('exposes mode-appropriate canonical task catalogs', async () => {
+ const mockApp = await createApp({ implementation: 'mock' });
+ const b01App = await createApp({ implementation: '01' });
+ try {
+  const mockBench = (await mockApp.inject('/api/benchmarks')).json();
+  expect(mockBench.tasks).toHaveLength(1);
+  expect(mockBench.tasks[0].id).toBe('sum-fixture');
+
+  const b01Bench = (await b01App.inject('/api/benchmarks')).json();
+  expect(b01Bench.tasks.length).toBeGreaterThanOrEqual(10);
+  expect(b01Bench.tasks[0].id).toBe('task-1-fix-failing-func');
+  expect(b01Bench.tasks.find((t: { id: string }) => t.id === 'task-10-sensor-fusion-aggregator')).toBeDefined();
+  expect(b01Bench.tasks.find((t: { id: string }) => t.id === 'sum-fixture')).toBeUndefined();
+ } finally {
+  await mockApp.close();
+  await b01App.close();
+ }
+});
+
+it('strictly enforces mode boundaries and canonical task specifications', async () => {
+ const mockApp = await createApp({ implementation: 'mock' });
+ const b01App = await createApp({ implementation: '01' });
+ try {
+  // Mock rejects coding task
+  const res1 = await mockApp.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: {
+    version: '1',
+    task: { version: '1', id: 'task-1-fix-failing-func', title: 'Task 1', prompt: 'prompt', acceptance: ['acc'] },
+    agentId: 'mock-local',
+   },
+  });
+  expect(res1.statusCode).toBe(400);
+  expect(res1.json().message).toContain('not supported in mock mode');
+
+  // 01 rejects mock sum task
+  const res2 = await b01App.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: {
+    version: '1',
+    task,
+    agentId: 'bifrost-01',
+   },
+  });
+  expect(res2.statusCode).toBe(400);
+  expect(res2.json().message).toContain('Mock sum fixture is not supported in Bifrost 01 mode');
+ } finally {
+  await mockApp.close();
+  await b01App.close();
+ }
+});
+
+it('honestly reconciles orphaned running jobs on server restart', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-restart-'));
+ try {
+  // Start server, create running job directly in store
+  const app1 = await createApp({ dataDir: dir, implementation: 'mock' });
+  const { JsonStore } = await import('../apps/api/src/store');
+  const store = new JsonStore(dir);
+  const staleJob = {
+   version: '1' as const,
+   id: 'stale-job-123',
+   status: 'running' as const,
+   task,
+   agentId: 'mock-local',
+   progress: 'Running prior to restart...',
+   createdAt: new Date().toISOString(),
+   updatedAt: new Date().toISOString(),
+  };
+  await store.put('jobs', staleJob.id, staleJob);
+  await app1.close();
+
+  // Reopen server in same data dir
+  const app2 = await createApp({ dataDir: dir, implementation: 'mock' });
+  const poll = await app2.inject('/api/jobs/stale-job-123');
+  expect(poll.statusCode).toBe(200);
+  const polledJob = poll.json();
+  expect(polledJob.status).toBe('failed');
+  expect(polledJob.error).toContain('Interrupted by server restart');
+  expect(polledJob.progress).toContain('server restarted while job was in-flight');
+  await app2.close();
+ } finally {
+  await rm(dir, { recursive: true, force: true });
+ }
+});

@@ -4,11 +4,11 @@ import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
 import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,JobRecord} from '../../../packages/contracts/src/index';
-import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {verifyAnswer} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
+import {loadCanonicalTask,listCanonicalTasks} from './tasks';
 try{process.loadEnvFile?.();}catch{/* ignore missing env file */}
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
@@ -22,6 +22,23 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  }
  const dataDir=options.dataDir??process.env.DATA_DIR??'.local/data';
  const store=new JsonStore(dataDir);
+ const activeJobIds=new Set<string>();
+
+ try{
+  const existingJobs=await store.list('jobs',JobRecord,100);
+  for(const job of existingJobs){
+   if(job.status==='running'){
+    await store.put('jobs',job.id,{
+     ...job,
+     status:'failed',
+     error:'Interrupted by server restart; computation did not survive process restart.',
+     progress:'Execution interrupted: server restarted while job was in-flight.',
+     updatedAt:new Date().toISOString()
+    });
+   }
+  }
+ }catch{/* store might be empty or uninitialized */}
+
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
@@ -45,7 +62,8 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  }));
  app.get('/api/benchmarks',async()=>{
   if(!adapter.capabilities.benchmarks)throw new UnsupportedCapability('Benchmark catalog not integrated for selected adapter');
-  return {version:'1',tasks:[task]};
+  const tasks=await listCanonicalTasks(adapter.descriptor.implementation);
+  return {version:'1',tasks};
  });
  app.get('/api/benchmarks/controlled',async()=>{
   try{
@@ -134,22 +152,25 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  app.post('/api/jobs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);
   if(input.agentId!==adapter.descriptor.id)return reply.code(400).send({version:'1',error:'unknown_agent'});
-  const allowedTasks=[
-   'task-1-fix-failing-func',
-   'task-2-missing-feature',
-   'task-3-multi-file-regression',
-   'task-4-version-freshness',
-   'task-5-context-filtering',
-   'task-6-deterministic-fix',
-   'task-7-adaptive-pipeline',
-   'task-8-deterministic-unused-var',
-   'task-9-bidirectional-event-service',
-   'task-10-sensor-fusion-aggregator'
-  ];
-  const isCodingTask=allowedTasks.includes(input.task.id);
-  const isMockSum=input.task.fixtureId==='sum-v1'||input.task.id==='task-sum';
-  if(!isCodingTask&&!isMockSum){
-   return reply.code(400).send({version:'1',error:'invalid_task',message:`Task ${input.task.id} is outside allowed task scope.`});
+  // Resolve canonical task definition to prevent untrusted caller tampering
+  const canonicalTask=await loadCanonicalTask(input.task.id);
+  if(!canonicalTask){
+   return reply.code(400).send({version:'1',error:'invalid_task',message:`Task ${input.task.id} is outside allowed canonical task scope.`});
+  }
+
+  const isCodingTask=!['task-sum','sum-v1'].includes(canonicalTask.fixtureId??'')&&canonicalTask.id!=='task-sum';
+  const isMockSum=canonicalTask.fixtureId==='sum-v1'||canonicalTask.id==='task-sum';
+
+  if(adapter.descriptor.implementation==='mock'){
+   if(!isMockSum){
+    return reply.code(400).send({version:'1',error:'invalid_task',message:`Task ${canonicalTask.id} is not supported in mock mode. Only published sum fixture is supported.`});
+   }
+  } else if(adapter.descriptor.implementation==='01'){
+   if(!isCodingTask){
+    return reply.code(400).send({version:'1',error:'invalid_task',message:'Mock sum fixture is not supported in Bifrost 01 mode. Select a canonical coding task.'});
+   }
+  } else {
+   return reply.code(501).send({version:'1',error:'unsupported_capability',message:'Selected adapter does not support background jobs'});
   }
   if(adapter.descriptor.implementation==='01'&&isCodingTask){
    const gatewayUrl=process.env.BIFROST_GATEWAY_URL??'http://127.0.0.1:8089';
@@ -165,11 +186,12 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   const jobId=randomUUID();
   const runId=randomUUID();
   const now=new Date().toISOString();
+  const taskToRun=adapter.descriptor.implementation==='01'?canonicalTask:input.task;
   const initialJob:JobRecord={
    version:'1',
    id:jobId,
    status:'running',
-   task:input.task,
+   task:taskToRun,
    agentId:input.agentId,
    runId,
    progress:'Execution started; initializing workspace...',
@@ -177,11 +199,12 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
    updatedAt:now
   };
   await store.put('jobs',jobId,initialJob);
+  activeJobIds.add(jobId);
   void(async()=>{
    try{
     if(adapter.descriptor.implementation==='01'&&isCodingTask){
      const {runAdaptiveEngine}=await import('../../../implementations/bifrost-01/src/index');
-     const result=await runAdaptiveEngine(input.task,{
+     const result=await runAdaptiveEngine(canonicalTask,{
       runId,
       onProgress:async(msg)=>{
        await store.put('jobs',jobId,{...initialJob,progress:msg,updatedAt:new Date().toISOString()});
@@ -221,6 +244,8 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
      progress:`Execution failed: ${(err as Error).message}`,
      updatedAt:new Date().toISOString()
     });
+   }finally{
+    activeJobIds.delete(jobId);
    }
   })();
   return reply.code(202).send({version:'1',jobId,status:'running',runId});
@@ -228,7 +253,19 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  app.get<{Params:{id:string}}>('/api/jobs/:id',async(req,reply)=>{
   z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(req.params.id);
   const job=await store.get('jobs',req.params.id,JobRecord);
-  return job??reply.code(404).send({version:'1',error:'not_found'});
+  if(!job)return reply.code(404).send({version:'1',error:'not_found'});
+  if(job.status==='running'&&!activeJobIds.has(job.id)){
+   const updated:JobRecord={
+    ...job,
+    status:'failed',
+    error:'Interrupted by server restart; computation did not survive process restart.',
+    progress:'Execution interrupted: process restarted while job was in-flight.',
+    updatedAt:new Date().toISOString()
+   };
+   await store.put('jobs',job.id,updated);
+   return updated;
+  }
+  return job;
  });
  app.get('/api/jobs',async()=>{
   const jobs=await store.list('jobs',JobRecord,20);
