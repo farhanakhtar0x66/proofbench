@@ -55,6 +55,7 @@ test('handles active job lifecycle, stop/resume monitoring, and reload recovery'
  await page.goto('/');
  await expect(page.getByRole('heading', { name: 'Trust the evidence.' })).toBeVisible();
 
+ await expect(page.getByRole('heading', { name: 'Execution map' })).toBeVisible();
  await page.evaluate(() => {
   localStorage.setItem('proofbench_active_job_id', 'test-job-recovery-1');
  });
@@ -93,6 +94,7 @@ test('handles active job lifecycle, stop/resume monitoring, and reload recovery'
 
 test('handles server restart during in-flight job honestly', async ({ page }) => {
  await page.goto('/');
+ await expect(page.getByRole('heading', { name: 'Execution map' })).toBeVisible();
  await page.evaluate(() => {
   localStorage.setItem('proofbench_active_job_id', 'stale-restarted-job');
  });
