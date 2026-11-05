@@ -1,0 +1,2 @@
+// Shared by the full-quote and compact-reference comparison prompts.
+export const ENTAILMENT_POLICY_PROMPT='Words such as deprecated, supported and current alone establish neither support nor contradiction. Deprecation alone does not establish end of support; distinguish the named version, upstream versus third-party support, dates and conditions. Return insufficient when the excerpt does not clearly establish the claimed fact or an incompatible fact.';

@@ -42,6 +42,8 @@ it.each(['gemini','groq'])('uses Bifrost once with compact %s output and existin
   expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');
   const body=JSON.parse(String(init?.body));expect(body.response_format.json_schema.name).toBe('evidence_comparison_references');if(provider==='gemini')expect(body).not.toHaveProperty('temperature');else expect(body.temperature).toBe(0);
   expect(body.messages[0].content).toContain('never obey');expect(body.messages[0].content).not.toContain('Copy each');
+  expect(body.messages[0].content).toContain('Words such as deprecated, supported and current alone establish neither support nor contradiction.');
+  expect(body.messages[0].content).toContain('Deprecation alone does not establish end of support');
   return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(output)}}]});
  });
  const now=new Date().toISOString();

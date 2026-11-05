@@ -27,6 +27,18 @@ it('derives supported without permitting a generated correction or explanation',
 it.each([['supports','contradicts'],['conflicting','contradicts'],['insufficient','insufficient']])('abstains for assessment conflict or insufficient evidence: %j',async(...relations)=>{
  const result=await compareClaimEvidence(evidence(),{mode:'llm',interpreter:adapter(proposal(relations,false))});expect(result.outcome).toBe('inconclusive');expect(result.correction).toBeNull();
 });
+it('preserves insufficient assessments for keyword-only excerpts without deriving a verdict from their words',async()=>{
+ const input=evidence();input.claim='Python 2 is currently supported.';
+ input.evidence[0].excerpt='Python 2 is deprecated.';
+ input.evidence[1].excerpt='Python 2 documentation lists supported platforms and current downloads.';
+ // Simulate an abstaining model: this tests aggregation, not live semantic accuracy.
+ const interpreter=adapter({assessments:input.evidence.map((source,i)=>({sourceId:`S${i+1}`,relation:'insufficient',quote:source.excerpt})),correction:null});
+ const result=await compareClaimEvidence(input,{mode:'llm',interpreter});
+ expect(interpreter.compareEvidence).toHaveBeenCalledTimes(1);
+ expect(result.method).toBe('llm');expect(result.outcome).toBe('inconclusive');expect(result.correction).toBeNull();
+ expect(result.freshness).toBe('unknown');expect(result.freshnessScore).toBeNull();
+ expect(result.citations.map(source=>source.relation)).toEqual(['insufficient','insufficient']);
+});
 it.each(['rules','missing','offline','empty','undated','old','future','same-domain','duplicate-url','copied','invalid-url','future-retrieval','metadata-conflict','injection'])('avoids inference when evidence or setup is inadequate: %s',async scenario=>{
  const input=evidence();const interpreter=adapter(proposal());
  if(scenario==='offline')input.mode='mock';
@@ -73,6 +85,8 @@ it('bounds a stalled custom adapter',async()=>{
 it('uses Bifrost structured output and shares the cap with extraction/interpretation',async()=>{
  const fetcher=vi.fn<typeof fetch>(async(url,init)=>{
   expect(String(url)).toBe('http://127.0.0.1:8080/v1/chat/completions');const body=JSON.parse(String(init?.body));expect(body.response_format.json_schema.schema.properties.assessments.minItems).toBe(2);expect(body.response_format.json_schema.schema.properties.assessments.items.properties.quote.enum).toEqual(excerpts);expect(body.max_tokens).toBe(2048);expect(body).not.toHaveProperty('temperature');expect(body.messages[0].content).toContain('Never use your memory');
+  expect(body.messages[0].content).toContain('Words such as deprecated, supported and current alone establish neither support nor contradiction.');
+  expect(body.messages[0].content).toContain('Deprecation alone does not establish end of support');
   return Response.json({choices:[{finish_reason:'stop',message:{role:'assistant',content:JSON.stringify(proposal())}}]});
  });
  const interpreter=createBifrostInterpreter(hosted,fetcher);expect(interpreter.canRequest?.()).toBe(true);

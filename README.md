@@ -4,6 +4,10 @@ Execution evidence + standalone answer freshness verification for a four-person 
 
 **Submission scope: ONE selected Bifrost implementation + permanent Tavily #01.** Bifrost #01 (token-efficient coding agent) and #02 (agent benchmarking platform) are alternatives under development by Farhan. Neither real implementation is integrated yet. Aryan is the hackathon team leader; Farhan owns this repository technically.
 
+**Tavily milestone owner: Mohit.** The [current milestone evidence](docs/TAVILY-MILESTONE.md) consolidates successful recorded live retrieval and a fresh Tavily/Bifrost combined API check, with a shareable report and remaining evaluation gaps. Keyword-only evidence cannot justify a verdict; ambiguous evidence remains inconclusive. These recorded successes do not establish broad factual accuracy or completion of the separate Bifrost challenge implementation.
+
+Integration handoff: [TAVILY-INTEGRATION-PACKET.md](TAVILY-INTEGRATION-PACKET.md) lists the exact API, contract and configuration boundary for Farhan's Bifrost application.
+
 ## Run offline
 
 Node 22.12+ (CI: Node 22), npm, and Git. Rust is optional for web/API development.
@@ -66,7 +70,7 @@ To enter new statements using online evidence, follow [capped live website testi
 | --- | --- | --- |
 | Aryan — Team Leader / Product & Frontend | Refine dashboard and responsive interaction states | `apps/web`; independent architecture decisions within v1 API |
 | Farhan — Architect / AI Systems & Integration | Review contracts and implement one adapter at a time | `packages/contracts`, `implementations`, native bridge |
-| Mohit — Tavily Backend & Verification | Replace sentence extraction with claim extraction; design metered retrieval | `packages/tavily`, verify API; offline mocks first |
+| Mohit — Tavily Backend & Verification | Own Tavily milestone evidence, conservative verdicts and remaining live acceptance work | `packages/tavily`, verify API; [milestone status](docs/TAVILY-MILESTONE.md) |
 | Khushi — Evaluation, Research & Demo | Independently validate and expand source-backed holdout dataset | `fixtures`, acceptance rubric, adversarial testing and demo |
 
 See [architecture](docs/ARCHITECTURE.md), [contracts](docs/CONTRACTS.md), [integration](docs/INTEGRATION.md), [track selection](docs/TRACK-SELECTION.md), [evaluation](docs/EVALUATION.md), [team policy](CONTRIBUTING.md), [reuse disclosure](docs/REUSE-DISCLOSURE.md) and [local source adaptation](docs/NEUROMESH-ADAPTATION.md).
