@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-9-bidirectional-event-service",
+  "title": "Bidirectional Multi-Stage Event Processing Service",
+  "prompt": "Fix event payload parsing in src/event.rs and complete the event service dispatch pipeline.",
+  "acceptance": [
+    "cargo test exits with code 0",
+    "all 4 integration tests pass"
+  ],
+  "fixtureId": "task-9-v1"
+}

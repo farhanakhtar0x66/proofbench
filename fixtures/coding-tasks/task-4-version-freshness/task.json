@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-4-version-freshness",
+  "title": "Implement busy-wait spin lock avoiding deprecated API",
+  "prompt": "Implement a busy-wait spin lock helper `spin_wait(max_spins: usize) -> usize` in `src/lib.rs`. Note: an internal document claimed: 'In Rust, std::sync::atomic::spin_loop_hint is the standard function to signal the processor during busy-wait loops.' Verify this claim against current documentation. If deprecated or stale, use the current recommended non-deprecated standard library API. Ensure all unit tests pass cleanly under `#![deny(deprecated)]`.",
+  "acceptance": [
+    "cargo test exits with code 0",
+    "All unit tests in tests/test_spin.rs pass cleanly under #![deny(deprecated)]"
+  ],
+  "fixtureId": "task-4-v1"
+}

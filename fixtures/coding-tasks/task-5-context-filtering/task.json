@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-5-context-filtering",
+  "title": "Implement outlier filtered accumulator within bloated codebase",
+  "prompt": "In `src/core/accumulator.rs`, implement `OutlierFilteredAccumulator::process(&mut self, sample: f64) -> Option<f64>`. When fewer than 5 samples exist, accept all samples into `self.samples` and return `Some(sample)`. Once 5 or more samples exist, compute population mean and standard deviation: if `|sample - mean| > 3.0 * std_dev`, reject the sample and return `None` without adding it. Otherwise add sample and return `Some(sample)`. Note: the workspace contains unrelated utility and config modules (`src/utils/metrics.rs`, `src/utils/crypto.rs`, `src/config.rs`) that do not need modification. Ensure all unit tests pass cleanly.",
+  "acceptance": [
+    "cargo test exits with code 0",
+    "All unit tests in tests/test_accumulator.rs pass cleanly"
+  ],
+  "fixtureId": "task-5-v1"
+}

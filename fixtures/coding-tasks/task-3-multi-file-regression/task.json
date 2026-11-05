@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-3-multi-file-regression",
+  "title": "Repair event pipeline regression across parser and sink",
+  "prompt": "Fix the multi-file regression in the event pipeline. In `src/parser.rs`, parse_event correctly parses 'id|payload|checksum' lines, but has a field indexing bug when parsing the numeric checksum. In `src/sink.rs`, EventSink::push has an off-by-one capacity check that rejects valid events before reaching configured capacity. Fix both files so `cargo test` passes cleanly.",
+  "acceptance": [
+    "cargo test exits with code 0",
+    "All unit and integration tests in tests/test_pipeline.rs pass cleanly"
+  ],
+  "fixtureId": "task-3-v1"
+}

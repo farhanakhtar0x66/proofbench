@@ -1,0 +1,18 @@
+{
+  "id": "handoff-pkt-1793850114996",
+  "direction": "small_to_stronger",
+  "sourceTier": "SMALL_LLM",
+  "targetTier": "STRONGER_LLM",
+  "sourceModel": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M",
+  "targetModel": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+  "rationale": "Small LLM proposed unapplicable patch; escalating to stronger reasoning model with compiler diagnostic autopsy.",
+  "taskId": "task-9-bidirectional-event-service",
+  "relevantFiles": [
+    "src/event.rs",
+    "src/dispatcher.rs",
+    "src/filter.rs"
+  ],
+  "boundedInstructions": "Implement `EventDispatcher::dispatch` with proper borrow semantics and pass integration test.",
+  "tokenBudget": 4096,
+  "formattedText": "### Universal Handoff Packet\nDirection: small_to_stronger\nTask: task-9-bidirectional-event-service\nTarget: gguf/Qwen3.5-9B-GGUF:Q4_K_M\nRationale: Small model failed acceptance tests; handoff includes Tree-sitter AST slice and diagnostic slice."
+}

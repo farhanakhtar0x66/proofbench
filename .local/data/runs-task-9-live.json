@@ -1,0 +1,83 @@
+{
+  "version": "1",
+  "id": "task-9-live",
+  "task": {
+    "version": "1",
+    "id": "task-9-bidirectional-event-service",
+    "title": "Multi-Module Bidirectional Event Pipeline Service",
+    "prompt": "Implement event parsing in src/event.rs, concurrent dispatching in src/dispatcher.rs, and predicate filtering in src/filter.rs. Ensure all 4 integration tests in tests/test_event_pipeline.rs pass cleanly.",
+    "acceptance": [
+      "cargo test exits with code 0",
+      "all 4 integration tests pass"
+    ],
+    "fixtureId": "task-9-v1"
+  },
+  "agent": {
+    "version": "1",
+    "id": "bifrost-01",
+    "name": "ProofBench Adaptive Execution Engine v1.5",
+    "implementation": "01",
+    "runtime": "typescript",
+    "revision": "0.1.0",
+    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M"
+  },
+  "status": "completed",
+  "output": "Successfully implemented multi-module event service across src/event.rs, src/dispatcher.rs, and src/filter.rs via M3a autopsy escalation to stronger model. All 4 integration tests pass.",
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "known",
+      "value": 11154,
+      "unit": "tokens",
+      "source": "bifrost.live",
+      "scope": "run"
+    },
+    "outputTokens": {
+      "status": "known",
+      "value": 2044,
+      "unit": "tokens",
+      "source": "bifrost.live",
+      "scope": "run"
+    },
+    "duration": {
+      "status": "known",
+      "value": 103380,
+      "unit": "ms",
+      "source": "performance.now",
+      "scope": "run"
+    },
+    "cost": {
+      "status": "known",
+      "value": 0,
+      "unit": "USD",
+      "source": "local_gguf",
+      "scope": "run"
+    }
+  },
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "cargo test exits with code 0",
+        "passed": true,
+        "evidence": "cargo test exited with code 0, 4 passed; 0 failed"
+      },
+      {
+        "name": "all 4 integration tests pass",
+        "passed": true,
+        "evidence": "test test_csv_line_parsing ... ok\ntest test_filter_predicate ... ok\ntest test_dispatcher_routing ... ok\ntest test_full_pipeline_roundtrip ... ok"
+      }
+    ],
+    "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
+  },
+  "createdAt": "2026-11-05T03:41:40.000Z",
+  "reportId": "task-9-live",
+  "reproducibility": {
+    "seed": 100,
+    "adapterRevision": "31e9ebf",
+    "fixtureRevision": "task-9-v1",
+    "environment": "macOS stock Bifrost local daemon :8089",
+    "simulated": false
+  }
+}

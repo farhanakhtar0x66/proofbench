@@ -1,0 +1,11 @@
+{
+  "deterministicToolingTokensSaved": 1250,
+  "contextCompilationTokensSaved": 2833,
+  "modelSelectionTokensSaved": 3305,
+  "bidirectionalHandoffTokensSaved": 2185,
+  "cpuOverheadMs": 136,
+  "unisolatedEffects": [
+    "context_compilation_shared_across_all_controlled_arms",
+    "deterministic_tooling_requires_paired_ablation_when_not_zero_call"
+  ]
+}

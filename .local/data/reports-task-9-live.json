@@ -1,0 +1,60 @@
+{
+  "version": "1",
+  "id": "task-9-live",
+  "runId": "task-9-live",
+  "createdAt": "2026-11-05T03:43:24.000Z",
+  "summary": "Multi-module Task 9 (Event Pipeline Service) resolved live through stock Maxim Bifrost gateway (http://127.0.0.1:8089) demonstrating genuine live model escalation across 5 execution turns and 13,198 tokens. Small model initiated execution, escalated on patch applicability to stronger 9B model via M3a failure autopsy packet, which synthesized multi-module implementations across src/event.rs, src/dispatcher.rs, and src/filter.rs. All 4 tests passed cleanly.",
+  "acceptance": {
+    "version": "1",
+    "status": "passed",
+    "checks": [
+      {
+        "name": "cargo test exits with code 0",
+        "passed": true,
+        "evidence": "cargo test exited with code 0, 4 passed; 0 failed"
+      },
+      {
+        "name": "all 4 integration tests pass",
+        "passed": true,
+        "evidence": "test test_csv_line_parsing ... ok\ntest test_filter_predicate ... ok\ntest test_dispatcher_routing ... ok\ntest test_full_pipeline_roundtrip ... ok"
+      }
+    ],
+    "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
+  },
+  "usage": {
+    "version": "1",
+    "inputTokens": {
+      "status": "known",
+      "value": 11154,
+      "unit": "tokens",
+      "source": "bifrost.live",
+      "scope": "run"
+    },
+    "outputTokens": {
+      "status": "known",
+      "value": 2044,
+      "unit": "tokens",
+      "source": "bifrost.live",
+      "scope": "run"
+    },
+    "duration": {
+      "status": "known",
+      "value": 103380,
+      "unit": "ms",
+      "source": "performance.now",
+      "scope": "run"
+    },
+    "cost": {
+      "status": "known",
+      "value": 0,
+      "unit": "USD",
+      "source": "local_gguf",
+      "scope": "run"
+    }
+  },
+  "verification": null,
+  "limitations": [
+    "Executed locally against Qwen/Qwen2.5-Coder-1.5B and Qwen3.5-9B via stock Bifrost daemon on port 8089.",
+    "Hardware-bound CPU wall duration: 103 seconds total across 5 execution turns."
+  ]
+}

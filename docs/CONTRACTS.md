@@ -31,3 +31,15 @@ A known or estimated quantity includes source, scope and unit. Estimates additio
 Invalid identifiers return 400. Internal storage failures return sanitized 500. Error envelopes contain version and error code. All successful stored responses are parsed against runtime schemas. Runs execute synchronously for the small offline fixture; async scheduling/cancellation belongs in the real adapter integration design.
 
 Verification input: `{ "version":"1", "text":"arbitrary answer", "claims":[{"text":"optional explicit claim","asOf":"2026-11-02T00:00:00.000Z"}] }`. Input is limited to 20,000 characters and 50 explicit claims. Mock preserves explicit claim asOf and abstains (inconclusive) because no temporal retrieval is available. Offline evidence uses retrievedAt: null and a separate annotation recordedAt; timestamps never imply a fetch. Mohit must implement date-aware extraction/evaluation. Empty explicit claim arrays return an empty report.
+
+## Bifrost #01 Telemetry & Observation Scopes
+
+Bifrost #01 records usage telemetry under `bifrost.gateway` provenance:
+
+- `inputTokens`: `tokens` unit, source `bifrost.gateway.prompt_tokens`, scope `proofbench_agent_turns_cumulative`. Marked `status: 'known'` when observed from gateway/provider telemetry, or `status: 'missing'` with reason.
+- `outputTokens`: `tokens` unit, source `bifrost.gateway.completion_tokens`, scope `proofbench_agent_turns_cumulative`. Marked `status: 'known'` when observed from gateway/provider telemetry, or `status: 'missing'` with reason.
+- `duration`: `ms` unit, source `performance.now`, scope `total agent session duration`.
+- `cost`: `USD` unit, `status: 'estimated'`, method `pricing_model_v1`, source `bifrost.gateway`, scope `bifrost virtual key debits`. Truthful estimation based on model pricing tiers ($0.15/1M input, $0.60/1M output), never labeled as an invoice-level known measurement.
+- `reproducibility.simulated`: Boolean flag strictly distinguishing offline embedded simulation (`simulated: true`) from genuine live Maxim Bifrost gateway operations (`simulated: false`).
+
+Missing or unobservable telemetry is preserved as `{ status: 'missing', reason: '...' }` per Contracts v1 without zero-fabrication. Model execution fallback events (`x-bf-fallback-providers`), virtual key debits, and M1/M2/M3a loop control decisions are explicitly recorded as structured events in `ExecutionTrace`. Evaluator reference solutions remain isolated in `fixtures/coding-tasks/*/solution/` and are strictly inaccessible to the agent execution runtime.

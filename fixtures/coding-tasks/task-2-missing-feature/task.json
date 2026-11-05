@@ -1,0 +1,11 @@
+{
+  "version": "1",
+  "id": "task-2-missing-feature",
+  "title": "Implement exponential backoff retry calculation",
+  "prompt": "Implement the `delay_for_attempt` method on `ExponentialBackoff` in `src/lib.rs`. For attempt 0, it should return 0. For attempts between 1 and max_retries, it should return initial_delay_ms * (factor ^ (attempt - 1)) truncated to u64 and capped at max_delay_ms. For attempts exceeding max_retries, it should return max_delay_ms. Ensure all tests in `tests/test_backoff.rs` pass.",
+  "acceptance": [
+    "cargo test exits with code 0",
+    "All unit tests in tests/test_backoff.rs pass cleanly"
+  ],
+  "fixtureId": "task-2-v1"
+}

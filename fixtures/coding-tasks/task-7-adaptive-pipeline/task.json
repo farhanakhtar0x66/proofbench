@@ -1,0 +1,13 @@
+{
+  "version": "1",
+  "id": "task-7-adaptive-pipeline",
+  "title": "Autonomous Multi-Module Streaming Pipeline Repair",
+  "prompt": "Repair the multi-module streaming pipeline crate across src/lib.rs, src/buffer.rs, src/pipeline.rs, and src/sink.rs. Fix strict compiler lint errors in lib.rs, buffer capacity bounds checking in buffer.rs, generic lifetime stage coordination in pipeline.rs, and implement flush_buffer in sink.rs.",
+  "acceptance": [
+    "cargo test passes cleanly with zero warnings or errors",
+    "buffer capacity invariants are strictly enforced",
+    "streaming pipeline processes records through generic stages",
+    "memory sink drains and stores buffered records"
+  ],
+  "fixtureId": "task-7-v1"
+}

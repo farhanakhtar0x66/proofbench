@@ -1,0 +1,308 @@
+{
+  "version": "1.5",
+  "generatedAt": "2026-11-05T03:41:40.879Z",
+  "preflight": {
+    "gatewayOnline": true,
+    "gatewayStatus": "ok",
+    "modelsFound": [
+      "ollama/Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M",
+      "ollama/gguf/Qwen3.5-9B-GGUF:Q4_K_M"
+    ],
+    "smallModelAvailable": true,
+    "strongerModelAvailable": true,
+    "virtualKeyConfigured": true,
+    "latencyMs": 457
+  },
+  "pillars": {
+    "pillar1_deterministic_non_llm": {
+      "taskId": "task-6-deterministic-fix",
+      "passed": true,
+      "turns": 1,
+      "inputTokens": 0,
+      "outputTokens": 0,
+      "totalTokens": 0,
+      "avoidedRequests": 1,
+      "cpuMs": 85,
+      "testSubprocessWallMs": 1581,
+      "subprocessCpuMs": null,
+      "wallMs": 1673
+    },
+    "pillar2_live_small_model": {
+      "taskId": "task-1-fix-failing-func",
+      "passed": true,
+      "turns": 2,
+      "inputTokens": 4102,
+      "outputTokens": 603,
+      "totalTokens": 4705,
+      "inferenceDurationMs": 4658,
+      "cpuMs": 132,
+      "testSubprocessWallMs": 2181,
+      "subprocessCpuMs": null,
+      "wallMs": 6929
+    },
+    "pillar3_live_task9_trajectory": {
+      "taskId": "task-9-bidirectional-event-service",
+      "status": "completed",
+      "acceptance": "passed",
+      "turns": 5,
+      "transitions": [
+        {
+          "id": "trans-2-1793850110776",
+          "fromTier": "NON_LLM",
+          "toTier": "SMALL_LLM",
+          "reason": "Small LLM allocated for localized task: Intermediate task complexity (2 files, 374 tokens); starting with small model under bounded M2/M3a escalation.",
+          "timestamp": "2026-11-05T03:41:50.776Z",
+          "sourceRevision": "sha256:c18c2924db2f4feb",
+          "authorizedBy": "host_engine"
+        },
+        {
+          "id": "trans-3-1793850114996",
+          "fromTier": "SMALL_LLM",
+          "toTier": "STRONGER_LLM",
+          "reason": "Authorized M3a escalation: Small LLM proposed unapplicable patch; escalating to stronger reasoning model.",
+          "timestamp": "2026-11-05T03:41:54.996Z",
+          "sourceRevision": "sha256:c18c2924db2f4feb",
+          "authorizedBy": "host_engine"
+        }
+      ],
+      "inputTokens": 11154,
+      "outputTokens": 2044,
+      "cpuMs": 375,
+      "testSubprocessWallMs": 7460,
+      "subprocessCpuMs": null,
+      "wallMs": 103380
+    },
+    "pillar4_true_child_process_restart": {
+      "plannedSuspension": {
+        "process1Turns": 1,
+        "process1Status": "failed",
+        "checkpointId": "cp-1793850218423-33bbf7",
+        "process2FinalStatus": "completed",
+        "process2Acceptance": "passed",
+        "process2Turns": 3,
+        "process2Resumed": true
+      },
+      "abruptKill": {
+        "killedWithSignal": "SIGKILL",
+        "process4FinalStatus": "completed",
+        "process4Acceptance": "passed",
+        "process4Turns": 2,
+        "process4Resumed": true
+      }
+    },
+    "pillar5_live_controlled_benchmark": {
+      "task1": {
+        "taskId": "task-1-fix-failing-func",
+        "taskTitle": "Fix off-by-one bounds bug in sliding window sums",
+        "evaluationMode": "controlled_routing_fair_comparison",
+        "toolingDisclosed": {
+          "contextCompilerShared": true,
+          "mechanicalTransformerShared": true,
+          "promptCompilerShared": true,
+          "approvalEngineShared": true
+        },
+        "summary": {
+          "controlled_direct_small": {
+            "policy": "controlled_direct_small",
+            "policyLabel": "Controlled Direct Small (Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M) with AST Tools",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 4215,
+            "avgTotalTokens": 4215,
+            "avgWallDurationMs": 6885,
+            "avgCpuDurationMs": 80,
+            "avgControllerCpuMs": 80,
+            "avgTestSubprocessWallMs": 1857,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 4833,
+            "avgChildProcessCpuMs": 1857,
+            "avgCostUsd": 0,
+            "avgModelCalls": 2,
+            "avgTransitions": 1
+          },
+          "controlled_direct_frontier": {
+            "policy": "controlled_direct_frontier",
+            "policyLabel": "Controlled Direct Frontier (gguf/Qwen3.5-9B-GGUF:Q4_K_M) with AST Tools",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 1824,
+            "avgTotalTokens": 1824,
+            "avgWallDurationMs": 21020,
+            "avgCpuDurationMs": 116,
+            "avgControllerCpuMs": 116,
+            "avgTestSubprocessWallMs": 2363,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 18520,
+            "avgChildProcessCpuMs": 2363,
+            "avgCostUsd": 0,
+            "avgModelCalls": 1,
+            "avgTransitions": 1
+          },
+          "controlled_escalation_only": {
+            "policy": "controlled_escalation_only",
+            "policyLabel": "Controlled Escalation Only (Small ➔ Frontier, No Delegation)",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 1531,
+            "avgTotalTokens": 1531,
+            "avgWallDurationMs": 3948,
+            "avgCpuDurationMs": 36,
+            "avgControllerCpuMs": 36,
+            "avgTestSubprocessWallMs": 1808,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 1993,
+            "avgChildProcessCpuMs": 1808,
+            "avgCostUsd": 0,
+            "avgModelCalls": 1,
+            "avgTransitions": 1
+          },
+          "controlled_bidirectional_adaptive": {
+            "policy": "controlled_bidirectional_adaptive",
+            "policyLabel": "Controlled Bidirectional Adaptive (Small ⇄ Frontier with Bounded Delegation)",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 1583,
+            "avgTotalTokens": 1583,
+            "avgWallDurationMs": 3144,
+            "avgCpuDurationMs": 32,
+            "avgControllerCpuMs": 32,
+            "avgTestSubprocessWallMs": 1869,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 1147,
+            "avgChildProcessCpuMs": 1869,
+            "avgCostUsd": 0,
+            "avgModelCalls": 1,
+            "avgTransitions": 1
+          }
+        },
+        "attribution": {
+          "deterministicToolingTokensSaved": null,
+          "contextCompilationTokensSaved": null,
+          "modelSelectionTokensSaved": 293,
+          "bidirectionalHandoffTokensSaved": null,
+          "cpuOverheadMs": 32,
+          "unisolatedEffects": [
+            "context_compilation_shared_across_all_controlled_arms",
+            "deterministic_tooling_requires_paired_ablation_when_not_zero_call",
+            "no_bidirectional_handoff_exercised_in_task"
+          ]
+        },
+        "evidenceSummary": "Controlled Routing Benchmark on 'Fix off-by-one bounds bug in sliding window sums': Equalizing deterministic AST tools across all arms revealed bidirectional adaptive routing achieved 100% success rate with 1583 tokens per accepted completion. Model delegation saved N/A tokens over escalation-only."
+      },
+      "task6": {
+        "taskId": "task-6-deterministic-fix",
+        "taskTitle": "Resolve compiler lint error without model inference",
+        "evaluationMode": "controlled_routing_fair_comparison",
+        "toolingDisclosed": {
+          "contextCompilerShared": true,
+          "mechanicalTransformerShared": true,
+          "promptCompilerShared": true,
+          "approvalEngineShared": true
+        },
+        "summary": {
+          "controlled_direct_small": {
+            "policy": "controlled_direct_small",
+            "policyLabel": "Controlled Direct Small (Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M) with AST Tools",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 0,
+            "avgTotalTokens": 0,
+            "avgWallDurationMs": 1089,
+            "avgCpuDurationMs": 19,
+            "avgControllerCpuMs": 19,
+            "avgTestSubprocessWallMs": 967,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 0,
+            "avgChildProcessCpuMs": 967,
+            "avgCostUsd": 0,
+            "avgModelCalls": 0,
+            "avgTransitions": 0
+          },
+          "controlled_direct_frontier": {
+            "policy": "controlled_direct_frontier",
+            "policyLabel": "Controlled Direct Frontier (gguf/Qwen3.5-9B-GGUF:Q4_K_M) with AST Tools",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 0,
+            "avgTotalTokens": 0,
+            "avgWallDurationMs": 1153,
+            "avgCpuDurationMs": 17,
+            "avgControllerCpuMs": 17,
+            "avgTestSubprocessWallMs": 1045,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 0,
+            "avgChildProcessCpuMs": 1045,
+            "avgCostUsd": 0,
+            "avgModelCalls": 0,
+            "avgTransitions": 0
+          },
+          "controlled_escalation_only": {
+            "policy": "controlled_escalation_only",
+            "policyLabel": "Controlled Escalation Only (Small ➔ Frontier, No Delegation)",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 0,
+            "avgTotalTokens": 0,
+            "avgWallDurationMs": 1080,
+            "avgCpuDurationMs": 21,
+            "avgControllerCpuMs": 21,
+            "avgTestSubprocessWallMs": 957,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 0,
+            "avgChildProcessCpuMs": 957,
+            "avgCostUsd": 0,
+            "avgModelCalls": 0,
+            "avgTransitions": 0
+          },
+          "controlled_bidirectional_adaptive": {
+            "policy": "controlled_bidirectional_adaptive",
+            "policyLabel": "Controlled Bidirectional Adaptive (Small ⇄ Frontier with Bounded Delegation)",
+            "totalTrials": 1,
+            "passedTrials": 1,
+            "failedTrials": 0,
+            "successRatePercent": 100,
+            "totalTokensPerAcceptedCompletion": 0,
+            "avgTotalTokens": 0,
+            "avgWallDurationMs": 1064,
+            "avgCpuDurationMs": 19,
+            "avgControllerCpuMs": 19,
+            "avgTestSubprocessWallMs": 940,
+            "avgSubprocessCpuMs": null,
+            "avgInferenceDurationMs": 0,
+            "avgChildProcessCpuMs": 940,
+            "avgCostUsd": 0,
+            "avgModelCalls": 0,
+            "avgTransitions": 0
+          }
+        },
+        "attribution": {
+          "deterministicToolingTokensSaved": 0,
+          "contextCompilationTokensSaved": null,
+          "modelSelectionTokensSaved": 0,
+          "bidirectionalHandoffTokensSaved": null,
+          "cpuOverheadMs": 19,
+          "unisolatedEffects": [
+            "context_compilation_shared_across_all_controlled_arms",
+            "deterministic_tooling_requires_paired_ablation_when_not_zero_call",
+            "no_bidirectional_handoff_exercised_in_task"
+          ]
+        },
+        "evidenceSummary": "Controlled Routing Benchmark on 'Resolve compiler lint error without model inference': Equalizing deterministic AST tools across all arms revealed bidirectional adaptive routing achieved 100% success rate with 0 tokens per accepted completion. Model delegation saved N/A tokens over escalation-only."
+      }
+    }
+  }
+}

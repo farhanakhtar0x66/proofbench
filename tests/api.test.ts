@@ -1,4 +1,4 @@
-import {it,expect} from 'vitest';
+import {it,expect,vi} from 'vitest';
 import {mkdtemp,rm} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import {join} from 'node:path';
@@ -10,11 +10,60 @@ it('unknown claims remain inconclusive and offline',async()=>{
  const report=await verifyAnswer({version:'1',text:'The moon is made of cheese.'});
  expect(report.mode).toBe('mock'); expect(report.claims[0].outcome).toBe('inconclusive'); expect(report.claims[0].evidence).toEqual([]);
 });
-it.each(['01','02'] as const)('%s rejects unavailable execution instead of simulating success',async mode=>{
- const adapter=selectAdapter(mode);
- expect(adapter.descriptor.implementation).toBe(mode);
+it('rejects unknown Tavily modes at startup',async()=>{
+ await expect(createApp({implementation:'mock',tavilyMode:'typo'})).rejects.toThrow('TAVILY_MODE');
+});
+it('reports live selection truthfully and blocks unapproved search through the API',async()=>{
+ vi.stubEnv('ALLOW_LIVE_REQUESTS','false');
+ const app=await createApp({implementation:'mock',tavilyMode:'live'});
+ try{
+  const capabilities=(await app.inject('/api/capabilities')).json();
+  expect(capabilities.limitations[0]).toContain('live mode is selected');
+  const response=await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:'Acme latest version is 2.'}});
+  expect(response.statusCode).toBe(400);expect(response.json().message).toContain('ALLOW_LIVE_REQUESTS');
+ }finally{await app.close();vi.unstubAllEnvs();}
+},20000);
+it('does not call Tavily unless live mode, approval, a key, and a positive cap are all supplied',async()=>{
+ const request={version:'1' as const,text:'The current CEO of Example Corp is Ada Lovelace.'};
+ const fetcher=async()=>{throw new Error('network call should be blocked');};
+ await expect(verifyAnswer(request,{mode:'live',apiKey:'test-key',maxRequests:1,fetch:fetcher})).rejects.toThrow('ALLOW_LIVE_REQUESTS=true');
+ await expect(verifyAnswer(request,{mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:0,fetch:fetcher})).rejects.toThrow('TAVILY_MAX_REQUESTS');
+});
+it('uses mocked Tavily evidence only within the explicit request budget',async()=>{
+ let calls=0;
+ const fetcher=async()=>{calls++;return new Response(JSON.stringify({results:[{url:'https://example.com/leadership',title:'Leadership',content:'The current CEO of Example Corp is Ada Lovelace.'}]}),{status:200,headers:{'Content-Type':'application/json'}});};
+ const result=await verifyAnswer({version:'1',text:'The current CEO of Example Corp is Ada Lovelace. The current API version is 2.'},{mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(calls).toBe(1);expect(result.mode).toBe('live');expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].evidence[0].relation).toBe('context');expect(result.claims[1].outcome).toBe('inconclusive');expect(result.claims[1].uncertainty).toContain('budget exhausted');
+});
+it('reuses duplicate claims within a report without spending another request',async()=>{
+ let calls=0;
+ const fetcher:typeof fetch=async(_url,init)=>{calls++;expect(init?.signal).toBeInstanceOf(AbortSignal);return Response.json({results:[]});};
+ const text='The current API version is 2.';
+ const result=await verifyAnswer({version:'1',text,claims:[{text},{text}]},{mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(calls).toBe(1);expect(result.claims).toHaveLength(2);expect(result.claims[0].id).not.toBe(result.claims[1].id);
+});
+it('abstains on retrieval errors without retrying or disclosing upstream details',async()=>{
+ let calls=0;
+ const fetcher:typeof fetch=async()=>{calls++;throw new Error('secret upstream detail');};
+ const result=await verifyAnswer({version:'1',text:'The current API version is 2.'},{mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(calls).toBe(1);expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].evidence).toEqual([]);expect(JSON.stringify(result)).not.toContain('secret upstream detail');
+});
+it('never treats negated or changed numeric evidence as proof from word overlap',async()=>{
+ const fetcher:typeof fetch=async()=>Response.json({results:[{url:'https://example.com/pricing',content:'The current API price is not 5 dollars. The current API price is 9 dollars.'}]});
+ const result=await verifyAnswer({version:'1',text:'The current API price is 5 dollars.'},{mode:'live',allowLiveRequests:'true',apiKey:'test-key',maxRequests:1,fetch:fetcher});
+ expect(result.claims[0].outcome).toBe('inconclusive');expect(result.claims[0].freshness).toBe('unknown');
+});
+it('02 rejects unavailable execution instead of simulating success',async()=>{
+ const adapter=selectAdapter('02');
+ expect(adapter.descriptor.implementation).toBe('02');
  expect(adapter.capabilities.execute).toBe(false);
  await expect(adapter.run({version:'1',task,agentId:adapter.descriptor.id,seed:0})).rejects.toThrow('not integrated');
+});
+it('01 provides working token-efficient coding agent implementation',async()=>{
+ const adapter=selectAdapter('01');
+ expect(adapter.descriptor.implementation).toBe('01');
+ expect(adapter.capabilities.execute).toBe(true);
+ expect(adapter.capabilities.benchmarks).toBe(true);
 });
 it('rejects invalid configuration',()=>expect(()=>selectAdapter('oops')).toThrow());
 it('serves health, validates input, persists verification and links runs, reports, traces',async()=>{
@@ -41,9 +90,9 @@ it('serves health, validates input, persists verification and links runs, report
 });
 it('returns 501 for unintegrated Bifrost while verification remains available',async()=>{
  const dir=await mkdtemp(join(tmpdir(),'proofbench-test-'));
- const app=await createApp({dataDir:dir,implementation:'01'});
+ const app=await createApp({dataDir:dir,implementation:'02'});
  try {
- expect((await app.inject({method:'POST',url:'/api/runs',payload:{version:'1',task,agentId:'bifrost-01'}})).statusCode).toBe(501);
+ expect((await app.inject({method:'POST',url:'/api/runs',payload:{version:'1',task,agentId:'bifrost-02'}})).statusCode).toBe(501);
  expect((await app.inject({method:'POST',url:'/api/verify',payload:{version:'1',text:'A claim.'}})).statusCode).toBe(201);
  } finally {await app.close();await rm(dir,{recursive:true,force:true});}
 });
@@ -56,4 +105,240 @@ it('preserves explicit historical scope without applying a current fixture verdi
 it('never invents a retrieval timestamp for offline annotations',async()=>{
  const result=await verifyAnswer({version:'1',text:'Python 2 is currently supported.'});
  expect(result.claims[0].evidence[0].retrievedAt).toBeNull();
+});
+
+it('lists discovered runs with deterministic sorting and bounds', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-runs-'));
+ const app = await createApp({ dataDir: dir, implementation: 'mock' });
+ try {
+  const initial = await app.inject('/api/runs');
+  expect(initial.statusCode).toBe(200);
+  expect(initial.json().runs).toEqual([]);
+
+  await app.inject({ method: 'POST', url: '/api/runs', payload: { version: '1', task, agentId: 'mock-local' } });
+  await app.inject({ method: 'POST', url: '/api/runs', payload: { version: '1', task, agentId: 'mock-local' } });
+
+  const listed = await app.inject('/api/runs');
+  expect(listed.statusCode).toBe(200);
+  expect(listed.json().runs.length).toBe(2);
+  expect(listed.json().runs[0].version).toBe('1');
+ } finally {
+  await app.close();
+  await rm(dir, { recursive: true, force: true });
+ }
+});
+
+it('serves controlled routing benchmark comparison with truthful Task 2 data', async () => {
+ const app = await createApp({ implementation: 'mock' });
+ try {
+  const res = await app.inject('/api/benchmarks/controlled');
+  expect(res.statusCode).toBe(200);
+  const json = res.json();
+  expect(json.taskId).toBe('task-2-missing-feature');
+  expect(json.summary.controlled_direct_frontier.avgTotalTokens).toBe(7766);
+  expect(json.summary.controlled_escalation_only.avgTotalTokens).toBe(4461);
+  expect(json.summary.controlled_bidirectional_adaptive.avgTotalTokens).toBe(6215);
+  expect(json.attribution.modelSelectionTokensSaved).toBe(3305);
+ } finally {
+  await app.close();
+ }
+});
+
+it('executes asynchronous jobs with durable status and polling support', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-jobs-'));
+ const app = await createApp({ dataDir: dir, implementation: 'mock' });
+ try {
+  const submission = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task, agentId: 'mock-local' },
+  });
+  expect(submission.statusCode).toBe(202);
+  const { jobId } = submission.json();
+  expect(jobId).toBeDefined();
+
+  // Poll until completed
+  let job = null;
+  for (let i = 0; i < 20; i++) {
+   const res = await app.inject(`/api/jobs/${jobId}`);
+   expect(res.statusCode).toBe(200);
+   job = res.json();
+   if (job.status === 'completed' || job.status === 'failed') break;
+   await new Promise((r) => setTimeout(r, 50));
+  }
+  expect(job.status).toBe('completed');
+  expect(job.runId).toBeDefined();
+
+  const completedRun = await app.inject(`/api/runs/${job.runId}`);
+  expect(completedRun.statusCode).toBe(200);
+ } finally {
+  await app.close();
+  await rm(dir, { recursive: true, force: true });
+ }
+});
+
+it('rejects jobs for tasks outside allowed scope', async () => {
+ const app = await createApp({ implementation: 'mock' });
+ try {
+  const badTask = { ...task, id: 'unauthorized-task-uuid', fixtureId: undefined };
+  const res = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task: badTask, agentId: 'mock-local' },
+  });
+  expect(res.statusCode).toBe(400);
+  expect(res.json().error).toBe('invalid_task');
+ } finally {
+  await app.close();
+ }
+});
+
+it('returns 503 when Bifrost gateway is unreachable during live coding job preflight', async () => {
+ const oldUrl = process.env.BIFROST_GATEWAY_URL;
+ process.env.BIFROST_GATEWAY_URL = 'http://127.0.0.1:9998'; // Guaranteed dead port
+ const app = await createApp({ implementation: '01' });
+ try {
+  const codingTask = {
+   version: '1' as const,
+   id: 'task-1-fix-failing-func',
+   title: 'Fix bounds bug',
+   prompt: 'Fix sliding window',
+   acceptance: ['cargo test exits with 0'],
+  };
+  const res = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task: codingTask, agentId: 'bifrost-01' },
+  });
+  expect(res.statusCode).toBe(503);
+  expect(res.json().error).toBe('service_unavailable');
+  expect(res.json().message).toContain('Bifrost inference gateway unreachable');
+ } finally {
+  process.env.BIFROST_GATEWAY_URL = oldUrl;
+  await app.close();
+ }
+});
+
+it('gracefully handles job execution failure and records failed status', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-failed-job-'));
+ const app = await createApp({ dataDir: dir, implementation: 'mock' });
+ try {
+  // Submit a mock job with a task that fails acceptance
+  const failingTask = {
+   version: '1' as const,
+   id: 'task-sum',
+   fixtureId: 'sum-v1',
+   title: 'Failing sum task',
+   prompt: 'Produce wrong answer',
+   acceptance: ['Output exactly 999'],
+  };
+  const res = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task: failingTask, agentId: 'mock-local' },
+  });
+  expect(res.statusCode).toBe(202);
+  const { jobId } = res.json();
+
+  let job = null;
+  for (let i = 0; i < 20; i++) {
+   const poll = await app.inject(`/api/jobs/${jobId}`);
+   job = poll.json();
+   if (job.status === 'completed' || job.status === 'failed') break;
+   await new Promise((r) => setTimeout(r, 50));
+  }
+  expect(job.status).toBe('failed');
+  expect(job.error).toContain('Mock executes only the published sum fixture');
+ } finally {
+  await app.close();
+  await rm(dir, { recursive: true, force: true });
+ }
+});
+
+it('exposes mode-appropriate canonical task catalogs', async () => {
+ const mockApp = await createApp({ implementation: 'mock' });
+ const b01App = await createApp({ implementation: '01' });
+ try {
+  const mockBench = (await mockApp.inject('/api/benchmarks')).json();
+  expect(mockBench.tasks).toHaveLength(1);
+  expect(mockBench.tasks[0].id).toBe('sum-fixture');
+
+  const b01Bench = (await b01App.inject('/api/benchmarks')).json();
+  expect(b01Bench.tasks.length).toBeGreaterThanOrEqual(10);
+  expect(b01Bench.tasks[0].id).toBe('task-1-fix-failing-func');
+  expect(b01Bench.tasks.find((t: { id: string }) => t.id === 'task-10-sensor-fusion-aggregator')).toBeDefined();
+  expect(b01Bench.tasks.find((t: { id: string }) => t.id === 'sum-fixture')).toBeUndefined();
+ } finally {
+  await mockApp.close();
+  await b01App.close();
+ }
+});
+
+it('strictly enforces mode boundaries and canonical task specifications', async () => {
+ const mockApp = await createApp({ implementation: 'mock' });
+ const b01App = await createApp({ implementation: '01' });
+ try {
+  // Mock rejects coding task
+  const res1 = await mockApp.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: {
+    version: '1',
+    task: { version: '1', id: 'task-1-fix-failing-func', title: 'Task 1', prompt: 'prompt', acceptance: ['acc'] },
+    agentId: 'mock-local',
+   },
+  });
+  expect(res1.statusCode).toBe(400);
+  expect(res1.json().message).toContain('not supported in mock mode');
+
+  // 01 rejects mock sum task
+  const res2 = await b01App.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: {
+    version: '1',
+    task,
+    agentId: 'bifrost-01',
+   },
+  });
+  expect(res2.statusCode).toBe(400);
+  expect(res2.json().message).toContain('Mock sum fixture is not supported in Bifrost 01 mode');
+ } finally {
+  await mockApp.close();
+  await b01App.close();
+ }
+});
+
+it('honestly reconciles orphaned running jobs on server restart', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-restart-'));
+ try {
+  // Start server, create running job directly in store
+  const app1 = await createApp({ dataDir: dir, implementation: 'mock' });
+  const { JsonStore } = await import('../apps/api/src/store');
+  const store = new JsonStore(dir);
+  const staleJob = {
+   version: '1' as const,
+   id: 'stale-job-123',
+   status: 'running' as const,
+   task,
+   agentId: 'mock-local',
+   progress: 'Running prior to restart...',
+   createdAt: new Date().toISOString(),
+   updatedAt: new Date().toISOString(),
+  };
+  await store.put('jobs', staleJob.id, staleJob);
+  await app1.close();
+
+  // Reopen server in same data dir
+  const app2 = await createApp({ dataDir: dir, implementation: 'mock' });
+  const poll = await app2.inject('/api/jobs/stale-job-123');
+  expect(poll.statusCode).toBe(200);
+  const polledJob = poll.json();
+  expect(polledJob.status).toBe('failed');
+  expect(polledJob.error).toContain('Interrupted by server restart');
+  expect(polledJob.progress).toContain('server restarted while job was in-flight');
+  await app2.close();
+ } finally {
+  await rm(dir, { recursive: true, force: true });
+ }
 });
