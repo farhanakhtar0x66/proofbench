@@ -50,7 +50,8 @@
     "verify:check:live": "node --env-file-if-exists=.env --import tsx scripts/check-general-flow.ts",
     "verify:check:saved": "node --env-file-if-exists=.env --import tsx scripts/check-saved-comparison.ts",
     "tavily:check:retrieval": "node --env-file-if-exists=.env --import tsx scripts/check-tavily-retrieval.ts",
-    "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
+    "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build",
+    "dev:live": "node --env-file-if-exists=.env --import tsx scripts/dev-live.ts"
   },
   "dependencies": {
     "fastify": "^5.6.0",

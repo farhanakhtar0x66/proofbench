@@ -32,13 +32,21 @@ Terminal 1 (configured provider key, free-tier confirmation and model must alrea
 npm run bifrost:start
 ```
 
-Terminal 2:
+Terminal 2 (stop any older development server first):
 
 ```sh
-env LANGUAGE_MODE=bifrost CLAIM_EXTRACTION_MODE=rules EVIDENCE_COMPARISON_MODE=llm \
-BIFROST_LLM_MAX_REQUESTS=5 TAVILY_MODE=live ALLOW_LIVE_REQUESTS=true \
-TAVILY_MAX_REQUESTS=5 npm run dev
+npm run dev:live -- --requests 5
 ```
+
+This launcher reads ignored `.env`, validates the explicitly selected Gemini/Groq model and free-tier assertion, checks that prepared gateway configuration matches, probes local gateway health, checks both development ports, and starts the existing API and Vite app. It overrides only the child-process environment to enable live retrieval, rules extraction, model comparison and equal caps; saved `.env` remains unchanged. It forces the frontend to use the real local API even if the shell previously selected frontend mock mode. A busy port or unavailable gateway stops startup before verification. Vite uses a strict port to avoid silently serving a second app at a different address. Key/provider/model changes require restarting Bifrost so its process loads the new environment.
+
+For configuration-only validation with **zero network calls**:
+
+```sh
+npm run dev:live -- --requests 5 --check
+```
+
+The allowance argument is mandatory and must be 1–20. Configuration-only success does not confirm key validity, model access, gateway health, account quota, billing status or fact-checking accuracy. Starting the gateway separately may perform provider model-catalog metadata requests, outside the comparison cap.
 
 Keep both terminals running. Use General claim analysis with Current sources. Submit one statement at a time while testing; a multi-claim input can consume several requests. The existing frontend's “last 30 days” current-scope label describes the earlier search policy; the frontend owner needs to update that label. No frontend component is changed here.
 

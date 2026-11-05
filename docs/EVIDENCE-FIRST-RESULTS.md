@@ -18,3 +18,7 @@ Usage: four Tavily search attempts and four Groq comparison attempts, within the
 Reproduction instructions and policy limits: [EVIDENCE-FIRST.md](EVIDENCE-FIRST.md). Real provider testing requires a new explicit allowance; the completed allowance must not be silently reused. Offline tests cover policy separation, current-scope broad retrieval, primary identity boundaries, conflict/date/context guards, structured output and allowance inspection. They do not replace the missing fresh software-support check.
 
 Final offline validation: 784 tests across 65 files passed, along with lint, TypeScript/build and 6/6 fixture evaluation checks. These counts describe regressions, not independently verified live claims.
+
+## Live launcher follow-up
+
+A bounded `dev:live -- --requests N` launcher now validates local configuration, checks gateway health and development ports, and starts the existing backend and website with matching live caps. Its `--check` configuration-only command passed with the selected Groq setup without any network requests. The follow-up passed 804 offline tests across 66 files, lint, build and fixture evaluation. No additional Tavily/Groq calls or browser verification were performed; the software-support fresh-validation gap above remains open.
