@@ -129,9 +129,9 @@ async function main() {
     console.log(`✓ After reload, found ${reloadedRows.length} runs in Run Ledger. Latest run:`);
     console.log(`   ${reloadedRows[0].replace(/\n/g, ' | ')}`);
 
-    // 13. Repeat unavailable-gateway error scenario
-    console.log('🧪 Testing unavailable-gateway error scenario...');
-    // We route /api/jobs to simulate 503 from an unreachable gateway
+    // 13. Test intercepted HTTP 503 gateway error handling (simulated gateway preflight rejection, not a physical daemon outage)
+    console.log('🧪 Testing intercepted HTTP 503 gateway error handling (simulated gateway preflight failure, not a physical daemon outage)...');
+    // We intercept /api/jobs via Playwright route fulfillment to simulate an HTTP 503 gateway preflight failure without killing the live Bifrost daemon
     await page.route('**/api/jobs', (route) => {
       route.fulfill({
         status: 503,
@@ -147,7 +147,7 @@ async function main() {
     await page.getByRole('button', { name: '+ Run task' }).click();
     await page.waitForSelector('[role="alert"]', { timeout: 5000 });
     const alertText = await page.locator('[role="alert"]').textContent();
-    console.log(`✓ Unavailable gateway error correctly displayed to user: "${alertText}"`);
+    console.log(`✓ Intercepted HTTP 503 gateway error correctly displayed to user: "${alertText}"`);
     if (!alertText?.includes('Bifrost inference gateway unreachable')) {
       throw new Error(`Unexpected alert text: ${alertText}`);
     }

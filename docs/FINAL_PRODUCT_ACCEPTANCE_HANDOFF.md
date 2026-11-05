@@ -24,10 +24,16 @@ ProofBench has completed the Final Product Acceptance Hotfix:
    - Server process restarts are reported honestly: orphaned in-flight jobs are marked as failed with `Interrupted by server restart; computation did not survive process restart.`
 3. **Verified Real Browser Acceptance Test:**
    - Automated via `scripts/verify-browser-live-acceptance.ts` using real Chromium and live Bifrost daemon (`:8089`).
-   - Flow: Selected Task 1 ➔ Clicked "+ Run task" ➔ Observed real progress events ➔ Verified passing acceptance (2/2 tests) in 21.1s ➔ Inspected multi-tier trace (1.5B attempt + 9B escalation) ➔ Verified page reload persistence ➔ Confirmed unavailable-gateway error handling.
-4. **Tavily Track Status:**
+   - Flow: Selected Task 1 ➔ Clicked "+ Run task" ➔ Observed real progress events ➔ Verified passing acceptance (2/2 tests) in ~20-25s ➔ Inspected multi-tier trace (1.5B attempt + 9B escalation) ➔ Verified page reload persistence.
+   - Error-State Test: Accurately verified as an **intercepted HTTP 503 gateway preflight response** via Playwright route interception, confirming graceful UI recovery without crashing or stopping the live background Bifrost daemon.
+4. **Execution Dashboard Telemetry & Notice Accuracy:**
+   - Updated notice banner and completion metrics to distinguish **measured live model runs** (real inference & token telemetry), **curated validation fixtures** (co-designed multi-file AST resolution), and **controlled simulation baselines**.
+   - Completion card explicitly displays `Verified live model acceptance` for passed live runs and `Offline exact-output check` for simulated fixtures.
+5. **Tavily Track Status & Hardened Claim Classification:**
    - Clearly badged as `OFFLINE` when uncredentialed, returning structured verdicts and offline references without making unauthorized external requests.
    - When configured with `TAVILY_MODE=live` and `TAVILY_API_KEY`, live search dynamically populates real web sources and timestamps.
+   - Hardened claim classification: performs strict entity matching and polarity analysis (active support vs. deprecation). Unsubstantiated or ambiguous claims return `inconclusive` rather than falsely claiming support or contradiction.
+
 
 ---
 
@@ -101,6 +107,18 @@ In live mode:
 - Dashboard displays badge: `LIVE RESEARCH`.
 - Queries `https://api.tavily.com/search` via basic search depth with answer extraction.
 - Parses live search results, extracts code symbols and entity names, and returns sanitized snippets with dynamic ISO timestamps.
+
+### Live Demonstration Verification Protocol (For Mohit)
+1. **Actively Supported Predicate:**
+   - Input: `"tokio::spawn is currently supported in async Rust."`
+   - Expected Output: `supported` (freshness: `current`), with live docs citation.
+2. **Deprecated Predicate:**
+   - Input: `"Python 2 is currently supported."`
+   - Expected Output: `contradicted` (freshness: `stale`), citing official sunset documentation.
+3. **Ambiguous or Unsubstantiated Assertion:**
+   - Input: `"Database query performance will increase significantly."`
+   - Expected Output: `inconclusive` (freshness: `unknown`), uncertainty explains lack of explicit support or deprecation predicate.
+   - **Critical Safeguard:** Prevents false positives or false negatives on unsupported claims.
 
 ---
 

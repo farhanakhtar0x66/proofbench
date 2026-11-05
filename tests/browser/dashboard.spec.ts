@@ -13,7 +13,7 @@ test('runs an offline fixture, inspects evidence, verifies stale answer',async({
  await page.screenshot({path:`.local/screenshots/dashboard-${test.info().project.name}.png`,fullPage:true});
  expect(await page.evaluate(()=>document.documentElement.scrollWidth<=window.innerWidth)).toBe(true);
 });
-test('shows a recoverable API error',async({page})=>{
+test('shows a recoverable API error on intercepted HTTP 503',async({page})=>{
  await page.route('**/api/capabilities',r=>r.fulfill({status:503,body:'{}'}));await page.goto('/');
  await expect(page.getByRole('alert')).toContainText('503');
  await expect(page.getByRole('button',{name:'Retry connection'})).toBeVisible();

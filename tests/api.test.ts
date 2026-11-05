@@ -10,6 +10,75 @@ it('unknown claims remain inconclusive and offline',async()=>{
  const report=await verifyAnswer({version:'1',text:'The moon is made of cheese.'});
  expect(report.mode).toBe('mock'); expect(report.claims[0].outcome).toBe('inconclusive'); expect(report.claims[0].evidence).toEqual([]);
 });
+it('Tavily verifier in live mode returns inconclusive for ambiguous or unsupported conclusions', async () => {
+ const origMode = process.env.TAVILY_MODE;
+ const origKey = process.env.TAVILY_API_KEY;
+ const origFetch = globalThis.fetch;
+ process.env.TAVILY_MODE = 'live';
+ process.env.TAVILY_API_KEY = 'test-token';
+
+ try {
+  // Case 1: Search returns excerpt mentioning entity without explicit predicate
+  globalThis.fetch = async () =>
+   new Response(
+    JSON.stringify({
+     results: [{ title: 'Overview', url: 'https://example.com/py', content: 'Python 2 was developed by Python Software Foundation.' }],
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+   );
+
+  const res1 = await verifyAnswer({ version: '1', text: 'Python 2 is currently supported.' });
+  expect(res1.mode).toBe('live');
+  expect(res1.claims[0].outcome).toBe('inconclusive');
+  expect(res1.claims[0].freshness).toBe('unknown');
+  expect(res1.claims[0].uncertainty).toContain('does not explicitly confirm');
+
+  // Case 2: Claim with ambiguous content returning inconclusive
+  const res2 = await verifyAnswer({ version: '1', text: 'Everything is quite fine and good.' });
+  expect(res2.claims[0].outcome).toBe('inconclusive');
+  expect(res2.claims[0].uncertainty).toContain('inconclusive');
+
+  // Case 3: Explicit deprecation evidence against active claim
+  globalThis.fetch = async () =>
+   new Response(
+    JSON.stringify({
+     results: [{ title: 'Sunset', url: 'https://www.python.org/doc/sunset-python-2/', content: 'Python 2 is deprecated since January 1 2020.' }],
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+   );
+
+  const res3 = await verifyAnswer({ version: '1', text: 'Python 2 is currently supported.' });
+  expect(res3.claims[0].outcome).toBe('contradicted');
+  expect(res3.claims[0].freshness).toBe('stale');
+  expect(res3.claims[0].evidence[0].relation).toBe('contradicts');
+
+  // Case 4: Explicit active support evidence
+  globalThis.fetch = async () =>
+   new Response(
+    JSON.stringify({
+     results: [{ title: 'Docs', url: 'https://docs.rs/tokio', content: 'tokio::spawn is a recommended API and actively supported.' }],
+    }),
+    { status: 200, headers: { 'Content-Type': 'application/json' } },
+   );
+
+  const res4 = await verifyAnswer({ version: '1', text: 'tokio::spawn is currently supported.' });
+  expect(res4.claims[0].outcome).toBe('supported');
+  expect(res4.claims[0].freshness).toBe('current');
+  expect(res4.claims[0].evidence[0].relation).toBe('supports');
+ } finally {
+  if (origMode !== undefined) {
+   process.env.TAVILY_MODE = origMode;
+  } else {
+   delete process.env.TAVILY_MODE;
+  }
+  if (origKey !== undefined) {
+   process.env.TAVILY_API_KEY = origKey;
+  } else {
+   delete process.env.TAVILY_API_KEY;
+  }
+  globalThis.fetch = origFetch;
+ }
+});
 it('02 rejects unavailable execution instead of simulating success',async()=>{
  const adapter=selectAdapter('02');
  expect(adapter.descriptor.implementation).toBe('02');

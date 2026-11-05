@@ -16,6 +16,8 @@ const COMMON_STOPWORDS = new Set([
   'the', 'and', 'for', 'with', 'from', 'that', 'this', 'have', 'were', 'which',
   'standard', 'function', 'method', 'module', 'internal', 'document', 'claimed',
   'signal', 'processor', 'during', 'loops', 'wait', 'loop', 'note',
+  'currently', 'since', 'also', 'about', 'more', 'when', 'what', 'then', 'there',
+  'their', 'only', 'into', 'some', 'such', 'than',
 ]);
 
 function sanitizeUntrustedText(input: string, maxLength = 300): string {
@@ -122,54 +124,117 @@ export async function verifyAnswer(input: VerifyRequest): Promise<VerificationRe
 
           // Evidence-aware claim assessment: check entity match & deprecation vs active support
           const entities = extractKeyEntities(text);
+          if (entities.length === 0) {
+            return ClaimVerification.parse({
+              version: '1',
+              id: randomUUID(),
+              text,
+              timeSensitive: 'unknown',
+              outcome: 'inconclusive',
+              freshness: 'unknown',
+              asOf: asOf ?? now,
+              uncertainty: 'Claim contains no specific verifiable entities; returning inconclusive.',
+              evidence: [],
+            });
+          }
+
+          // Require that evidence snippets contain at least one extracted entity
           const relevantSnippets = sanitizedEvidence.filter((e) => {
             const lowerExcerpt = e.excerpt.toLowerCase();
             return entities.some((ent) => lowerExcerpt.includes(ent.toLowerCase()));
           });
 
-          const targetSnippets = relevantSnippets.length > 0 ? relevantSnippets : sanitizedEvidence;
-          const hasDeprecation = targetSnippets.some((e) =>
-            /deprecat|superseded|obsolete|replaced by|no longer recommended|removed in/i.test(e.excerpt)
+          if (relevantSnippets.length === 0) {
+            return ClaimVerification.parse({
+              version: '1',
+              id: randomUUID(),
+              text,
+              timeSensitive: 'unknown',
+              outcome: 'inconclusive',
+              freshness: 'unknown',
+              asOf: asOf ?? now,
+              uncertainty: 'Search results do not contain excerpts directly referencing the claimed entity; returning inconclusive to prevent false verdicts.',
+              evidence: sanitizedEvidence.slice(0, 3).map((e) => ({
+                url: e.url,
+                title: e.title,
+                retrievedAt: e.retrievedAt,
+                recordedAt: e.recordedAt,
+                publishedAt: e.publishedAt,
+                excerpt: e.excerpt,
+                relation: 'context',
+                retrieval: 'tavily',
+              })),
+            });
+          }
+
+          // Analyze claim assertion polarity
+          const lowerText = text.toLowerCase();
+          const assertsDeprecation = /\b(deprecated|obsolete|sunset|end[- ]of[- ]life|eol|removed|superseded|no longer supported|discontinued)\b/i.test(lowerText);
+          const assertsActive = /\b(currently supported|is supported|actively supported|is current|recommended API|standard function|stable in)\b/i.test(lowerText);
+
+          // Analyze explicit evidence in relevant snippets
+          const snippetHasDeprecation = relevantSnippets.some((e) =>
+            /\b(deprecated since|is deprecated|was deprecated|obsolete|sunset|end[- ]of[- ]life|eol|removed in|superseded by|no longer recommended|discontinued)\b/i.test(e.excerpt)
           );
-          const hasActiveSupport = targetSnippets.some((e) =>
-            /supported|current|active|recommended API|standard function|stable in/i.test(e.excerpt)
+          const snippetHasActiveSupport = relevantSnippets.some((e) =>
+            /\b(actively supported|is supported|supported in|recommended API|standard function in|currently maintained|stable since)\b/i.test(e.excerpt)
           );
 
-          let outcome: 'supported' | 'contradicted' | 'inconclusive';
-          let freshness: 'current' | 'stale' | 'unknown';
+          let outcome: 'supported' | 'contradicted' | 'inconclusive' = 'inconclusive';
+          let freshness: 'current' | 'stale' | 'unknown' = 'unknown';
           let uncertainty: string;
 
-          if (hasDeprecation) {
-            outcome = 'contradicted';
-            freshness = 'stale';
-            uncertainty = 'Live Tavily web evidence indicates the claimed entity or function is deprecated or superseded.';
-          } else if (hasActiveSupport && relevantSnippets.length > 0) {
-            outcome = 'supported';
-            freshness = 'current';
-            uncertainty = 'Live Tavily web evidence confirms active support and validity of the claimed entity.';
+          if (assertsActive) {
+            if (snippetHasDeprecation) {
+              outcome = 'contradicted';
+              freshness = 'stale';
+              uncertainty = 'Live Tavily web evidence indicates the claimed entity or function is deprecated, sunset, or superseded.';
+            } else if (snippetHasActiveSupport) {
+              outcome = 'supported';
+              freshness = 'current';
+              uncertainty = 'Live Tavily web evidence confirms active support and validity of the claimed entity.';
+            } else {
+              outcome = 'inconclusive';
+              freshness = 'unknown';
+              uncertainty = 'Search evidence mentions the entity but does not explicitly confirm active support or deprecation status; returning inconclusive.';
+            }
+          } else if (assertsDeprecation) {
+            if (snippetHasDeprecation) {
+              outcome = 'supported';
+              freshness = 'current';
+              uncertainty = 'Live Tavily web evidence confirms the claimed entity is deprecated or sunset.';
+            } else if (snippetHasActiveSupport) {
+              outcome = 'contradicted';
+              freshness = 'stale';
+              uncertainty = 'Live Tavily web evidence indicates the entity remains actively supported, contradicting the deprecation claim.';
+            } else {
+              outcome = 'inconclusive';
+              freshness = 'unknown';
+              uncertainty = 'Search evidence mentions the entity but does not explicitly confirm deprecation status; returning inconclusive.';
+            }
           } else {
             outcome = 'inconclusive';
             freshness = 'unknown';
-            uncertainty = 'Live Tavily web evidence mentions related topics but does not definitively establish active vs deprecated status.';
+            uncertainty = 'Claim does not state an explicit support or deprecation predicate; returning inconclusive to avoid unwarranted verdicts.';
           }
 
           return ClaimVerification.parse({
             version: '1',
             id: randomUUID(),
             text,
-            timeSensitive: 'yes',
+            timeSensitive: outcome !== 'inconclusive' ? 'yes' : 'unknown',
             outcome,
             freshness,
             asOf: asOf ?? now,
             uncertainty,
-            evidence: sanitizedEvidence.slice(0, 3).map((e) => ({
+            evidence: relevantSnippets.slice(0, 3).map((e) => ({
               url: e.url,
               title: e.title,
               retrievedAt: e.retrievedAt,
               recordedAt: e.recordedAt,
               publishedAt: e.publishedAt,
               excerpt: e.excerpt,
-              relation: hasDeprecation ? 'contradicts' : hasActiveSupport ? 'supports' : 'context',
+              relation: outcome === 'contradicted' ? 'contradicts' : outcome === 'supported' ? 'supports' : 'context',
               retrieval: 'tavily',
             })),
           });
