@@ -252,7 +252,8 @@ async function main() {
   console.log(`  Deterministic Ops:    ${res6.deterministicOperationsCount}`);
   console.log(`  Avoided Model Calls:  ${res6.avoidedModelRequests}`);
   console.log(`  Controller CPU:       ${cpuMs6} ms`);
-  console.log(`  Child Process CPU:    ${res6.childProcessCpuMs} ms`);
+  console.log(`  Test Subproc Wall:    ${res6.testSubprocessWallMs ?? res6.childProcessCpuMs} ms`);
+  console.log(`  Subprocess CPU:       ${res6.subprocessCpuMs ?? 'null (unisolated across OS subshell)'}`);
   console.log(`  Wall-Clock Duration:  ${wallMs6} ms`);
 
   if (res6.run.acceptance.status !== 'passed' || (inTok6 ?? 0) !== 0 || (outTok6 ?? 0) !== 0) {
@@ -269,7 +270,8 @@ async function main() {
     totalTokens: 0,
     avoidedRequests: res6.avoidedModelRequests,
     cpuMs: cpuMs6,
-    childProcessCpuMs: res6.childProcessCpuMs,
+    testSubprocessWallMs: res6.testSubprocessWallMs ?? res6.childProcessCpuMs,
+    subprocessCpuMs: null,
     wallMs: wallMs6,
   };
 
@@ -307,7 +309,8 @@ async function main() {
   console.log(`  Output Tokens:        ${outTok1} (${res1.run.usage.outputTokens.status})`);
   console.log(`  Total Tokens:         ${(inTok1 ?? 0) + (outTok1 ?? 0)}`);
   console.log(`  Controller CPU:       ${cpuMs1} ms`);
-  console.log(`  Child Process CPU:    ${res1.childProcessCpuMs} ms`);
+  console.log(`  Test Subproc Wall:    ${res1.testSubprocessWallMs ?? res1.childProcessCpuMs} ms`);
+  console.log(`  Subprocess CPU:       ${res1.subprocessCpuMs ?? 'null (unisolated across OS subshell)'}`);
   console.log(`  Inference Duration:   ${res1.inferenceDurationMs} ms`);
   console.log(`  Wall-Clock Duration:  ${wallMs1} ms`);
 
@@ -325,7 +328,8 @@ async function main() {
     totalTokens: (inTok1 ?? 0) + (outTok1 ?? 0),
     inferenceDurationMs: res1.inferenceDurationMs,
     cpuMs: cpuMs1,
-    childProcessCpuMs: res1.childProcessCpuMs,
+    testSubprocessWallMs: res1.testSubprocessWallMs ?? res1.childProcessCpuMs,
+    subprocessCpuMs: null,
     wallMs: wallMs1,
   };
 
@@ -342,7 +346,7 @@ async function main() {
   const engine9 = new AdaptiveExecutionEngine({
     bifrostClient: liveClient,
     approvalHandler: createWorkspaceApprovalHandler(),
-    maxTurns: 4,
+    maxTurns: 5,
   });
 
   const startCpu9 = process.cpuUsage();
@@ -368,11 +372,12 @@ async function main() {
     console.log(`    * ${tr.fromTier} ➔ ${tr.toTier}: ${tr.reason}`);
   }
   console.log(`  Controller CPU:       ${cpuMs9} ms`);
-  console.log(`  Child Process CPU:    ${res9.childProcessCpuMs} ms`);
+  console.log(`  Test Subproc Wall:    ${res9.testSubprocessWallMs ?? res9.childProcessCpuMs} ms`);
+  console.log(`  Subprocess CPU:       ${res9.subprocessCpuMs ?? 'null (unisolated across OS subshell)'}`);
   console.log(`  Wall-Clock Duration:  ${wallMs9} ms`);
 
   console.log('✅ PILLAR 3 COMPLETED: Live multi-module task executed through Bifrost with full trace.');
-  console.log(`  Honest Outcome Recorded: status=${res9.run.status}, acceptance=${res9.run.acceptance.status}\n`);
+  console.log(`  Empirical Outcome Recorded: status=${res9.run.status}, acceptance=${res9.run.acceptance.status} (turns: ${res9.controllerState.turnCount})\n`);
 
   (evidenceReport.pillars as Record<string, unknown>).pillar3_live_task9_trajectory = {
     taskId: task9Spec.id,
@@ -383,7 +388,8 @@ async function main() {
     inputTokens: inTok9,
     outputTokens: outTok9,
     cpuMs: cpuMs9,
-    childProcessCpuMs: res9.childProcessCpuMs,
+    testSubprocessWallMs: res9.testSubprocessWallMs ?? res9.childProcessCpuMs,
+    subprocessCpuMs: null,
     wallMs: wallMs9,
   };
 

@@ -407,6 +407,7 @@ export class AdaptiveExecutionEngine {
     while (!taskCompleted && controllerState.turnCount < this.maxTurns && (currentPhase as string) !== 'HALTED') {
       controllerState.turnCount++;
       const turn = controllerState.turnCount;
+      lastAppliedPatch = '';
 
       // -----------------------------------------------------------------------
       // PHASE 4: PREPARE
@@ -632,10 +633,19 @@ export class AdaptiveExecutionEngine {
         // 1. Context Compilation
         const modelDesc = this.modelRegistry.getModel(currentModel);
         const modelContextWindow = modelDesc?.contextWindow ?? 4096;
-        const targetInputBudget = Math.min(2400, modelContextWindow - 1200);
-        const targetContextBudget = Math.min(1400, Math.max(600, targetInputBudget - 1000));
+        const isStronger = currentTier === 'STRONGER_LLM';
+        const targetInputBudget = isStronger
+          ? Math.min(5000, modelContextWindow - 1400)
+          : Math.min(2600, modelContextWindow - 1400);
+        const targetContextBudget = isStronger
+          ? Math.min(3500, Math.max(1200, targetInputBudget - 700))
+          : Math.min(2000, Math.max(800, targetInputBudget - 700));
 
-        const contextCompiler = new ContextCompiler({ maxTokenBudget: targetContextBudget });
+        const contextCompiler = new ContextCompiler({
+          maxTokenBudget: targetContextBudget,
+          allowBudgetExpansion: true,
+          maxExpandedBudget: Math.max(targetContextBudget + 500, 2500),
+        });
         const contextResult = await contextCompiler.compileContext(
           workspacePath,
           lastErrorOutput,
@@ -643,7 +653,7 @@ export class AdaptiveExecutionEngine {
         );
 
         // 2. Prompt Compilation
-        const maxOutputBudget = Math.min(1024, Math.max(512, modelContextWindow - targetInputBudget - 200));
+        const maxOutputBudget = Math.min(2048, Math.max(1024, modelContextWindow - targetInputBudget - 200));
         const compiledPrompt = PromptCompiler.compile({
           task,
           contextResult,
@@ -848,12 +858,7 @@ export class AdaptiveExecutionEngine {
           controllerState.currentPhase = currentPhase;
 
           const editResult = await incrementalManager.applyModifications(proposedMods, turn);
-          if (!editResult.success && editResult.errors.length > 0) {
-            for (const err of editResult.errors) {
-              addTraceEvent('error', `Edit validation/approval rejected: ${err}`, { turn, tier: currentTier });
-            }
-            allActionsApproved = false;
-          } else {
+          if (editResult.appliedModifications.length > 0) {
             appliedModificationsCount += editResult.appliedModifications.length;
             for (const ap of editResult.appliedModifications) {
               addTraceEvent(
@@ -863,6 +868,19 @@ export class AdaptiveExecutionEngine {
               );
             }
             lastAppliedPatch = proposedMods.map((m) => m.replaceBlock || m.content || '').join('\n');
+            allActionsApproved = true;
+          }
+          if (editResult.errors.length > 0) {
+            for (const err of editResult.errors) {
+              addTraceEvent(
+                editResult.appliedModifications.length > 0 ? 'check' : 'error',
+                `Edit validation issue: ${err}`,
+                { turn, tier: currentTier }
+              );
+            }
+            if (editResult.appliedModifications.length === 0) {
+              allActionsApproved = false;
+            }
           }
         } else {
           // Fallback to full file block / tool call parsing
@@ -913,6 +931,34 @@ export class AdaptiveExecutionEngine {
       }
 
       if (!allActionsApproved) {
+        if (currentTier === 'SMALL_LLM' && this.routingPolicy !== 'direct_small') {
+          // Escalate to STRONGER_LLM when SMALL_LLM fails to produce an applicable patch
+          const strongerModelId = this.modelRegistry.getModelForTier('STRONGER_LLM').id;
+          pendingHandoff = UniversalHandoffProtocol.createHandoff({
+            id: `handoff-${turn}-unapplicable`,
+            direction: 'small_to_stronger',
+            sourceTier: 'SMALL_LLM',
+            targetTier: 'STRONGER_LLM',
+            sourceModel: currentModel,
+            targetModel: strongerModelId,
+            rationale: 'Small LLM proposed unapplicable patch; escalating to stronger reasoning model.',
+            taskId: task.id,
+            relevantFiles: Object.keys(sourceFiles),
+            diagnostics: {
+              exitCode: 1,
+              passedCount: 0,
+              failedCount: 1,
+              failingTestNames: [],
+              compilerErrorCodes: [],
+              rawOutputSnippet: 'Small LLM proposed search-and-replace block that did not match target file.',
+            },
+          });
+          addTraceEvent('check', `Small LLM patch unapplicable; escalating to ${strongerModelId} for turn ${turn + 1}`, {
+            turn,
+            tier: currentTier,
+          });
+          continue;
+        }
         break;
       }
 
@@ -1288,6 +1334,8 @@ export class AdaptiveExecutionEngine {
       transitionsCount: controllerState.transitions.length,
       deterministicCpuDurationMs: Math.max(1, Math.round(deterministicCpuDurationMs)),
       controllerCpuMs: Math.max(1, Math.round(deterministicCpuDurationMs)),
+      testSubprocessWallMs: Math.round(childProcessCpuMs),
+      subprocessCpuMs: null,
       childProcessCpuMs: Math.round(childProcessCpuMs),
       wallDurationMs: Math.max(1, Math.round(performance.now() - startTime)),
       inferenceDurationMs: Math.round(inferenceDurationMs),
@@ -1297,40 +1345,8 @@ export class AdaptiveExecutionEngine {
   private async executeAcceptanceTests(
     workspacePath: string
   ): Promise<{ passed: boolean; output: string; exitCode: number; passedCount: number; failedCount: number; durationMs: number }> {
-    const { exec } = await import('node:child_process');
-    const { promisify } = await import('node:util');
-    const execAsync = promisify(exec);
-    const start = performance.now();
-
-    try {
-      const { stdout, stderr } = await execAsync('cargo test', {
-        cwd: workspacePath,
-        env: { ...process.env, RUST_BACKTRACE: '1' },
-      });
-      const combined = `${stdout}\n${stderr}`;
-      const passedCount = (combined.match(/test [^\s]+ \.\.\. ok/g) || []).length;
-      return {
-        passed: true,
-        output: combined,
-        exitCode: 0,
-        passedCount,
-        failedCount: 0,
-        durationMs: Math.round(performance.now() - start),
-      };
-    } catch (err: unknown) {
-      const error = err as { stdout?: string; stderr?: string; code?: number };
-      const combined = `${error.stdout || ''}\n${error.stderr || ''}`;
-      const passedCount = (combined.match(/test [^\s]+ \.\.\. ok/g) || []).length;
-      const failedCount = (combined.match(/test [^\s]+ \.\.\. FAILED/g) || []).length;
-      return {
-        passed: false,
-        output: combined,
-        exitCode: error.code || 101,
-        passedCount,
-        failedCount,
-        durationMs: Math.round(performance.now() - start),
-      };
-    }
+    const ws = new TaskWorkspace('acceptance-verification', workspacePath, 'ws-verify');
+    return ws.runAcceptanceTests(30_000);
   }
 
   private async loadRustSourceFiles(workspacePath: string): Promise<Map<string, string>> {
@@ -1359,12 +1375,23 @@ export class AdaptiveExecutionEngine {
     content: string
   ): Array<{ path: string; content: string }> {
     const results: Array<{ path: string; content: string }> = [];
+    const normalizedContent = content
+      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:\/\/|###?)\s*(?:File:\s*)?([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, '// File: $1\n')
+      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:File:\s*)([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, 'File: $1\n');
+
     const blockRegex = /(?:(?:(?:\/\/|###?)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?[^\r\n]*\r?\n)?```(?:rust|rs)?(?:\s*\/\/\s*([^\r\n]+))?\r?\n([\s\S]*?)```)/gi;
     let match: RegExpExecArray | null;
 
-    while ((match = blockRegex.exec(content)) !== null) {
+    while ((match = blockRegex.exec(normalizedContent)) !== null) {
       let filePath = (match[1] || match[2] || '').trim();
       const fileContent = match[3];
+
+      // Sanity check: do not treat degenerate comment lines or truncated headers as full file replacements!
+      const trimmed = (fileContent || '').trim();
+      const hasCode = /fn\s+|struct\s+|enum\s+|impl\s+|use\s+|pub\s+|let\s+|mod\s+|trait\s+/i.test(trimmed);
+      if (!hasCode && trimmed.length < 50) {
+        continue;
+      }
       if (!filePath && fileContent) {
         if (fileContent.includes('parse_csv_line') || fileContent.includes('struct Event') || fileContent.includes('enum EventType')) {
           filePath = 'src/event.rs';

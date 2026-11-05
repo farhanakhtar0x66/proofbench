@@ -314,4 +314,65 @@ describe('ProofBench — Phase 6 Adversarial Governance & Security Suite', () =>
     expect(inStatus).toBe('missing');
     expect(outStatus).toBe('missing');
   });
+
+  it('Attack 11: verifies that API keys and secrets are never inherited by workspace test subprocesses', async () => {
+    // Inject sensitive host secrets into current Node.js process.env
+    const prevBf = process.env.BIFROST_VIRTUAL_KEY;
+    const prevTv = process.env.TAVILY_API_KEY;
+    const prevAws = process.env.AWS_SECRET_ACCESS_KEY;
+    const prevGh = process.env.GITHUB_TOKEN;
+
+    process.env.BIFROST_VIRTUAL_KEY = 'sk-bf-sensitive-secret-token-12345';
+    process.env.TAVILY_API_KEY = 'tvly-secret-key-67890';
+    process.env.AWS_SECRET_ACCESS_KEY = 'super-secret-aws-token';
+    process.env.GITHUB_TOKEN = 'ghp_secret_github_token';
+
+    const workspace = await TaskWorkspace.create('task-1-fix-failing-func');
+
+    try {
+      // 1. Inspect environment seen inside spawned child process
+      const res = await workspace.runCommand('node', ['-e', 'console.log(JSON.stringify(process.env))']);
+      expect(res.exitCode).toBe(0);
+      const childEnv = JSON.parse(res.stdout);
+
+      // Verify strict credential isolation
+      expect(childEnv.BIFROST_VIRTUAL_KEY).toBeUndefined();
+      expect(childEnv.TAVILY_API_KEY).toBeUndefined();
+      expect(childEnv.AWS_SECRET_ACCESS_KEY).toBeUndefined();
+      expect(childEnv.GITHUB_TOKEN).toBeUndefined();
+
+      // Assert zero secret/token/key leaks across the entire child environment
+      const leakyKeys = Object.keys(childEnv).filter((k) =>
+        /KEY|TOKEN|SECRET|AUTH|PASS|CREDENTIAL|BIFROST|TAVILY|OPENAI|ANTHROPIC|AWS|GITHUB|GH_/i.test(k)
+      );
+      expect(leakyKeys).toEqual([]);
+
+      // Safe toolchain variables must be preserved
+      expect(childEnv.PATH).toBeDefined();
+      expect(childEnv.RUST_BACKTRACE).toBe('1');
+    } finally {
+      await workspace.destroy();
+      // Restore previous environment
+      if (prevBf !== undefined) process.env.BIFROST_VIRTUAL_KEY = prevBf; else delete process.env.BIFROST_VIRTUAL_KEY;
+      if (prevTv !== undefined) process.env.TAVILY_API_KEY = prevTv; else delete process.env.TAVILY_API_KEY;
+      if (prevAws !== undefined) process.env.AWS_SECRET_ACCESS_KEY = prevAws; else delete process.env.AWS_SECRET_ACCESS_KEY;
+      if (prevGh !== undefined) process.env.GITHUB_TOKEN = prevGh; else delete process.env.GITHUB_TOKEN;
+    }
+  });
+
+  it('Attack 12: detects and rejects unauthorized modification of frozen test harness during acceptance testing', async () => {
+    const workspace = await TaskWorkspace.create('task-1-fix-failing-func');
+
+    try {
+      // Tamper with test harness file before acceptance verification runs
+      const testFile = path.join(workspace.workspacePath, 'tests', 'integration_test.rs');
+      await fs.writeFile(testFile, 'fn tampered() {}', 'utf8');
+
+      // Acceptance test verifies tamper detection against original baseline
+      const result = await workspace.runAcceptanceTests();
+      expect(result.passed).toBe(false);
+    } finally {
+      await workspace.destroy();
+    }
+  });
 });

@@ -136,13 +136,17 @@ export interface ControlledRoutingMeasurement {
   wallDurationMs: number | null;
   cpuDurationMs: number | null;
   controllerCpuMs?: number | null;
+  testSubprocessWallMs?: number | null;
+  subprocessCpuMs?: number | null;
   childProcessCpuMs?: number | null;
+  inferenceDurationMs?: number | null;
   costUsd: number | null;
   turns: number;
   modelCalls: number;
   transitionsCount: number;
   deterministicOperationsCount: number;
   avoidedModelRequests: number;
+  hasBidirectionalHandoff?: boolean;
 }
 
 export interface ControlledRoutingAggregate {
@@ -157,6 +161,9 @@ export interface ControlledRoutingAggregate {
   avgWallDurationMs: number | null;
   avgCpuDurationMs: number | null;
   avgControllerCpuMs?: number | null;
+  avgTestSubprocessWallMs?: number | null;
+  avgSubprocessCpuMs?: number | null;
+  avgInferenceDurationMs?: number | null;
   avgChildProcessCpuMs?: number | null;
   avgCostUsd: number | null;
   avgModelCalls: number;
@@ -1257,7 +1264,10 @@ export class ComparativeBenchmarkSuite {
         const wallDurationMs = result.wallDurationMs ?? Math.max(1, Math.round(performance.now() - startWall));
         const cpuDiff = process.cpuUsage(startCpu);
         const cpuDurationMs = result.controllerCpuMs ?? Math.max(1, Math.round((cpuDiff.user + cpuDiff.system) / 1000));
-        const childCpuMs = result.childProcessCpuMs ?? 0;
+        const testSubWallMs = result.testSubprocessWallMs ?? result.childProcessCpuMs ?? 0;
+        const hasBidirectionalHandoff = result.controllerState.transitions.some(
+          (tr) => tr.fromTier === 'STRONGER_LLM' && tr.toTier === 'SMALL_LLM'
+        );
 
         measurements[p.policy].push({
           policy: p.policy,
@@ -1273,13 +1283,17 @@ export class ComparativeBenchmarkSuite {
           wallDurationMs,
           cpuDurationMs,
           controllerCpuMs: cpuDurationMs,
-          childProcessCpuMs: childCpuMs,
+          testSubprocessWallMs: testSubWallMs,
+          subprocessCpuMs: null,
+          childProcessCpuMs: testSubWallMs,
+          inferenceDurationMs: result.inferenceDurationMs ?? 0,
           costUsd: cost,
           turns,
           modelCalls,
           transitionsCount,
           deterministicOperationsCount: detOps,
           avoidedModelRequests: avoidedReqs,
+          hasBidirectionalHandoff,
         });
       }
     }
@@ -1307,8 +1321,11 @@ export class ComparativeBenchmarkSuite {
       const validCtrlCpu = ms.map((m) => m.controllerCpuMs).filter((v): v is number => typeof v === 'number');
       const avgCtrlCpu = validCtrlCpu.length > 0 ? Math.round(validCtrlCpu.reduce((a, b) => a + b, 0) / validCtrlCpu.length) : null;
 
-      const validChildCpu = ms.map((m) => m.childProcessCpuMs).filter((v): v is number => typeof v === 'number');
-      const avgChildCpu = validChildCpu.length > 0 ? Math.round(validChildCpu.reduce((a, b) => a + b, 0) / validChildCpu.length) : null;
+      const validTestSubWall = ms.map((m) => m.testSubprocessWallMs).filter((v): v is number => typeof v === 'number');
+      const avgTestSubWall = validTestSubWall.length > 0 ? Math.round(validTestSubWall.reduce((a, b) => a + b, 0) / validTestSubWall.length) : null;
+
+      const validInference = ms.map((m) => m.inferenceDurationMs).filter((v): v is number => typeof v === 'number');
+      const avgInference = validInference.length > 0 ? Math.round(validInference.reduce((a, b) => a + b, 0) / validInference.length) : null;
 
       const validCost = ms.map((m) => m.costUsd).filter((v): v is number => typeof v === 'number');
       const avgCost = validCost.length > 0 ? Number((validCost.reduce((a, b) => a + b, 0) / validCost.length).toFixed(6)) : null;
@@ -1328,7 +1345,10 @@ export class ComparativeBenchmarkSuite {
         avgWallDurationMs: avgWall,
         avgCpuDurationMs: avgCpu,
         avgControllerCpuMs: avgCtrlCpu,
-        avgChildProcessCpuMs: avgChildCpu,
+        avgTestSubprocessWallMs: avgTestSubWall,
+        avgSubprocessCpuMs: null,
+        avgInferenceDurationMs: avgInference,
+        avgChildProcessCpuMs: avgTestSubWall,
         avgCostUsd: avgCost,
         avgModelCalls: avgCalls,
         avgTransitions: avgTrans,
@@ -1356,12 +1376,25 @@ export class ComparativeBenchmarkSuite {
         : null;
 
     // Bidirectional handoff savings: measured difference between escalation-only vs full bidirectional adaptive
+    // ONLY non-null if bidirectional handoffs actually occurred in the adaptive arm (preventing spurious attribution when no handoff occurred)
+    const anyBidirectionalHandoffsOccurred = measurements.controlled_bidirectional_adaptive.some(
+      (m) => m.hasBidirectionalHandoff
+    );
+
     const bidirectionalHandoffTokensSaved =
-      escalationSummary.avgTotalTokens !== null && adaptiveSummary.avgTotalTokens !== null
+      anyBidirectionalHandoffsOccurred && escalationSummary.avgTotalTokens !== null && adaptiveSummary.avgTotalTokens !== null
         ? escalationSummary.avgTotalTokens - adaptiveSummary.avgTotalTokens
         : null;
 
     const cpuOverheadMs = adaptiveSummary.avgCpuDurationMs ?? 0;
+
+    const unisolatedEffects = [
+      'context_compilation_shared_across_all_controlled_arms',
+      'deterministic_tooling_requires_paired_ablation_when_not_zero_call',
+    ];
+    if (!anyBidirectionalHandoffsOccurred) {
+      unisolatedEffects.push('no_bidirectional_handoff_exercised_in_task');
+    }
 
     const attribution: AttributionBreakdown = {
       deterministicToolingTokensSaved,
@@ -1369,10 +1402,7 @@ export class ComparativeBenchmarkSuite {
       modelSelectionTokensSaved,
       bidirectionalHandoffTokensSaved,
       cpuOverheadMs,
-      unisolatedEffects: [
-        'context_compilation_shared_across_all_controlled_arms',
-        'deterministic_tooling_requires_paired_ablation_when_not_zero_call',
-      ],
+      unisolatedEffects,
     };
 
     const evidenceSummary = `Controlled Routing Benchmark on '${task.title}': Equalizing deterministic AST tools across all arms revealed bidirectional adaptive routing achieved ${adaptiveSummary.successRatePercent}% success rate with ${adaptiveSummary.totalTokensPerAcceptedCompletion ?? 'N/A'} tokens per accepted completion. Model delegation saved ${bidirectionalHandoffTokensSaved ?? 'N/A'} tokens over escalation-only.`;

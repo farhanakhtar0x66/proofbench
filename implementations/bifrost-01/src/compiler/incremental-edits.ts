@@ -164,15 +164,25 @@ Only the modified code delta requires inspection; do not revert unchanged files.
 
     // Normalize line endings for reliable matching
     const normalizedFile = fileContent.replace(/\r\n/g, '\n');
-    const normalizedSearch = searchBlock.replace(/\r\n/g, '\n').trim();
-    const normalizedReplace = replaceBlock.replace(/\r\n/g, '\n');
+    let normalizedSearch = searchBlock.replace(/\r\n/g, '\n').trim();
+    let normalizedReplace = replaceBlock.replace(/\r\n/g, '\n');
 
     if (!normalizedSearch) {
       return { valid: false, error: 'Empty search block provided for localized patch.' };
     }
 
     // Check occurrences
-    const firstIdx = normalizedFile.indexOf(normalizedSearch);
+    let firstIdx = normalizedFile.indexOf(normalizedSearch);
+    if (firstIdx === -1) {
+      // Strip prompt-artifact symbol annotations if model included them from context (e.g. // Symbol: ...)
+      const strippedSearch = normalizedSearch.replace(/^\s*\/\/\s*Symbol:[^\r\n]*\r?\n?/gm, '').trim();
+      if (strippedSearch && normalizedFile.indexOf(strippedSearch) !== -1) {
+        normalizedSearch = strippedSearch;
+        firstIdx = normalizedFile.indexOf(normalizedSearch);
+        normalizedReplace = normalizedReplace.replace(/^\s*\/\/\s*Symbol:[^\r\n]*\r?\n?/gm, '');
+      }
+    }
+
     if (firstIdx === -1) {
       return {
         valid: false,
@@ -211,28 +221,38 @@ Only the modified code delta requires inspection; do not revert unchanged files.
     const results: ProposedModification[] = [];
     if (!responseText) return results;
 
+    // Preprocess: unwrap redundant outer code fences before file headers (e.g. ```rust\n// File: src/foo.rs\n```rust)
+    const normalizedText = responseText
+      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:\/\/|###?)\s*(?:File:\s*)?([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, '// File: $1\n')
+      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:File:\s*)([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, 'File: $1\n');
+
     // 1. Parse Search & Replace blocks:
-    // // File: <path>
-    // <<<<<<< SEARCH
+    // // File: <path> [(rev: ...)]
+    // <<<<<<< SEARCH (or <<<<<<< HEAD)
     // ...
     // =======
     // ...
-    // >>>>>>> REPLACE
-    const patchRegex = /(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?\*?|File:\s*([^\r\n`]+)\s*)?<<<<<<< SEARCH\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)\r?\n>>>>>>> REPLACE/gi;
+    // >>>>>>> REPLACE (or >>>>>>> [branch] or end-of-response)
+    const patchRegex = /(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*()]+\.rs)`?[^\r\n]*\r?\n|File:\s*([^\r\n`()]+)[^\r\n]*\r?\n)?<<<<<<<\s*(?:SEARCH|HEAD|ORIGINAL)?\r?\n([\s\S]*?)\r?\n=======\r?\n([\s\S]*?)(?:\r?\n>>>>>>>\s*(?:REPLACE|TAIL|MODIFIED|[A-Za-z0-9_./-]+)?|$)/gi;
     let match: RegExpExecArray | null;
 
     let hasPatches = false;
-    while ((match = patchRegex.exec(responseText)) !== null) {
+    let currentFilePath = '';
+    while ((match = patchRegex.exec(normalizedText)) !== null) {
       hasPatches = true;
       let rawPath = (match[1] || match[2] || '').trim();
       const searchBlock = match[3];
       const replaceBlock = match[4];
 
       if (!rawPath) {
-        const firstLineMatch = (searchBlock + '\n' + replaceBlock).match(/^(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?\*?|File:\s*([^\r\n`]+))/m);
+        const firstLineMatch = (searchBlock + '\n' + replaceBlock).match(/^(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*()]+\.rs)`?|File:\s*([^\r\n`()]+))/m);
         if (firstLineMatch) {
           rawPath = (firstLineMatch[1] || firstLineMatch[2] || '').trim();
         }
+      }
+
+      if (!rawPath && currentFilePath) {
+        rawPath = currentFilePath;
       }
 
       if (!rawPath) {
@@ -240,12 +260,18 @@ Only the modified code delta requires inspection; do not revert unchanged files.
           rawPath = 'src/parser.rs';
         } else if (searchBlock.includes('EventSink') || replaceBlock.includes('EventSink')) {
           rawPath = 'src/sink.rs';
-        } else if (searchBlock.includes('calculate_checksum') || replaceBlock.includes('calculate_checksum')) {
+        } else if (searchBlock.includes('calculate_checksum') || searchBlock.includes('parse_csv_line') || searchBlock.includes('impl Event') || replaceBlock.includes('parse_csv_line')) {
           rawPath = 'src/event.rs';
+        } else if (searchBlock.includes('EventFilter') || searchBlock.includes('evaluate_predicate') || replaceBlock.includes('evaluate_predicate')) {
+          rawPath = 'src/filter.rs';
+        } else if (searchBlock.includes('EventDispatcher') || replaceBlock.includes('EventDispatcher')) {
+          rawPath = 'src/dispatcher.rs';
         } else {
           rawPath = 'src/lib.rs';
         }
       }
+
+      currentFilePath = rawPath;
 
       let targetPath = rawPath.replace(/^[`"']+|[`"']+$/g, '').trim();
       if (!targetPath.startsWith('src/') && !targetPath.startsWith('tests/') && !targetPath.includes('/')) {
@@ -269,9 +295,16 @@ Only the modified code delta requires inspection; do not revert unchanged files.
     // <code>
     // ```
     const fileBlockRegex = /(?:(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?(?:[^\r\n]*)|File:\s*([^\r\n`]+))\s*)?```(?:rust|rs)?\r?\n([\s\S]*?)```/gi;
-    while ((match = fileBlockRegex.exec(responseText)) !== null) {
+    while ((match = fileBlockRegex.exec(normalizedText)) !== null) {
       let rawPath = (match[1] || match[2] || '').trim();
       const content = match[3];
+
+      // Sanity check: do not treat degenerate comment lines or truncated headers as full file replacements!
+      const trimmedContent = (content || '').trim();
+      const hasCode = /fn\s+|struct\s+|enum\s+|impl\s+|use\s+|pub\s+|let\s+|mod\s+|trait\s+/i.test(trimmedContent);
+      if (!hasCode && trimmedContent.length < 50) {
+        continue;
+      }
 
       if (!rawPath) {
         const firstLineMatch = content.match(/^(?:(?:\/\/|###?|\/\*)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?\*?|File:\s*([^\r\n`]+))/i);
@@ -347,7 +380,101 @@ Only the modified code delta requires inspection; do not revert unchanged files.
       let finalContent = '';
 
       if (mod.type === 'full_file') {
-        finalContent = mod.content ?? '';
+        let proposed = (mod.content ?? '').trim();
+
+        // Safety check: reject full-file replacements that contain unparsed diff conflict markers
+        if (/(?:<<<<<<<\s*(?:SEARCH|HEAD|ORIGINAL)|=======\r?\n|>>>>>>>\s*(?:REPLACE|TAIL|MODIFIED))/i.test(proposed)) {
+          errors.push(`Rejected malformed full-file replacement for '${normalizedRelPath}': contains unparsed diff markers.`);
+          continue;
+        }
+
+        // Clean any pseudo-symbol lines copied from context prompt (e.g. pub impl_block ... or // Symbol: ...)
+        proposed = proposed.replace(/^\s*(?:pub\s+)?impl_block\s*\([^)]*\)\s*$/gm, '');
+        proposed = proposed.replace(/^\s*\/\/\s*Symbol:[^\r\n]*\r?\n?/gm, '');
+
+        let existingContent = '';
+        try {
+          existingContent = await fs.readFile(absPath, 'utf8');
+        } catch {
+          // File does not exist yet; new file
+        }
+
+        // If existing file has structs/enums/imports that the proposed full-file omitted
+        // (e.g. model generated only the updated `impl ...` block or a single updated function), preserve existing definitions!
+        const existingStructs = Array.from(existingContent.matchAll(/(?:pub\s+)?struct\s+([A-Za-z0-9_]+)/g)).map((m) => m[1]);
+        const existingEnums = Array.from(existingContent.matchAll(/(?:pub\s+)?enum\s+([A-Za-z0-9_]+)/g)).map((m) => m[1]);
+        const missingTypes = [...existingStructs, ...existingEnums].filter(
+          (t) => !new RegExp(`(?:struct|enum)\\s+${t}\\b`).test(proposed)
+        );
+
+        if (missingTypes.length > 0 && existingContent) {
+          // Check Case 1: Proposed starts with impl <Type>
+          const implMatch = proposed.match(/^(?:pub\s+)?impl(?:\s*<[^>]+>)?\s+([A-Za-z0-9_]+)/);
+          if (implMatch) {
+            const typeName = implMatch[1];
+            const implIdx = existingContent.search(new RegExp(`(?:pub\\s+)?impl(?:\\s*<[^>]+>)?\\s+${typeName}\\b`));
+            if (implIdx !== -1) {
+              const preamble = existingContent.slice(0, implIdx).trim();
+              proposed = preamble + '\n\n' + proposed;
+            }
+          } else {
+            // Check Case 2: Proposed is an updated function that already exists in existingContent
+            const fnMatch = proposed.match(/(?:pub\s+)?fn\s+([A-Za-z0-9_]+)\s*\(/);
+            if (fnMatch) {
+              const fnName = fnMatch[1];
+              const fnStartInExisting = existingContent.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
+              if (fnStartInExisting !== -1) {
+                // Find existing function span via brace counting
+                let depth = 0;
+                let existingFnEnd = -1;
+                for (let j = fnStartInExisting; j < existingContent.length; j++) {
+                  if (existingContent[j] === '{') depth++;
+                  else if (existingContent[j] === '}') {
+                    depth--;
+                    if (depth === 0) {
+                      existingFnEnd = j + 1;
+                      break;
+                    }
+                  }
+                }
+
+                // Find proposed function span via brace counting
+                const fnStartInProposed = proposed.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
+                let propDepth = 0;
+                let proposedFnEnd = -1;
+                for (let j = fnStartInProposed; j < proposed.length; j++) {
+                  if (proposed[j] === '{') propDepth++;
+                  else if (proposed[j] === '}') {
+                    propDepth--;
+                    if (propDepth === 0) {
+                      proposedFnEnd = j + 1;
+                      break;
+                    }
+                  }
+                }
+
+                if (existingFnEnd !== -1 && proposedFnEnd !== -1) {
+                  const newFnText = proposed.slice(fnStartInProposed, proposedFnEnd);
+                  // Preserve indent level from existing function
+                  const lineBefore = existingContent.slice(0, fnStartInExisting);
+                  const lastNewline = lineBefore.lastIndexOf('\n');
+                  const indent = lastNewline !== -1 ? lineBefore.slice(lastNewline + 1) : '';
+                  const indentedNewFn = newFnText
+                    .split('\n')
+                    .map((l, idx) => (idx === 0 ? l.trim() : indent + l))
+                    .join('\n');
+
+                  proposed =
+                    existingContent.slice(0, fnStartInExisting) +
+                    indentedNewFn +
+                    existingContent.slice(existingFnEnd);
+                }
+              }
+            }
+          }
+        }
+
+        finalContent = proposed;
       } else if (mod.type === 'localized_patch') {
         let existingContent = '';
         try {

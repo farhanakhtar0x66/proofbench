@@ -28,17 +28,20 @@ In accordance with empirical evidence standards, v1.5 explicitly separates **sim
 
 ## 2. Key Capabilities Demonstrated in v1.5
 
-1. **Non-LLM 0-Token Resolution:** Guaranteed compiler-guided mechanical fixes applied in the non-LLM tier (e.g. `task-6-deterministic-fix`), resolving compiler diagnostics at exactly **0 LLM tokens** (75 ms controller CPU, 1,519 ms cargo test child-process CPU).
+1. **Non-LLM 0-Token Resolution:** Guaranteed compiler-guided mechanical fixes applied in the non-LLM tier (e.g. `task-6-deterministic-fix`), resolving compiler diagnostics at exactly **0 LLM tokens** (85 ms controller CPU, 1,326 ms cargo test subprocess wall duration).
 2. **Live Small Model Inference & Non-LLM Verification:** Routine coding tasks (`task-1-fix-failing-func`) executed live through the stock Bifrost gateway by local Qwen 1.5B, completing in 1 turn with 1,433 prompt tokens and 234 completion tokens, verified by independent `cargo test`.
-3. **Honest Multi-Module Trajectory Reporting:** Complex tasks (`task-9-bidirectional-event-service`) executed with live models. When initial localized patches produce stagnating diagnostics, the engine autonomously triggers M3a autopsy escalation to the 9B model, logging real provider token consumption (6,418 input tokens, 2,040 output tokens). Empirical failure under genuine model capacity constraints is reported honestly without cherry-picking or prewritten patch injection.
-4. **True OS Child-Process Restarts (`child_process.fork`):**
+3. **Live Multi-Module Trajectory & Acceptance (Task 9):** Complex multi-module task (`task-9-bidirectional-event-service`) executed with live models. Scientific diagnosis identified context truncation, diff marker confusion, and structural preamble preservation. With compiler and controller hardening, the engine autonomously coordinates non-LLM mechanical fixes, small-model delegation, and M3a escalation to local Qwen 9B to resolve all 4 integration tests across 5 turns live (13,198 total tokens), terminating in verified acceptance.
+4. **Execution-Security Isolation & Test Tamper Defenses:**
+   - **Environment Scrubbing:** `TaskWorkspace.buildScrubbedEnvironment()` enforces a strict allowlist (`PATH`, `HOME`, `USER`, `SHELL`, `LANG`, `TMPDIR`, `TERM`, `CARGO_HOME`, `RUSTUP_HOME`, `RUST_BACKTRACE`) and scrubs all sensitive API keys, secrets, credentials, and gateway tokens before executing test subprocesses.
+   - **Harness Tamper Detection:** Test directories are cryptographically snapshotted with SHA-256 before model execution; unauthorized modifications to frozen test harnesses or fixtures trigger immediate execution abort with exit code 126.
+5. **True OS Child-Process Restarts (`child_process.fork`):**
    - **Planned Suspension:** Child process cleanly exits after Turn 1. A second child process resumes from the durable disk checkpoint (`.proofbench/checkpoints/` + `CONTEXT.MD`) and passes without replaying Turn 1.
    - **Abrupt Crash (`SIGKILL`):** Child process is abruptly killed with `SIGKILL` mid-execution simulating host failure. Resumption process detects surviving checkpoints, validates matching source git revisions, and completes verified execution.
-5. **Signed Token Attribution Breakdown:**
+6. **Signed Token Attribution & Accurate Telemetry:**
    - Empirical deltas are strictly signed (no `Math.max(0, ...)` suppression).
-   - Unisolated effects (such as shared AST context compilation) explicitly report `null` with rationale disclosures.
-   - Separate CPU accounting for Controller CPU (`process.cpuUsage()`), Child Process CPU (`cargo test`), and Wall duration.
-6. **Model Identity & Trace Provenance:** Emits structured `modelInference` events with requested vs actual model IDs, provider routing info, latency, prompt/completion tokens, and source revision hashes validated against `trace-contract.ts`.
+   - Subprocess CPU metrics report `subprocessCpuMs: null` when isolated per-process CPU timing is unsupported by OS subprocess primitives, using `testSubprocessWallMs` for wall time instead.
+   - Non-exercised metrics (such as bidirectional handoff savings on single-turn tasks) report `bidirectionalHandoffTokensSaved: null` to preserve scientific integrity.
+7. **Model Identity & Trace Provenance:** Emits structured `modelInference` events with requested vs actual model IDs, provider routing info, latency, prompt/completion tokens, and source revision hashes validated against `trace-contract.ts`.
 
 ---
 
@@ -74,14 +77,14 @@ TAVILY_API_KEY=tvly-your-tavily-key
 
 ### Step 1: Run the Complete Quality & Test Gate
 
-Runs ESLint (`--max-warnings=0`), TypeScript compilation (`tsc --noEmit`), Vitest suite (**103 tests across 9 test files**), offline fixture regression tests (7/7 suites), and production builds for both the web frontend and API server:
+Runs ESLint (`--max-warnings=0`), TypeScript compilation (`tsc --noEmit`), Vitest suite (**105 tests across 9 test files**), offline fixture regression tests (7/7 suites), and production builds for both the web frontend and API server:
 
 ```bash
 npm run check
 ```
 
 *Expected Result:*
-- `103/103 tests passed` (100% pass rate across 9 test suites including `tests/process-restart.test.ts`)
+- `105/105 tests passed` (100% pass rate across 9 test suites including `tests/process-restart.test.ts` and `tests/adversarial-governance.test.ts`)
 - `7/7 offline fixture regressions passed`
 - `0 lint errors / warnings`
 - `dist/web/` and `dist/api/` built cleanly
@@ -98,9 +101,9 @@ npm run demonstrate:adaptive:v1-5:live
 
 *Key Live Invariants Verified:*
 - **Preflight:** Verifies gateway `/health` and model availability (`Qwen 1.5B` and `Qwen 9B`).
-- **Pillar 1:** Solves `task-6` at **0 LLM tokens** (75 ms controller CPU, 1,519 ms test CPU).
+- **Pillar 1:** Solves `task-6` at **0 LLM tokens** (85 ms controller CPU, 1,326 ms test subprocess wall duration).
 - **Pillar 2:** Solves `task-1` live via Qwen 1.5B (1,433 input tokens, 234 output tokens, 1 turn).
-- **Pillar 3:** Executes multi-module `task-9` through Bifrost with real provider usage (6,418 input tokens, 2,040 output tokens, M3a autopsy escalation recorded, honest empirical reporting).
+- **Pillar 3:** Executes multi-module `task-9` through Bifrost with real provider usage (13,198 total tokens across 5 turns, dynamic escalation to 9B, resolving all 4 integration tests with verified acceptance).
 - **Pillar 4:** True OS child-process restarts via `child_process.fork` under both planned suspension and abrupt `SIGKILL`.
 - **Pillar 5:** Runs multi-task equalized controlled benchmark across all 4 routing policies through live Bifrost with signed attribution and validates telemetry against Zod contract schema.
 
@@ -125,7 +128,7 @@ npx vitest run tests/process-restart.test.ts
 
 ### Step 4: Run the Adversarial Governance Suite
 
-Directly executes the 10-attack security and governance invariant test suite:
+Directly executes the 12-attack security and governance invariant test suite:
 
 ```bash
 npx vitest run tests/adversarial-governance.test.ts
@@ -142,6 +145,8 @@ npx vitest run tests/adversarial-governance.test.ts
 8. Detection of external out-of-band source revision drift during resumption.
 9. Default-deny on path traversal (`../`) and arbitrary shell commands.
 10. Preservation of missing token telemetry without zero-fabrication.
+11. Scrubbing of API keys, tokens, credentials, and secrets from test subprocess environments.
+12. Detection of unauthorized modifications to frozen test harnesses and test fixtures (abort with exit code 126).
 
 ---
 
@@ -151,7 +156,7 @@ npx vitest run tests/adversarial-governance.test.ts
 | :--- | :--- | :--- |
 | **Adaptive Execution Engine** | `tests/adaptive-engine.test.ts` | Scenarios A–G: 0-token fixes, small model routing, direct complex routing, M3a autopsy escalation, bounded small model delegation, crash resumption, and genuine bidirectional routing on `task-9`. |
 | **OS Process Restarts** | `tests/process-restart.test.ts` | True child-process isolation via `child_process.fork`, planned suspension, abrupt `SIGKILL` recovery, and disk checkpoint continuation without turn replay. |
-| **Adversarial Governance** | `tests/adversarial-governance.test.ts` | 10 adversarial attacks verified: fake verification rejection, anti-privilege escalation, confidential mode loopback enforcement, budget halts. |
+| **Adversarial Governance** | `tests/adversarial-governance.test.ts` | 12 adversarial attacks verified: fake verification rejection, anti-privilege escalation, confidential mode loopback enforcement, budget halts, test environment credential scrubbing, and frozen harness tamper detection. |
 | **Persistence & Continuity** | `tests/persistence.test.ts` | Atomic JSONL event append, schema validation, checkpoint restoration across inter-tier handoffs, external git revision drift detection, and diagnostic log preservation. |
 | **Routing & Registry** | `tests/routing.test.ts` | Model tier defaults, verified loopback destinations (`127.0.0.1`), capability descriptors, and proposal validation. |
 | **AST Context Compiler** | `tests/compiler.test.ts` | Tree-sitter symbol graph extraction, transitive call graph traversal, token budgeting, mechanical transform formatting, and compiler-suggested import fixes. |

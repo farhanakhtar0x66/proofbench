@@ -275,7 +275,11 @@ export class ContextCompiler {
         case 'impl_item': {
           kind = 'impl';
           const typeIdNodes = child.children.filter((c: TSSyntaxNode) => c.type === 'type_identifier');
-          name = typeIdNodes.length > 0 ? `impl_${typeIdNodes.map((n: TSSyntaxNode) => n.text).join('_for_')}` : 'impl_block';
+          const regexMatch = child.text.match(/impl(?:<[^>]+>)?\s+([A-Za-z0-9_]+)/);
+          const fallbackTypeName = regexMatch ? regexMatch[1] : '';
+          name = typeIdNodes.length > 0
+            ? `impl_${typeIdNodes.map((n: TSSyntaxNode) => n.text).join('_for_')}`
+            : (fallbackTypeName ? `impl_${fallbackTypeName}` : 'impl_block');
           break;
         }
         case 'type_item': {

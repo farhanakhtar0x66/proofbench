@@ -45,7 +45,9 @@ export interface EngineExecutionResult {
   transitionsCount: number;
   deterministicCpuDurationMs: number;
   controllerCpuMs?: number;
-  childProcessCpuMs?: number;
+  testSubprocessWallMs?: number; // Renamed from childProcessCpuMs to accurately reflect wall-clock measurement
+  subprocessCpuMs?: number | null; // Measured subprocess CPU if available (null when process CPU is unisolated)
+  childProcessCpuMs?: number; // Kept as alias for backwards compatibility
   wallDurationMs?: number;
   inferenceDurationMs: number;
 }

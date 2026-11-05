@@ -2,6 +2,7 @@ import * as fs from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import * as path from 'node:path';
 import * as os from 'node:os';
+import * as crypto from 'node:crypto';
 import { randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { performance } from 'node:perf_hooks';
@@ -15,6 +16,18 @@ export interface CommandExecutionResult {
   cancelled: boolean;
   outputLimitExceeded: boolean;
   error?: string;
+}
+
+export interface AcceptanceTestResult {
+  passed: boolean;
+  output: string;
+  exitCode: number;
+  passedCount: number;
+  failedCount: number;
+  durationMs: number;
+  timedOut: boolean;
+  outputLimitExceeded: boolean;
+  tamperDetected?: boolean;
 }
 
 export function getCodingTasksDir(): string {
@@ -71,15 +84,25 @@ export class TaskWorkspace {
     return new TaskWorkspace(taskId, workspacePath, workspaceId);
   }
 
-  async runCommand(
-    command: string,
-    args: string[] = [],
-    timeoutMs = 30_000,
-    maxOutputBytes = 1024 * 1024
-  ): Promise<CommandExecutionResult> {
-    const startTime = performance.now();
+  /**
+   * Builds an isolated, scrubbed environment with zero inherited credentials or API keys.
+   */
+  public static buildScrubbedEnvironment(): Record<string, string> {
+    const allowedEnvKeys = new Set([
+      'PATH',
+      'HOME',
+      'USER',
+      'SHELL',
+      'LANG',
+      'TMPDIR',
+      'TEMP',
+      'TMP',
+      'TERM',
+      'CARGO_HOME',
+      'RUSTUP_HOME',
+      'RUST_BACKTRACE',
+    ]);
 
-    // Environment scrubbing (credential isolation)
     const scrubbedEnv: Record<string, string> = {
       PATH: process.env.PATH ?? '/usr/bin:/bin:/usr/sbin:/sbin:/usr/local/bin:/opt/homebrew/bin',
       HOME: process.env.HOME ?? '/tmp',
@@ -88,7 +111,66 @@ export class TaskWorkspace {
       LANG: process.env.LANG ?? 'en_US.UTF-8',
       TMPDIR: process.env.TMPDIR ?? os.tmpdir(),
       TERM: 'dumb',
+      RUST_BACKTRACE: '1',
     };
+
+    if (process.env.CARGO_HOME) scrubbedEnv.CARGO_HOME = process.env.CARGO_HOME;
+    if (process.env.RUSTUP_HOME) scrubbedEnv.RUSTUP_HOME = process.env.RUSTUP_HOME;
+
+    // Defense-in-depth: assert no credential, token, key, or secret leaks through
+    const forbiddenPatterns = [
+      /KEY/i,
+      /TOKEN/i,
+      /SECRET/i,
+      /AUTH/i,
+      /PASS/i,
+      /CREDENTIAL/i,
+      /BIFROST/i,
+      /TAVILY/i,
+      /OPENAI/i,
+      /ANTHROPIC/i,
+      /AWS/i,
+      /GITHUB/i,
+      /GH_/i,
+      /PRIVATE/i,
+      /API/i,
+      /BEARER/i,
+    ];
+
+    for (const key of Object.keys(scrubbedEnv)) {
+      if (!allowedEnvKeys.has(key) || forbiddenPatterns.some((pattern) => pattern.test(key))) {
+        delete scrubbedEnv[key];
+      }
+    }
+
+    return scrubbedEnv;
+  }
+
+  async runCommand(
+    command: string,
+    args: string[] = [],
+    timeoutMs = 30_000,
+    maxOutputBytes = 1024 * 1024
+  ): Promise<CommandExecutionResult> {
+    const startTime = performance.now();
+
+    // Verify workspace directory boundary
+    const resolvedPath = path.resolve(this.workspacePath);
+    if (!resolvedPath || resolvedPath === '/' || resolvedPath === os.homedir()) {
+      return {
+        exitCode: 126,
+        stdout: '',
+        stderr: `Security rejection: Workspace path '${this.workspacePath}' is not an isolated workspace directory.`,
+        durationMs: performance.now() - startTime,
+        timedOut: false,
+        cancelled: false,
+        outputLimitExceeded: false,
+        error: 'Security rejection: invalid workspace root',
+      };
+    }
+
+    // Environment scrubbing (credential isolation)
+    const scrubbedEnv = TaskWorkspace.buildScrubbedEnvironment();
 
     let timedOut = false;
     const cancelled = false;
@@ -161,6 +243,22 @@ export class TaskWorkspace {
         }
       });
 
+      child.on('error', (err) => {
+        if (finished) return;
+        finished = true;
+        if (timer) clearTimeout(timer);
+        resolve({
+          exitCode: 1,
+          stdout: Buffer.concat(stdoutChunks).toString('utf8'),
+          stderr: (err as Error).message,
+          durationMs: performance.now() - startTime,
+          timedOut,
+          cancelled,
+          outputLimitExceeded,
+          error: (err as Error).message,
+        });
+      });
+
       child.on('close', (code) => {
         if (finished) return;
         finished = true;
@@ -179,40 +277,69 @@ export class TaskWorkspace {
     });
   }
 
-  async runAcceptanceTests(): Promise<{
-    passed: boolean;
-    output: string;
-    exitCode: number;
-    passedCount?: number;
-    failedCount?: number;
-  }> {
-    const res = await this.runCommand('cargo', ['test', '--quiet'], 30_000);
-    const passed = res.exitCode === 0 && !res.timedOut;
+  async runAcceptanceTests(timeoutMs = 30_000): Promise<AcceptanceTestResult> {
+    // 1. Snapshot test files to detect any unauthorized mutation during testing
+    const testDir = path.join(this.workspacePath, 'tests');
+    const testSnapshots = new Map<string, string>();
+    try {
+      const files = await fs.readdir(testDir);
+      for (const f of files) {
+        if (f.endsWith('.rs')) {
+          const content = await fs.readFile(path.join(testDir, f), 'utf8');
+          testSnapshots.set(f, crypto.createHash('sha256').update(content).digest('hex'));
+        }
+      }
+    } catch {
+      // No tests directory or not readable
+    }
+
+    // 2. Execute cargo test with explicit binary and argument array under isolated scrubbed environment
+    const res = await this.runCommand('cargo', ['test'], timeoutMs);
     const combinedOutput = `${res.stdout}\n${res.stderr}`;
 
-    let passedCount: number | undefined;
-    let failedCount: number | undefined;
-
-    const summaryMatch = combinedOutput.match(
-      /test result:\s*(?:ok|FAILED)\.\s*(\d+)\s+passed;\s*(\d+)\s+failed/i
-    );
-    if (summaryMatch) {
-      passedCount = parseInt(summaryMatch[1], 10);
-      failedCount = parseInt(summaryMatch[2], 10);
-    } else if (passed) {
-      passedCount = 1;
-      failedCount = 0;
-    } else if (res.exitCode !== 0) {
-      passedCount = 0;
-      failedCount = 1;
+    // 3. Post-execution tamper check
+    let tamperDetected = false;
+    for (const [f, expectedHash] of testSnapshots.entries()) {
+      try {
+        const currentContent = await fs.readFile(path.join(testDir, f), 'utf8');
+        const currentHash = crypto.createHash('sha256').update(currentContent).digest('hex');
+        if (currentHash !== expectedHash) {
+          tamperDetected = true;
+          break;
+        }
+      } catch {
+        tamperDetected = true;
+        break;
+      }
     }
+
+    if (tamperDetected) {
+      return {
+        passed: false,
+        output: `${combinedOutput}\nSecurity Alert: Unauthorized modification of frozen test harness detected during execution. Acceptance rejected.`,
+        exitCode: 126,
+        passedCount: 0,
+        failedCount: 1,
+        durationMs: Math.round(res.durationMs),
+        timedOut: false,
+        outputLimitExceeded: false,
+        tamperDetected: true,
+      };
+    }
+
+    const passedMatches = (combinedOutput.match(/test [^\s]+ \.\.\. ok/g) || []).length;
+    const failedMatches = (combinedOutput.match(/test [^\s]+ \.\.\. FAILED/g) || []).length;
+    const passed = res.exitCode === 0 && !res.timedOut && !res.outputLimitExceeded && failedMatches === 0;
 
     return {
       passed,
-      output: (res.stderr.trim() || res.stdout.trim()).slice(0, 4000),
-      exitCode: res.exitCode ?? 1,
-      passedCount,
-      failedCount,
+      output: combinedOutput,
+      exitCode: res.exitCode ?? (res.timedOut ? 124 : 101),
+      passedCount: passedMatches,
+      failedCount: passed ? 0 : Math.max(1, failedMatches),
+      durationMs: Math.round(res.durationMs),
+      timedOut: res.timedOut,
+      outputLimitExceeded: res.outputLimitExceeded,
     };
   }
 

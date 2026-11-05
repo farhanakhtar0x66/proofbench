@@ -62,10 +62,11 @@ INSTRUCTIONS & FORMAT RULES:
    A) Structured Localized Search-and-Replace (RECOMMENDED for targeted edits & bugfixes to preserve existing types and imports):
       // File: <relative-path>
       <<<<<<< SEARCH
-      <exact original lines to replace>
+      <exact original lines to replace (do not include // Symbol: context metadata lines)>
       =======
       <replacement lines>
       >>>>>>> REPLACE
+      Note: Use \`<<<<<<< SEARCH\` exactly as shown; do not emit git conflict markers like \`<<<<<<< HEAD\`.
    B) Full File Replacement (use only when writing a completely new file or replacing almost all lines):
       // File: <relative-path>
       \`\`\`rust
@@ -235,7 +236,8 @@ INSTRUCTIONS & FORMAT RULES:
 
     // 7. Output Action Directive
     userPrompt += '<output_directive>\n';
-    userPrompt += 'Produce your modifications adhering strictly to either Full File Replacement or Localized Search-and-Replace.\n';
+    userPrompt += 'Produce your modifications directly without conversational preamble or conversational explanations.\n';
+    userPrompt += 'Prefer Localized Search-and-Replace (<<<<<<< SEARCH ... ======= ... >>>>>>> REPLACE) to conserve tokens and preserve existing code.\n';
     userPrompt += 'Ensure all unit tests compile cleanly with no regressions.\n';
     userPrompt += '</output_directive>';
 
