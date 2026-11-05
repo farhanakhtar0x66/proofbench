@@ -44,5 +44,8 @@ export interface EngineExecutionResult {
   deterministicOperationsCount: number;
   transitionsCount: number;
   deterministicCpuDurationMs: number;
+  controllerCpuMs?: number;
+  childProcessCpuMs?: number;
+  wallDurationMs?: number;
   inferenceDurationMs: number;
 }

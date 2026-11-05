@@ -59,18 +59,18 @@ Your objective: Satisfy all task acceptance constraints and fix compiler or test
 
 INSTRUCTIONS & FORMAT RULES:
 1. You may propose modifications in one of two formats:
-   A) Full File Replacement:
-      // File: <relative-path>
-      \`\`\`rust
-      <complete valid file content>
-      \`\`\`
-   B) Structured Localized Search-and-Replace (for minimal targeted edits):
+   A) Structured Localized Search-and-Replace (RECOMMENDED for targeted edits & bugfixes to preserve existing types and imports):
       // File: <relative-path>
       <<<<<<< SEARCH
       <exact original lines to replace>
       =======
       <replacement lines>
       >>>>>>> REPLACE
+   B) Full File Replacement (use only when writing a completely new file or replacing almost all lines):
+      // File: <relative-path>
+      \`\`\`rust
+      <complete valid file content>
+      \`\`\`
 2. TIER TRANSITION PROPOSALS (Optional):
    You may request execution tier transitions when justified:
    - When in STRONGER_LLM, if the architectural design or multi-module dependency is solved and the remaining work is localized:
@@ -240,18 +240,32 @@ INSTRUCTIONS & FORMAT RULES:
     userPrompt += '</output_directive>';
 
     const systemPrompt = this.STABLE_SYSTEM_PROMPT;
-    const messages = [
-      { role: 'system' as const, content: systemPrompt },
-      { role: 'user' as const, content: userPrompt },
-    ];
-
-    const tokenResult = TokenizerService.count(`${systemPrompt}\n${userPrompt}`, input.tokenizerMode);
+    let finalUserPrompt = userPrompt;
     const allocatedInputBudget = input.maxInputBudget ?? 6000;
     const allocatedOutputBudget = input.maxOutputBudget ?? 2000;
 
+    let tokenResult = TokenizerService.count(`${systemPrompt}\n${finalUserPrompt}`, input.tokenizerMode);
+    if (tokenResult.count > allocatedInputBudget) {
+      // Deterministically compact workspace context to fit within the allocated token budget
+      const excessTokens = tokenResult.count - allocatedInputBudget + 50;
+      const excessChars = excessTokens * 4;
+      const trimmedContext = contextResult.formattedContext.slice(0, Math.max(200, contextResult.formattedContext.length - excessChars));
+
+      finalUserPrompt = userPrompt.replace(
+        `<workspace_context>\n${contextResult.formattedContext}\n</workspace_context>`,
+        `<workspace_context>\n${trimmedContext}\n... [context compacted for model token budget] ...\n</workspace_context>`
+      );
+      tokenResult = TokenizerService.count(`${systemPrompt}\n${finalUserPrompt}`, input.tokenizerMode);
+    }
+
+    const messages = [
+      { role: 'system' as const, content: systemPrompt },
+      { role: 'user' as const, content: finalUserPrompt },
+    ];
+
     return {
       systemPrompt,
-      userPrompt,
+      userPrompt: finalUserPrompt,
       messages,
       inputTokens: tokenResult.count,
       tokenCountMode: tokenResult.mode,

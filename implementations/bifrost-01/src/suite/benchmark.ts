@@ -135,6 +135,8 @@ export interface ControlledRoutingMeasurement {
   totalTokens: number | null;
   wallDurationMs: number | null;
   cpuDurationMs: number | null;
+  controllerCpuMs?: number | null;
+  childProcessCpuMs?: number | null;
   costUsd: number | null;
   turns: number;
   modelCalls: number;
@@ -154,6 +156,8 @@ export interface ControlledRoutingAggregate {
   avgTotalTokens: number | null;
   avgWallDurationMs: number | null;
   avgCpuDurationMs: number | null;
+  avgControllerCpuMs?: number | null;
+  avgChildProcessCpuMs?: number | null;
   avgCostUsd: number | null;
   avgModelCalls: number;
   avgTransitions: number;
@@ -1250,9 +1254,10 @@ export class ComparativeBenchmarkSuite {
         avoidedReqs = result.avoidedModelRequests;
         modelCalls = result.trace.events.filter((e) => e.message.includes('Dispatching turn')).length;
 
-        const wallDurationMs = Math.max(1, Math.round(performance.now() - startWall));
+        const wallDurationMs = result.wallDurationMs ?? Math.max(1, Math.round(performance.now() - startWall));
         const cpuDiff = process.cpuUsage(startCpu);
-        const cpuDurationMs = Math.max(1, Math.round((cpuDiff.user + cpuDiff.system) / 1000));
+        const cpuDurationMs = result.controllerCpuMs ?? Math.max(1, Math.round((cpuDiff.user + cpuDiff.system) / 1000));
+        const childCpuMs = result.childProcessCpuMs ?? 0;
 
         measurements[p.policy].push({
           policy: p.policy,
@@ -1267,6 +1272,8 @@ export class ComparativeBenchmarkSuite {
           totalTokens: totTok,
           wallDurationMs,
           cpuDurationMs,
+          controllerCpuMs: cpuDurationMs,
+          childProcessCpuMs: childCpuMs,
           costUsd: cost,
           turns,
           modelCalls,
@@ -1297,6 +1304,12 @@ export class ComparativeBenchmarkSuite {
       const validCpu = ms.map((m) => m.cpuDurationMs).filter((v): v is number => typeof v === 'number');
       const avgCpu = validCpu.length > 0 ? Math.round(validCpu.reduce((a, b) => a + b, 0) / validCpu.length) : null;
 
+      const validCtrlCpu = ms.map((m) => m.controllerCpuMs).filter((v): v is number => typeof v === 'number');
+      const avgCtrlCpu = validCtrlCpu.length > 0 ? Math.round(validCtrlCpu.reduce((a, b) => a + b, 0) / validCtrlCpu.length) : null;
+
+      const validChildCpu = ms.map((m) => m.childProcessCpuMs).filter((v): v is number => typeof v === 'number');
+      const avgChildCpu = validChildCpu.length > 0 ? Math.round(validChildCpu.reduce((a, b) => a + b, 0) / validChildCpu.length) : null;
+
       const validCost = ms.map((m) => m.costUsd).filter((v): v is number => typeof v === 'number');
       const avgCost = validCost.length > 0 ? Number((validCost.reduce((a, b) => a + b, 0) / validCost.length).toFixed(6)) : null;
 
@@ -1314,21 +1327,23 @@ export class ComparativeBenchmarkSuite {
         avgTotalTokens: avgTokens,
         avgWallDurationMs: avgWall,
         avgCpuDurationMs: avgCpu,
+        avgControllerCpuMs: avgCtrlCpu,
+        avgChildProcessCpuMs: avgChildCpu,
         avgCostUsd: avgCost,
         avgModelCalls: avgCalls,
         avgTransitions: avgTrans,
       };
     }
 
-    // Attribution Calculations: report strictly measured values or null when unisolated
+    // Attribution Calculations: report strictly measured values or null when unisolated (signed, no Math.max suppression)
     const adaptiveSummary = summary.controlled_bidirectional_adaptive;
     const escalationSummary = summary.controlled_escalation_only;
     const frontierSummary = summary.controlled_direct_frontier;
 
-    // Deterministic tooling savings: measured if non-LLM pass completed task with 0 LLM tokens vs a model arm
+    // Deterministic tooling savings: measured difference between frontier baseline and adaptive when 0-call pass
     const avoidedRequests = measurements.controlled_bidirectional_adaptive[0]?.avoidedModelRequests ?? 0;
-    const deterministicToolingTokensSaved = (avoidedRequests > 0 && frontierSummary.avgTotalTokens !== null)
-      ? Math.max(0, frontierSummary.avgTotalTokens - (adaptiveSummary.avgTotalTokens ?? 0))
+    const deterministicToolingTokensSaved = (avoidedRequests > 0 && frontierSummary.avgTotalTokens !== null && adaptiveSummary.avgTotalTokens !== null)
+      ? frontierSummary.avgTotalTokens - adaptiveSummary.avgTotalTokens
       : null;
 
     // Context compilation is shared across all arms in this benchmark; differential effect requires independent ablation
@@ -1337,13 +1352,13 @@ export class ComparativeBenchmarkSuite {
     // Model selection savings: measured difference between starting in frontier vs escalating only on failure
     const modelSelectionTokensSaved =
       frontierSummary.avgTotalTokens !== null && escalationSummary.avgTotalTokens !== null
-        ? Math.max(0, frontierSummary.avgTotalTokens - escalationSummary.avgTotalTokens)
+        ? frontierSummary.avgTotalTokens - escalationSummary.avgTotalTokens
         : null;
 
     // Bidirectional handoff savings: measured difference between escalation-only vs full bidirectional adaptive
     const bidirectionalHandoffTokensSaved =
       escalationSummary.avgTotalTokens !== null && adaptiveSummary.avgTotalTokens !== null
-        ? Math.max(0, escalationSummary.avgTotalTokens - adaptiveSummary.avgTotalTokens)
+        ? escalationSummary.avgTotalTokens - adaptiveSummary.avgTotalTokens
         : null;
 
     const cpuOverheadMs = adaptiveSummary.avgCpuDurationMs ?? 0;

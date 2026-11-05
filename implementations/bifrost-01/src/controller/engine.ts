@@ -309,6 +309,7 @@ export class AdaptiveExecutionEngine {
     let currentModel = this.modelRegistry.getModelForTier('NON_LLM').id;
     let lastAppliedPatch = '';
     let deterministicCpuDurationMs = 0;
+    let childProcessCpuMs = 0;
     let inferenceDurationMs = 0;
 
     // Resumption State Restoration
@@ -378,6 +379,7 @@ export class AdaptiveExecutionEngine {
 
     // Check if initial workspace already satisfies acceptance tests
     const initialTest = await this.executeAcceptanceTests(workspacePath);
+    childProcessCpuMs += initialTest.durationMs;
     if (initialTest.passed) {
       taskCompleted = true;
       currentPhase = 'COMPLETE';
@@ -588,28 +590,33 @@ export class AdaptiveExecutionEngine {
         });
 
         if (mechanicalCandidates.length > 0) {
-          const candidate = mechanicalCandidates[0];
-          addTraceEvent('output', `Applying mechanical fix: ${candidate.description}`);
-          const mechResult = await MechanicalTransformer.applyCandidate(
-            candidate,
-            workspacePath,
-            this.approvalEngine,
-            turn
-          );
+          const appliedFiles = new Set<string>();
+          for (const candidate of mechanicalCandidates) {
+            if (appliedFiles.has(candidate.filePath)) continue;
+            addTraceEvent('output', `Applying mechanical fix: ${candidate.description}`);
+            const mechResult = await MechanicalTransformer.applyCandidate(
+              candidate,
+              workspacePath,
+              this.approvalEngine,
+              turn
+            );
 
-          if (mechResult.applied && mechResult.filePath) {
-            appliedModificationsCount++;
-            lastAppliedPatch = candidate.fullFileContent || '';
-            await durableStore.savePatch(`patch-turn-${turn}-mech`, {
-              type: candidate.type,
-              path: mechResult.filePath,
-              afterHash: ContextCompiler.computeRevision(candidate.fullFileContent || ''),
-              patchContent: candidate.description,
-            });
-            addTraceEvent('output', `Mechanical fix applied to ${mechResult.filePath} (${mechResult.bytesWritten} bytes)`);
-          } else {
-            addTraceEvent('error', `Mechanical fix failed or was rejected: ${mechResult.error}`);
-            allActionsApproved = false;
+            if (mechResult.applied && mechResult.filePath) {
+              appliedFiles.add(candidate.filePath);
+              appliedModificationsCount++;
+              lastAppliedPatch = candidate.fullFileContent || '';
+              const patchSuffix = candidate.filePath.replace(/[^a-zA-Z0-9_-]/g, '_');
+              await durableStore.savePatch(`patch-turn-${turn}-mech-${patchSuffix}`, {
+                type: candidate.type,
+                path: mechResult.filePath,
+                afterHash: ContextCompiler.computeRevision(candidate.fullFileContent || ''),
+                patchContent: candidate.description,
+              });
+              addTraceEvent('output', `Mechanical fix applied to ${mechResult.filePath} (${mechResult.bytesWritten} bytes)`);
+            } else {
+              addTraceEvent('error', `Mechanical fix failed or was rejected: ${mechResult.error}`);
+              allActionsApproved = false;
+            }
           }
         }
       } else {
@@ -623,13 +630,20 @@ export class AdaptiveExecutionEngine {
         });
 
         // 1. Context Compilation
-        const contextResult = await this.contextCompiler.compileContext(
+        const modelDesc = this.modelRegistry.getModel(currentModel);
+        const modelContextWindow = modelDesc?.contextWindow ?? 4096;
+        const targetInputBudget = Math.min(2400, modelContextWindow - 1200);
+        const targetContextBudget = Math.min(1400, Math.max(600, targetInputBudget - 1000));
+
+        const contextCompiler = new ContextCompiler({ maxTokenBudget: targetContextBudget });
+        const contextResult = await contextCompiler.compileContext(
           workspacePath,
           lastErrorOutput,
           task.prompt
         );
 
         // 2. Prompt Compilation
+        const maxOutputBudget = Math.min(1024, Math.max(512, modelContextWindow - targetInputBudget - 200));
         const compiledPrompt = PromptCompiler.compile({
           task,
           contextResult,
@@ -647,8 +661,8 @@ export class AdaptiveExecutionEngine {
           m3aAutopsyPacket: pendingHandoff?.formattedText,
           boundedInstructions: pendingBoundedInstructions ?? pendingHandoff?.boundedInstructions,
           incrementalEditsNotice: incrementalManager.getIncrementalNotice() ?? undefined,
-          maxInputBudget: Math.min(2600, (this.modelRegistry.getModel(currentModel)?.contextWindow ?? 4096) - 1200),
-          maxOutputBudget: Math.min(1000, 1024),
+          maxInputBudget: targetInputBudget,
+          maxOutputBudget,
           activeModel: currentModel,
         });
 
@@ -663,6 +677,7 @@ export class AdaptiveExecutionEngine {
           gatewayResponse = await this.bifrostClient.createChatCompletion({
             model: currentModel,
             messages: compiledPrompt.messages,
+            max_tokens: compiledPrompt.allocatedOutputBudget ?? maxOutputBudget,
           });
           inferenceDurationMs += performance.now() - callStart;
           totalModelCalls++;
@@ -697,6 +712,32 @@ export class AdaptiveExecutionEngine {
         }
 
         const modelOutput = gatewayResponse.choices?.[0]?.message?.content || '';
+        const callLatencyMs = Math.round(performance.now() - callStart);
+
+        addTraceEvent(
+          'output',
+          `Inference turn ${turn} completed by ${gatewayResponse.model || currentModel} (${gatewayResponse.usage?.prompt_tokens ?? 0} in, ${gatewayResponse.usage?.completion_tokens ?? 0} out)`,
+          {
+            modelInference: {
+              turn,
+              tier: currentTier,
+              requestedModel: currentModel,
+              actualModel: gatewayResponse.model || currentModel,
+              provider: gatewayResponse.bifrost_metadata?.provider || (gatewayResponse.bifrost_metadata?.fallback_invoked ? 'fallback' : 'local-llamacpp'),
+              routingMetadata: {
+                latencyMs: callLatencyMs,
+                ...gatewayResponse.bifrost_metadata,
+              },
+              promptTokens: gatewayResponse.usage?.prompt_tokens ?? 0,
+              completionTokens: gatewayResponse.usage?.completion_tokens ?? 0,
+              totalTokens: (gatewayResponse.usage?.prompt_tokens ?? 0) + (gatewayResponse.usage?.completion_tokens ?? 0),
+              sourceRevision: await ContextDocumentManager.computeSourceRevision(workspacePath),
+              transitionReason: controllerState.transitions[controllerState.transitions.length - 1]?.reason,
+              boundedInstructions: pendingBoundedInstructions,
+              timestamp: new Date().toISOString(),
+            },
+          }
+        );
 
         // 4. Check for Model Transition Proposal (e.g. Stronger -> Small delegation)
         const proposal: TierTransitionProposal | null = UniversalHandoffProtocol.parseTransitionProposal(
@@ -749,6 +790,7 @@ export class AdaptiveExecutionEngine {
                 await ContextDocumentManager.computeSourceRevision(workspacePath),
                 { handoffId: pendingHandoff.id, direction: pendingHandoff.direction, targetTier: 'SMALL_LLM' }
               );
+              m2Detector.reset();
             } else if (proposal.targetTier === 'STRONGER_LLM') {
               const strongerModelId = this.modelRegistry.getModelForTier('STRONGER_LLM').id;
               const latestDiag = diagnosticsHistory[diagnosticsHistory.length - 1];
@@ -884,6 +926,7 @@ export class AdaptiveExecutionEngine {
       controllerState.deterministicOperationsCount++;
 
       const testResult = await this.executeAcceptanceTests(workspacePath);
+      childProcessCpuMs += testResult.durationMs;
       lastErrorOutput = testResult.output;
       lastErrorSignature = `${testResult.exitCode}:${testResult.output.slice(0, 100)}`;
 
@@ -989,12 +1032,16 @@ export class AdaptiveExecutionEngine {
       });
 
       if (stagnation.shouldHalt) {
-        addTraceEvent('error', `M2 Stagnation detected: ${stagnation.message}`, {
-          turn,
-          stagnationReason: stagnation.reason,
-        });
+        if (pendingHandoff && (pendingHandoff as { direction?: string }).direction === 'stronger_to_small') {
+          // Bounded downward delegation in progress; allow small LLM to proceed without stagnation halt
+          m2Detector.reset();
+        } else {
+          addTraceEvent('error', `M2 Stagnation detected: ${stagnation.message}`, {
+            turn,
+            stagnationReason: stagnation.reason,
+          });
 
-        if (currentTier === 'SMALL_LLM' && this.routingPolicy !== 'direct_small') {
+          if (currentTier === 'SMALL_LLM' && this.routingPolicy !== 'direct_small') {
           // Build M3a Failure Autopsy and prepare escalation to STRONGER_LLM
           const strongerModelId = this.modelRegistry.getModelForTier('STRONGER_LLM').id;
           const autopsy = M3aFailureAutopsyBuilder.buildAutopsyPacket({
@@ -1004,7 +1051,7 @@ export class AdaptiveExecutionEngine {
             attempts: m2Detector.getAttempts(),
             stagnationReason: stagnation.message,
             escalationModel: strongerModelId,
-            maxTokenBudget: 2000,
+            maxTokenBudget: 600,
           });
 
           pendingHandoff = UniversalHandoffProtocol.createHandoff({
@@ -1026,7 +1073,7 @@ export class AdaptiveExecutionEngine {
               rawOutputSnippet: testResult.output.slice(0, 500),
             },
             priorAttemptsSummary: autopsy.formattedPacket,
-            tokenBudget: 2000,
+            tokenBudget: 600,
           });
 
           addTraceEvent(
@@ -1044,6 +1091,7 @@ export class AdaptiveExecutionEngine {
           break;
         }
       }
+    }
     }
 
     // =========================================================================
@@ -1239,16 +1287,20 @@ export class AdaptiveExecutionEngine {
       deterministicOperationsCount: controllerState.deterministicOperationsCount,
       transitionsCount: controllerState.transitions.length,
       deterministicCpuDurationMs: Math.max(1, Math.round(deterministicCpuDurationMs)),
+      controllerCpuMs: Math.max(1, Math.round(deterministicCpuDurationMs)),
+      childProcessCpuMs: Math.round(childProcessCpuMs),
+      wallDurationMs: Math.max(1, Math.round(performance.now() - startTime)),
       inferenceDurationMs: Math.round(inferenceDurationMs),
     };
   }
 
   private async executeAcceptanceTests(
     workspacePath: string
-  ): Promise<{ passed: boolean; output: string; exitCode: number; passedCount: number; failedCount: number }> {
+  ): Promise<{ passed: boolean; output: string; exitCode: number; passedCount: number; failedCount: number; durationMs: number }> {
     const { exec } = await import('node:child_process');
     const { promisify } = await import('node:util');
     const execAsync = promisify(exec);
+    const start = performance.now();
 
     try {
       const { stdout, stderr } = await execAsync('cargo test', {
@@ -1263,6 +1315,7 @@ export class AdaptiveExecutionEngine {
         exitCode: 0,
         passedCount,
         failedCount: 0,
+        durationMs: Math.round(performance.now() - start),
       };
     } catch (err: unknown) {
       const error = err as { stdout?: string; stderr?: string; code?: number };
@@ -1275,6 +1328,7 @@ export class AdaptiveExecutionEngine {
         exitCode: error.code || 101,
         passedCount,
         failedCount,
+        durationMs: Math.round(performance.now() - start),
       };
     }
   }
@@ -1437,6 +1491,9 @@ export class AdaptiveExecutionEngine {
       deterministicOperationsCount: 0,
       transitionsCount: 0,
       deterministicCpuDurationMs: cpuDuration,
+      controllerCpuMs: cpuDuration,
+      childProcessCpuMs: 0,
+      wallDurationMs: Math.max(1, Math.round(duration)),
       inferenceDurationMs: 0,
     };
   }

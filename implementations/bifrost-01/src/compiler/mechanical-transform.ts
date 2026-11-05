@@ -138,6 +138,39 @@ export class MechanicalTransformer {
         }
       }
 
+      // Match: help: consider importing this struct/enum/type/trait
+      //   |
+      // 1 + use crate::Event;
+      //   |
+      const importHelpMatch = line.match(/help:\s*consider importing this (?:struct|enum|type|trait|function)(?:\s+through its public re-export)?/i);
+      if (importHelpMatch) {
+        const locLine = lines.slice(Math.max(0, i - 6), i + 2).find((l) => l.trim().startsWith('-->'));
+        const addLine = lines.slice(i, i + 5).find((l) => /^\s*\d+\s*\+\s*use\s+/.test(l));
+        if (locLine && addLine) {
+          const locMatch = locLine.match(/-->\s*([^:]+):(\d+):(\d+)/);
+          const addMatch = addLine.match(/^\s*(\d+)\s*\+\s*(use\s+[^;]+;)/);
+          if (locMatch && addMatch) {
+            const relPath = locMatch[1].trim();
+            const importStmt = addMatch[2].trim();
+            const content = sourceFiles.get(relPath);
+            if (content && !content.includes(importStmt)) {
+              const fileLines = content.split('\n');
+              const insertLineIdx = Math.max(0, parseInt(addMatch[1], 10) - 1);
+              fileLines.splice(insertLineIdx, 0, importStmt);
+              candidates.push({
+                type: 'compiler_suggested_fix',
+                filePath: relPath,
+                description: `Add compiler-suggested import '${importStmt}' at ${relPath}:${insertLineIdx + 1}`,
+                originalText: '',
+                replacementText: importStmt,
+                fullFileContent: fileLines.join('\n'),
+                confidence: 'guaranteed',
+              });
+            }
+          }
+        }
+      }
+
       // Match: warning/error: unused variable: `...`
       const unusedVarMatch = line.match(/(?:warning|error):\s*unused variable:\s*`([^`]+)`/i);
       if (unusedVarMatch) {

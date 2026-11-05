@@ -32,11 +32,34 @@ export const HandoffPacketExportSchema = z.object({
 
 export type HandoffPacketExport = z.infer<typeof HandoffPacketExportSchema>;
 
+export const ModelInferenceProvenanceSchema = z.object({
+  turn: z.number().int().positive(),
+  tier: z.enum(['SMALL_LLM', 'STRONGER_LLM']),
+  requestedModel: z.string().min(1),
+  actualModel: z.string().min(1),
+  provider: z.string().min(1),
+  routingMetadata: z.object({
+    endpoint: z.string().optional(),
+    latencyMs: z.number().nonnegative().optional(),
+    httpStatus: z.number().optional(),
+    is_fallback: z.boolean().optional(),
+  }).passthrough().optional(),
+  promptTokens: z.number().int().nonnegative(),
+  completionTokens: z.number().int().nonnegative(),
+  totalTokens: z.number().int().nonnegative(),
+  sourceRevision: z.string().min(1),
+  transitionReason: z.string().optional(),
+  boundedInstructions: z.string().optional(),
+  timestamp: z.string(),
+}).strict();
+
+export type ModelInferenceProvenance = z.infer<typeof ModelInferenceProvenanceSchema>;
+
 export const AttributionBreakdownSchema = z.object({
-  deterministicToolingTokensSaved: z.number().int().nonnegative().nullable(),
-  contextCompilationTokensSaved: z.number().int().nonnegative().nullable(),
-  modelSelectionTokensSaved: z.number().int().nonnegative().nullable(),
-  bidirectionalHandoffTokensSaved: z.number().int().nonnegative().nullable(),
+  deterministicToolingTokensSaved: z.number().int().nullable(),
+  contextCompilationTokensSaved: z.number().int().nullable(),
+  modelSelectionTokensSaved: z.number().int().nullable(),
+  bidirectionalHandoffTokensSaved: z.number().int().nullable(),
   cpuOverheadMs: z.number().nonnegative(),
   unisolatedEffects: z.array(z.string()).optional(),
 }).strict();
@@ -55,10 +78,12 @@ export const ControlledPolicySummarySchema = z.object({
   passedTrials: z.number().int().nonnegative(),
   failedTrials: z.number().int().nonnegative(),
   successRatePercent: z.number().min(0).max(100),
-  totalTokensPerAcceptedCompletion: z.number().int().positive().nullable(),
-  avgTotalTokens: z.number().int().positive().nullable(),
+  totalTokensPerAcceptedCompletion: z.number().int().nonnegative().nullable(),
+  avgTotalTokens: z.number().int().nonnegative().nullable(),
   avgWallDurationMs: z.number().positive().nullable(),
   avgCpuDurationMs: z.number().positive().nullable(),
+  avgControllerCpuMs: z.number().positive().nullable().optional(),
+  avgChildProcessCpuMs: z.number().positive().nullable().optional(),
   avgCostUsd: z.number().nullable(),
   avgModelCalls: z.number().nonnegative(),
   avgTransitions: z.number().nonnegative(),

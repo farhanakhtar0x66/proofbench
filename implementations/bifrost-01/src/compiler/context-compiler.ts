@@ -667,6 +667,16 @@ export class ContextCompiler {
       }
     }
 
+    // Ensure import statements in files containing active symbols are prioritized
+    const activeFilePaths = new Set(
+      scoredSymbols.filter((s) => s.isMandatory || s.priorityScore > 20).map((s) => s.symbol.provenance.filePath)
+    );
+    for (const item of scoredSymbols) {
+      if (item.symbol.kind === 'import' && activeFilePaths.has(item.symbol.provenance.filePath)) {
+        item.priorityScore += 50;
+      }
+    }
+
     // 4. Sort symbols by priority score descending
     scoredSymbols.sort((a, b) => b.priorityScore - a.priorityScore);
 
