@@ -25,12 +25,20 @@ export const requestLimit=(value:string|number|undefined)=>{
  if(!Number.isInteger(parsed)||parsed<1||parsed>50)throw new TavilyConfigurationError('TAVILY_MAX_REQUESTS must be a whole number between 1 and 50 in live mode.');
  return parsed;
 };
+export function tavilyTimeoutMs(value:string|number|undefined=process.env.TAVILY_TIMEOUT_MS){
+ if(value===undefined)return 20000;
+ const parsed=typeof value==='number'?value:Number(value);
+ if(!Number.isInteger(parsed)||parsed<1000||parsed>30000)throw new TavilyConfigurationError('TAVILY_TIMEOUT_MS must be a whole number between 1000 and 30000.');
+ return parsed;
+}
 const liveEvidence=(claim:string,results:TavilyResult[],retrievedAt:string,policy?:SourcePolicy)=>rankSources(claim,results,retrievedAt,policy).map(result=>{
  const dates=assessSourceDates(result,retrievedAt);
  return {url:result.url,title:result.title?.trim()||'Tavily result',retrievedAt,publishedAt:dates.publishedAt,updatedAt:dates.updatedAt,effectiveAt:dates.effectiveAt,dateReason:dates.reason,excerpt:(result.originalContent??result.content)?.trim().slice(0,1200)||'No excerpt returned by Tavily.',relation:result.relation,retrieval:'tavily' as const,sourceTier:result.tier,sourceReason:result.reason,duplicateOf:result.duplicateOf,corroborationGroup:result.group};
 });
-export async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch,options:{includePublishedDate?:boolean;dateWindow?:{startDate:string;endDate:string};qualityCandidates?:boolean}={}):Promise<TavilyResult[]> {
- const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(10000),method:'POST',redirect:'error',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',auto_parameters:false,max_results:options.qualityCandidates?6:3,...(options.qualityCandidates?{exclude_domains:['facebook.com']}:{}),include_raw_content:options.qualityCandidates?'text':false,include_answer:false,...(options.includePublishedDate?{include_published_date:true}:{}),...(options.dateWindow?{start_date:options.dateWindow.startDate,end_date:options.dateWindow.endDate,filter_by_published_date:true}:{})})});
+export async function searchTavily(query:string,apiKey:string,fetcher:typeof fetch,options:{includePublishedDate?:boolean;dateWindow?:{startDate:string;endDate:string};qualityCandidates?:boolean;timeoutMs?:string|number}={}):Promise<TavilyResult[]> {
+ const timeoutMs=tavilyTimeoutMs(options.timeoutMs);
+ try{
+ const response=await fetcher('https://api.tavily.com/search',{signal:AbortSignal.timeout(timeoutMs),method:'POST',redirect:'error',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json'},body:JSON.stringify({query,search_depth:'basic',auto_parameters:false,max_results:options.qualityCandidates?6:3,...(options.qualityCandidates?{exclude_domains:['facebook.com']}:{}),include_raw_content:options.qualityCandidates?'text':false,include_answer:false,...(options.includePublishedDate?{include_published_date:true}:{}),...(options.dateWindow?{start_date:options.dateWindow.startDate,end_date:options.dateWindow.endDate,filter_by_published_date:true}:{})})});
  if(!response.ok){
   const reason=response.status===401||response.status===403?'Tavily rejected server credentials. Ask the backend owner to check the key and permissions.':response.status===429?'Tavily reported a rate or account limit. Check account usage before authorizing more requests.':'Tavily is unavailable or returned an unsuccessful response.';
   throw new TavilyRetrievalError(`${reason} No retry was made; the attempted search counts toward the server budget.`);
@@ -43,6 +51,10 @@ export async function searchTavily(query:string,apiKey:string,fetcher:typeof fet
   throw new TavilyRetrievalError('Tavily returned invalid evidence or an unreadable response. No retry was made; the attempted search counts toward the server budget.');
  }
  return data.results.map(result=>({...result,title:result.title??undefined,content:result.content??undefined,raw_content:result.raw_content??undefined,published_date:result.published_date??undefined}));
+ }catch(error){
+  if(error instanceof Error&&['AbortError','TimeoutError'].includes(error.name))throw new TavilyRetrievalError(`Tavily retrieval timed out (configured deadline: ${timeoutMs/1000}s). No retry was made; the attempted search counts toward the server budget.`);
+  throw error;
+ }
 }
 function mockVerification(text:string,asOf:string|undefined,now:string){
  const fixture=asOf?undefined:cases.find(candidate=>candidate.statement===text.trim());
@@ -82,6 +94,7 @@ export async function verifyAnswer(input:VerifyRequest,options:VerifyOptions={})
  if(mode!=='live')throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
  if((options.allowLiveRequests??process.env.ALLOW_LIVE_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. Set ALLOW_LIVE_REQUESTS=true only after approving a request budget.');
  const apiKey=options.apiKey??process.env.TAVILY_API_KEY;if(!apiKey)throw new TavilyConfigurationError('TAVILY_API_KEY is required in live mode.');
+ tavilyTimeoutMs(); // Validate before reserving a search allowance.
  const budget=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);const fetcher=options.fetch??fetch;const verified=[] as ClaimVerification[];
  let shared=options.budget??sharedBudgets.get(fetcher);
  if(!shared){shared=new SearchBudget();sharedBudgets.set(fetcher,shared);}

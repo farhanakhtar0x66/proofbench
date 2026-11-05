@@ -1,3 +1,4 @@
+import {tavilyTimeoutMs} from '../packages/tavily/src/index';
 import {bifrostSettings,hostedReadiness} from '../packages/tavily/src/bifrost-interpreter';
 import {checkBifrostStack} from '../packages/tavily/src/bifrost-status';
 
@@ -11,6 +12,7 @@ export function liveDevelopmentConfig(args:string[],base:NodeJS.ProcessEnv){
  const port=base.PORT??'3001';
  if(!/^\d+$/u.test(port)||Number(port)<1||Number(port)>65535)throw new LiveStartupError('PORT must be a valid local TCP port.');
  const env:NodeJS.ProcessEnv={...base,HOST:'127.0.0.1',PORT:port,LANGUAGE_MODE:'bifrost',CLAIM_EXTRACTION_MODE:'rules',EVIDENCE_COMPARISON_MODE:'llm',TAVILY_MODE:'live',ALLOW_LIVE_REQUESTS:'true',TAVILY_MAX_REQUESTS:String(limit),BIFROST_LLM_MAX_REQUESTS:String(limit),VITE_API_MODE:'live',API_PROXY_TARGET:`http://127.0.0.1:${port}`};
+ try{env.TAVILY_TIMEOUT_MS=String(tavilyTimeoutMs(base.TAVILY_TIMEOUT_MS));}catch{throw new LiveStartupError('TAVILY_TIMEOUT_MS must be a whole number between 1000 and 30000.');}
  if(!env.TAVILY_API_KEY?.trim())throw new LiveStartupError('TAVILY_API_KEY is missing from the ignored local .env.');
  let settings:ReturnType<typeof bifrostSettings>;
  try{settings=bifrostSettings(env);}catch{throw new LiveStartupError('The selected Bifrost provider, model or endpoint is invalid. Review local provider configuration.');}

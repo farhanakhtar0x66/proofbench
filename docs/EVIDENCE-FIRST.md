@@ -58,6 +58,20 @@ curl http://127.0.0.1:3001/api/analysis/readiness
 
 This endpoint is not a provider-health/billing audit. Server-lifetime ceilings are shared by submissions and cached searches do not reset them. Exhaustion blocks further fresh searches; restarting is not authorization to spend more. Provider daily/minute quotas are separate. A single-statement rules-extraction submission needs at most one search and one model comparison, with zero inference retries. Bifrost startup catalog requests are separate metadata requests.
 
+## Search deadlines and missing model requests
+
+The Tavily client deadline is `TAVILY_TIMEOUT_MS=20000` by default, covering both the initial response and its body. It accepts an integer from 1000 to 30000 milliseconds; invalid settings are rejected before reserving a search attempt. The live launcher prints the chosen deadline. A slower response can finish inside that window, but no setting guarantees upstream availability.
+
+Timeouts make one search attempt and never retry automatically or raise the approved search ceiling. The attempted request can still consume a credit. The backend marks retrieval as failed, leaves freshness unavailable, and does not call Groq/Gemini when no evidence was retrieved. Therefore an unchanged model-request counter on the provider dashboard is expected for such a submission. Startup catalog metadata calls remain separate.
+
+For one explicitly chosen manual recheck after restarting Terminal 2:
+
+```sh
+TAVILY_TIMEOUT_MS=20000 npm run dev:live -- --requests 1
+```
+
+This overrides only the running session, and does not edit `.env` or authorize further attempts after that cap. Increasing the wait window adds no automatic searches, fallback providers or model calls.
+
 ## Validation
 
 Run `npm test`, `npm run lint`, `npm run build` and `npm run evaluate` for offline regressions. They validate date/recency separation, primary identity bounds, ambiguous evidence, conflicting evidence, exact quotes, protocol handling and allowance snapshots. They are not live accuracy measurements. Record fresh API checks and saved-source replays separately and retain failures. No arbitrary-statement reliability guarantee is implied by passing examples or test counts.

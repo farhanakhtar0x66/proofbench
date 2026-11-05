@@ -9,7 +9,7 @@ it.each([[],['--requests','0'],['--requests','21'],['--requests','2.5'],['--requ
 it.each(['gemini','groq'])('preserves explicit %s selection',provider=>{
  const config=liveDevelopmentConfig(['--requests','3','--check'],{...base,BIFROST_LLM_PROVIDER:provider,BIFROST_LLM_MODEL:`${provider}/test-model`,GEMINI_API_KEY:'fake-gemini'});expect(config.settings.provider).toBe(provider);expect(config.configurationOnly).toBe(true);
 });
-it.each([{TAVILY_API_KEY:''},{GROQ_API_KEY:''},{BIFROST_FREE_TIER_CONFIRMED:'false'},{BIFROST_LLM_MODEL:'gemini/wrong-route'},{BIFROST_LLM_ENDPOINT:'https://outside.example'},{PORT:'-1'},{PORT:'5173'},{PORT:'8080'}])('fails closed on incomplete or unsafe configuration without leaking values: %j',override=>{
+it.each([{TAVILY_API_KEY:''},{GROQ_API_KEY:''},{BIFROST_FREE_TIER_CONFIRMED:'false'},{BIFROST_LLM_MODEL:'gemini/wrong-route'},{BIFROST_LLM_ENDPOINT:'https://outside.example'},{PORT:'-1'},{PORT:'5173'},{PORT:'8080'},{TAVILY_TIMEOUT_MS:'0'},{TAVILY_TIMEOUT_MS:'30001'}])('fails closed on incomplete or unsafe configuration without leaking values: %j',override=>{
  const env={...base,...override};let message='';try{liveDevelopmentConfig(['--requests','5'],env);}catch(error){message=String(error);}
  expect(message).not.toBe('');expect(message).not.toContain('fake-tavily');expect(message).not.toContain('fake-groq');
 });

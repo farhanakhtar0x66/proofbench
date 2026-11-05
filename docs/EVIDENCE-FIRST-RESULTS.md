@@ -26,3 +26,9 @@ A bounded `dev:live -- --requests N` launcher now validates local configuration,
 ## Manual software-support follow-up
 
 The user subsequently ran the corrected neutral lifecycle query through the website. It still returned inconclusive: Groq assessed one eligible source as contradicting; the other contradicting source failed historical/as-of scope checks, and the official guide was represented by navigation text and excluded on update/publication metadata. [Support-table handling and publication-estimate separation](SUPPORT-TABLES.md) were then corrected and tested offline. No new Tavily/Groq requests were made for that correction; its fresh app outcome remains unconfirmed.
+
+## Search-timeout follow-up
+
+A later manual country/population claim timed out in retrieval before any model comparison. The client had a fixed 10-second deadline. It now has a validated 20-second default (1–30-second configurable bounds), applies the same deadline through response-body reading, reports the chosen duration, and preserves one-attempt accounting with no retry. Retrieval failures explicitly explain why freshness is unavailable and why no Groq/Gemini call occurred. Tests simulate delayed success and body timeout; no new live Tavily or model calls were used to validate this change, and no successful recheck of that country claim is asserted.
+
+Timeout-change validation passed: 829 offline tests across 68 files, lint, build and 6/6 fixture evaluations. The configuration-only live-launcher check printed a 20-second deadline and made no network requests. These checks do not establish that the original timed-out search would succeed with a longer wait.

@@ -1,6 +1,6 @@
 import {excerptBlockingWarning} from './source-passages';
 import {EvidenceRetrievalRequest,EvidenceRetrievalReport} from '../../contracts/src/index';
-import {searchTavily,requestLimit,TavilyConfigurationError} from './index';
+import {searchTavily,requestLimit,tavilyTimeoutMs,TavilyConfigurationError} from './index';
 import {SearchBudget,RequestBudgetExhausted,CachedEvidenceUnavailable} from './budget';
 import {normalizeSource} from './comparison';
 import {canonicalUrl} from './sources';
@@ -32,13 +32,14 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  if((options.allowLiveRequests??process.env.ALLOW_LIVE_REQUESTS)!=='true')throw new TavilyConfigurationError('Live Tavily is disabled. An explicitly approved request budget is required.');
  const apiKey=options.apiKey??process.env.TAVILY_API_KEY;
  if(!apiKey?.trim())throw new TavilyConfigurationError('TAVILY_API_KEY is required in live mode.');
+ const timeoutMs=tavilyTimeoutMs();
  const limit=requestLimit(options.maxRequests??process.env.TAVILY_MAX_REQUESTS);
  const fetcher=options.fetch??fetch;
  let budget=options.budget??budgets.get(fetcher);
  if(!budget){budget=new SearchBudget();budgets.set(fetcher,budget);}
  try{
   const cacheKey=JSON.stringify({profile:'general-passages-v8',query,dateWindow:plan.dateWindow});
-  const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow,qualityCandidates:true}),options.cacheOnly);
+  const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow,qualityCandidates:true,timeoutMs}),options.cacheOnly);
   const evidenceAt=new Date().toISOString();
   const seen=new Set<string>();
   const evidence:ReturnType<typeof EvidenceRetrievalReport.parse>['evidence']=[];

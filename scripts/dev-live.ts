@@ -11,6 +11,7 @@ try{
  try{stored=JSON.parse(await readFile(`.local/b05-bifrost-${config.settings.provider}/config.json`,'utf8'));}catch{throw new LiveStartupError('Prepared gateway configuration is missing or unreadable. Run npm run bifrost:prepare first.');}
  if(!isDeepStrictEqual(stored,buildBifrostConfig(config.env)))throw new LiveStartupError('Prepared gateway configuration differs from the selected provider/model. Review it with bifrost:prepare before starting the gateway.');
  console.log(`LIVE configuration: ${config.settings.provider} / ${config.settings.model}. Rules extraction; model evidence comparison.`);
+ console.log(`Tavily search deadline: ${Number(config.env.TAVILY_TIMEOUT_MS)/1000}s, including response body. A timeout prevents model comparison.`);
  console.log(`Server-lifetime allowance: at most ${config.limit} Tavily Basic searches and ${config.limit} model comparisons. No automatic retries or provider fallback. Saved .env is unchanged.`);
  if(config.configurationOnly){console.log('Configuration-only check passed. No services, health probes, Tavily searches or model requests were started.');}
  else{
