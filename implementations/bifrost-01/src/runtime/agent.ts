@@ -406,7 +406,7 @@ CRITICAL: Preserve all existing struct definitions, traits, enums, derive macros
         const responseContent = gatewayResponse.choices?.[0]?.message?.content || '';
 
         if (this.enableIncrementalEdits) {
-          const proposedMods = IncrementalEditManager.parseProposedModifications(responseContent);
+          const proposedMods = incrementalManager.parseProposedModifications(responseContent);
           if (proposedMods.length > 0) {
             const editResult = await incrementalManager.applyModifications(proposedMods, attempt);
             if (!editResult.success && editResult.errors.length > 0) {

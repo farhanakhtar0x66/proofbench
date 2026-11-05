@@ -30,6 +30,7 @@ import {
   MechanicalTransformer,
   type DiagnosticRecord,
   type ContextCompilationResult,
+  type FileResolutionContext,
 } from '../compiler/index';
 import {
   ModelRegistry,
@@ -852,7 +853,7 @@ export class AdaptiveExecutionEngine {
         currentPhase = 'VALIDATE';
         controllerState.currentPhase = currentPhase;
 
-        const proposedMods = IncrementalEditManager.parseProposedModifications(modelOutput);
+        const proposedMods = incrementalManager.parseProposedModifications(modelOutput);
         if (proposedMods.length > 0) {
           currentPhase = 'APPROVAL';
           controllerState.currentPhase = currentPhase;
@@ -884,7 +885,7 @@ export class AdaptiveExecutionEngine {
           }
         } else {
           // Fallback to full file block / tool call parsing
-          const fullFileMods = this.parseFallbackFileModifications(modelOutput);
+          const fullFileMods = this.parseFallbackFileModifications(modelOutput, incrementalManager.getResolutionContext());
           if (fullFileMods.length === 0 && !pendingBoundedInstructions) {
             addTraceEvent('error', `Turn ${turn}: No actionable file modifications found in ${currentModel} response.`);
           } else {
@@ -1372,46 +1373,13 @@ export class AdaptiveExecutionEngine {
   }
 
   private parseFallbackFileModifications(
-    content: string
+    content: string,
+    context?: FileResolutionContext
   ): Array<{ path: string; content: string }> {
-    const results: Array<{ path: string; content: string }> = [];
-    const normalizedContent = content
-      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:\/\/|###?)\s*(?:File:\s*)?([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, '// File: $1\n')
-      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:File:\s*)([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, 'File: $1\n');
-
-    const blockRegex = /(?:(?:(?:\/\/|###?)\s*(?:File:\s*)?`?([^\r\n`*]+\.rs)`?[^\r\n]*\r?\n)?```(?:rust|rs)?(?:\s*\/\/\s*([^\r\n]+))?\r?\n([\s\S]*?)```)/gi;
-    let match: RegExpExecArray | null;
-
-    while ((match = blockRegex.exec(normalizedContent)) !== null) {
-      let filePath = (match[1] || match[2] || '').trim();
-      const fileContent = match[3];
-
-      // Sanity check: do not treat degenerate comment lines or truncated headers as full file replacements!
-      const trimmed = (fileContent || '').trim();
-      const hasCode = /fn\s+|struct\s+|enum\s+|impl\s+|use\s+|pub\s+|let\s+|mod\s+|trait\s+/i.test(trimmed);
-      if (!hasCode && trimmed.length < 50) {
-        continue;
-      }
-      if (!filePath && fileContent) {
-        if (fileContent.includes('parse_csv_line') || fileContent.includes('struct Event') || fileContent.includes('enum EventType')) {
-          filePath = 'src/event.rs';
-        } else if (fileContent.includes('EventDispatcher')) {
-          filePath = 'src/dispatcher.rs';
-        } else if (fileContent.includes('EventFilter') || fileContent.includes('evaluate_predicate')) {
-          filePath = 'src/filter.rs';
-        } else if (fileContent.includes('parse_event')) {
-          filePath = 'src/parser.rs';
-        } else if (fileContent.includes('EventSink')) {
-          filePath = 'src/sink.rs';
-        } else if (fileContent.includes('sliding_window_sums') || fileContent.includes('ExponentialBackoff')) {
-          filePath = 'src/lib.rs';
-        }
-      }
-      if (filePath && fileContent) {
-        results.push({ path: filePath.replace(/^[`"']+|[`"']+$/g, ''), content: fileContent });
-      }
-    }
-    return results;
+    const mods = IncrementalEditManager.parseProposedModifications(content, context);
+    return mods
+      .filter((m) => m.type === 'full_file' && m.path && !m.unresolved && m.content)
+      .map((m) => ({ path: m.path, content: m.content! }));
   }
 
   private buildFailureResult(

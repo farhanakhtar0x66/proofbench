@@ -33,6 +33,7 @@
     "demonstrate:adaptive:v1-3": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-adaptive-v1-3.ts",
     "demonstrate:adaptive:v1-4:live": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-adaptive-v1-4-live.ts",
     "demonstrate:adaptive:v1-5:live": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-adaptive-v1-5-live.ts",
+    "demonstrate:task10:live": "node --env-file-if-exists=.env --import tsx scripts/verify-live-task10.ts",
     "evaluate": "node --import tsx scripts/evaluate.ts",
     "check": "npm run lint && npm run typecheck && npm test && npm run evaluate && npm run build"
   },

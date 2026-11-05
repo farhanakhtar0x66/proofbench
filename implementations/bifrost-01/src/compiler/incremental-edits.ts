@@ -2,6 +2,7 @@ import * as crypto from 'node:crypto';
 import * as fs from 'node:fs/promises';
 import * as path from 'node:path';
 import { HostApprovalEngine, ProposedToolAction } from '../governance/approval';
+import type { RustSymbol } from './context-compiler';
 
 export interface ProposedModification {
   path: string;
@@ -10,6 +11,14 @@ export interface ProposedModification {
   searchBlock?: string; // search string for localized_patch
   replaceBlock?: string; // replacement string for localized_patch
   expectedRevision?: string; // optional file revision hash
+  unresolved?: boolean;
+  resolutionError?: string;
+}
+
+export interface FileResolutionContext {
+  workspacePath?: string;
+  fileContents?: Record<string, string>;
+  symbols?: RustSymbol[];
 }
 
 export interface EditValidationResult {
@@ -45,6 +54,8 @@ export class IncrementalEditManager {
   private approvalEngine: HostApprovalEngine;
   private currentSnapshot: WorkspaceRevisionSnapshot | null = null;
   private revisionHistory: WorkspaceRevisionSnapshot[] = [];
+  private cachedFileContents: Record<string, string> = {};
+  private cachedSymbols: RustSymbol[] = [];
 
   constructor(workspacePath: string, approvalEngine: HostApprovalEngine) {
     this.workspacePath = workspacePath;
@@ -84,6 +95,7 @@ export class IncrementalEditManager {
             try {
               const content = await fs.readFile(fullP, 'utf8');
               fileRevisions[relP] = IncrementalEditManager.hashContent(content);
+              this.cachedFileContents[relP] = content;
             } catch {
               // ignore
             }
@@ -99,6 +111,21 @@ export class IncrementalEditManager {
     const compositeString = sortedKeys.map((k) => `${k}:${fileRevisions[k]}`).join('|');
     const workspaceRevisionId = IncrementalEditManager.hashContent(compositeString);
 
+    // Index symbols using ContextCompiler for deterministic file resolution
+    try {
+      const { ContextCompiler } = await import('./context-compiler.js');
+      const compiler = new ContextCompiler();
+      const allSymbols: RustSymbol[] = [];
+      for (const [relP, content] of Object.entries(this.cachedFileContents)) {
+        const rev = fileRevisions[relP] || IncrementalEditManager.hashContent(content);
+        const symbols = await compiler.parseRustSymbols(content, relP, rev);
+        allSymbols.push(...symbols);
+      }
+      this.cachedSymbols = allSymbols;
+    } catch {
+      // Resilient fallback if tree-sitter or lexical scanner fails
+    }
+
     const snapshot: WorkspaceRevisionSnapshot = {
       workspaceRevisionId,
       fileRevisions,
@@ -108,6 +135,18 @@ export class IncrementalEditManager {
     this.currentSnapshot = snapshot;
     this.revisionHistory.push(snapshot);
     return snapshot;
+  }
+
+  getResolutionContext(): FileResolutionContext {
+    return {
+      workspacePath: this.workspacePath,
+      fileContents: this.cachedFileContents,
+      symbols: this.cachedSymbols,
+    };
+  }
+
+  parseProposedModifications(responseText: string): ProposedModification[] {
+    return IncrementalEditManager.parseProposedModifications(responseText, this.getResolutionContext());
   }
 
   getLatestSnapshot(): WorkspaceRevisionSnapshot | null {
@@ -215,9 +254,163 @@ Only the modified code delta requires inspection; do not revert unchanged files.
   }
 
   /**
+   * Deterministically resolves target file for a proposed code modification.
+   * Priority order:
+   * 1. Verified explicit file header (e.g. // File: src/...)
+   * 2. Consecutive patch path inheritance (only if inherited file actually contains search block)
+   * 3. Unique match against actual workspace source (for localized patches)
+   * 4. Tree-sitter symbol declarations/implementations matching workspace symbols
+   * 5. Unresolved: rejects modification rather than guessing src/lib.rs
+   */
+  static resolveTargetFile(
+    rawPathCandidate: string,
+    blockContent: { searchBlock?: string; replaceBlock?: string; content?: string },
+    type: 'localized_patch' | 'full_file',
+    currentInheritedPath: string,
+    context?: FileResolutionContext
+  ): { path: string; unresolved?: boolean; resolutionError?: string } {
+    const fileContents = context?.fileContents || {};
+    const symbols = context?.symbols || [];
+
+    // Step 1: Explicit candidate from header
+    if (rawPathCandidate) {
+      let clean = rawPathCandidate.replace(/^[`"']+|[`"']+$/g, '').trim();
+      clean = clean.replace(/\\/g, '/');
+
+      // If it already has directory prefix (src/ or tests/), verify or normalize
+      if (clean.startsWith('src/') || clean.startsWith('tests/')) {
+        return { path: clean };
+      }
+
+      // Bare filename: check if it exists in known workspace files
+      if (fileContents[`src/${clean}`]) {
+        return { path: `src/${clean}` };
+      }
+      if (fileContents[`tests/${clean}`]) {
+        return { path: `tests/${clean}` };
+      }
+
+      // If directory not specified, prefix src/
+      if (!clean.includes('/')) {
+        return { path: `src/${clean}` };
+      }
+
+      return { path: clean };
+    }
+
+    // Step 2: Multi-patch inheritance (consecutive patch in same response)
+    // Only inherit if the inherited file actually contains this searchBlock!
+    if (currentInheritedPath && type === 'localized_patch' && blockContent.searchBlock) {
+      const inheritedContent = fileContents[currentInheritedPath];
+      if (inheritedContent) {
+        const normalizedSearch = blockContent.searchBlock.replace(/\r\n/g, '\n').trim();
+        const strippedSearch = normalizedSearch.replace(/^\s*\/\/\s*Symbol:[^\r\n]*\r?\n?/gm, '').trim();
+        if (inheritedContent.includes(normalizedSearch) || (strippedSearch && inheritedContent.includes(strippedSearch))) {
+          return { path: currentInheritedPath };
+        }
+      }
+    }
+
+    // Step 3: Unique match against actual workspace source (for localized_patch)
+    if (type === 'localized_patch' && blockContent.searchBlock && Object.keys(fileContents).length > 0) {
+      const normalizedSearch = blockContent.searchBlock.replace(/\r\n/g, '\n').trim();
+      const strippedSearch = normalizedSearch.replace(/^\s*\/\/\s*Symbol:[^\r\n]*\r?\n?/gm, '').trim();
+
+      const matchingFiles: string[] = [];
+      for (const [relPath, content] of Object.entries(fileContents)) {
+        if (relPath.startsWith('target/') || relPath.startsWith('.git/')) continue;
+        const normalizedFile = content.replace(/\r\n/g, '\n');
+        if (
+          (normalizedSearch && normalizedFile.includes(normalizedSearch)) ||
+          (strippedSearch && normalizedFile.includes(strippedSearch))
+        ) {
+          matchingFiles.push(relPath);
+        }
+      }
+
+      if (matchingFiles.length === 1) {
+        return { path: matchingFiles[0] };
+      }
+
+      if (matchingFiles.length > 1) {
+        return {
+          path: '',
+          unresolved: true,
+          resolutionError: `Ambiguous target file: search block matches multiple workspace files (${matchingFiles.join(', ')}). Specify explicit file header (e.g. '// File: src/...').`,
+        };
+      }
+    }
+
+    // Step 4: Tree-sitter symbol information
+    const textToScan = [
+      blockContent.searchBlock || '',
+      blockContent.replaceBlock || '',
+      blockContent.content || '',
+    ].join('\n');
+
+    if (symbols.length > 0 && textToScan.trim().length > 0) {
+      // Extract declared/implemented symbol names in textToScan
+      const declaredNames = new Set<string>();
+
+      // 1. fn definitions
+      for (const m of textToScan.matchAll(/(?:pub\s+)?fn\s+([a-zA-Z0-9_]+)/g)) {
+        declaredNames.add(m[1]);
+      }
+      // 2. struct definitions
+      for (const m of textToScan.matchAll(/(?:pub\s+)?struct\s+([a-zA-Z0-9_]+)/g)) {
+        declaredNames.add(m[1]);
+      }
+      // 3. enum definitions
+      for (const m of textToScan.matchAll(/(?:pub\s+)?enum\s+([a-zA-Z0-9_]+)/g)) {
+        declaredNames.add(m[1]);
+      }
+      // 4. trait definitions
+      for (const m of textToScan.matchAll(/(?:pub\s+)?trait\s+([a-zA-Z0-9_]+)/g)) {
+        declaredNames.add(m[1]);
+      }
+      // 5. impl blocks: impl Foo or impl Trait for Foo
+      for (const m of textToScan.matchAll(/impl(?:\s*<[^>]+>)?\s+(?:[a-zA-Z0-9_]+::)*([a-zA-Z0-9_]+)/g)) {
+        if (m[1] !== 'for') declaredNames.add(m[1]);
+      }
+      for (const m of textToScan.matchAll(/impl.*?\s+for\s+([a-zA-Z0-9_]+)/g)) {
+        declaredNames.add(m[1]);
+      }
+
+      // Match declared names against symbols in workspace
+      const candidateFiles = new Set<string>();
+      for (const sym of symbols) {
+        if (sym.kind === 'test' || sym.kind === 'import') continue;
+        const cleanSymName = sym.name.replace(/^impl_/, '');
+        if (declaredNames.has(sym.name) || declaredNames.has(cleanSymName)) {
+          candidateFiles.add(sym.provenance.filePath);
+        }
+      }
+
+      if (candidateFiles.size === 1) {
+        return { path: Array.from(candidateFiles)[0] };
+      }
+
+      if (candidateFiles.size > 1) {
+        return {
+          path: '',
+          unresolved: true,
+          resolutionError: `Ambiguous target file: declared symbols match multiple workspace files (${Array.from(candidateFiles).join(', ')}). Specify explicit file header (e.g. '// File: src/...').`,
+        };
+      }
+    }
+
+    // Step 5: Failed to establish destination deterministically
+    return {
+      path: '',
+      unresolved: true,
+      resolutionError: 'Target file could not be deterministically resolved (no explicit header, no unique search block match, and no unique Tree-sitter symbol match). Specify explicit file header (e.g. \'// File: src/...\').',
+    };
+  }
+
+  /**
    * Parses model response into full-file replacements and localized search-and-replace blocks.
    */
-  static parseProposedModifications(responseText: string): ProposedModification[] {
+  static parseProposedModifications(responseText: string, context?: FileResolutionContext): ProposedModification[] {
     const results: ProposedModification[] = [];
     if (!responseText) return results;
 
@@ -251,37 +444,25 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         }
       }
 
-      if (!rawPath && currentFilePath) {
-        rawPath = currentFilePath;
+      const resolution = IncrementalEditManager.resolveTargetFile(
+        rawPath,
+        { searchBlock, replaceBlock },
+        'localized_patch',
+        currentFilePath,
+        context
+      );
+
+      if (resolution.path) {
+        currentFilePath = resolution.path;
       }
 
-      if (!rawPath) {
-        if (searchBlock.includes('parse_event') || replaceBlock.includes('parse_event')) {
-          rawPath = 'src/parser.rs';
-        } else if (searchBlock.includes('EventSink') || replaceBlock.includes('EventSink')) {
-          rawPath = 'src/sink.rs';
-        } else if (searchBlock.includes('calculate_checksum') || searchBlock.includes('parse_csv_line') || searchBlock.includes('impl Event') || replaceBlock.includes('parse_csv_line')) {
-          rawPath = 'src/event.rs';
-        } else if (searchBlock.includes('EventFilter') || searchBlock.includes('evaluate_predicate') || replaceBlock.includes('evaluate_predicate')) {
-          rawPath = 'src/filter.rs';
-        } else if (searchBlock.includes('EventDispatcher') || replaceBlock.includes('EventDispatcher')) {
-          rawPath = 'src/dispatcher.rs';
-        } else {
-          rawPath = 'src/lib.rs';
-        }
-      }
-
-      currentFilePath = rawPath;
-
-      let targetPath = rawPath.replace(/^[`"']+|[`"']+$/g, '').trim();
-      if (!targetPath.startsWith('src/') && !targetPath.startsWith('tests/') && !targetPath.includes('/')) {
-        targetPath = `src/${targetPath}`;
-      }
       results.push({
-        path: targetPath,
+        path: resolution.path,
         type: 'localized_patch',
         searchBlock,
         replaceBlock,
+        unresolved: resolution.unresolved,
+        resolutionError: resolution.resolutionError,
       });
     }
 
@@ -313,34 +494,24 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         }
       }
 
-      if (!rawPath) {
-        if (content.includes('parse_csv_line') || content.includes('struct Event') || content.includes('enum EventType')) {
-          rawPath = 'src/event.rs';
-        } else if (content.includes('EventDispatcher')) {
-          rawPath = 'src/dispatcher.rs';
-        } else if (content.includes('EventFilter') || content.includes('evaluate_predicate')) {
-          rawPath = 'src/filter.rs';
-        } else if (content.includes('parse_event')) {
-          rawPath = 'src/parser.rs';
-        } else if (content.includes('EventSink')) {
-          rawPath = 'src/sink.rs';
-        } else if (content.includes('calculate_checksum')) {
-          rawPath = 'src/event.rs';
-        } else if (content.includes('sliding_window_sums') || content.includes('ExponentialBackoff')) {
-          rawPath = 'src/lib.rs';
-        } else {
-          rawPath = 'src/lib.rs';
-        }
+      const resolution = IncrementalEditManager.resolveTargetFile(
+        rawPath,
+        { content },
+        'full_file',
+        currentFilePath,
+        context
+      );
+
+      if (resolution.path) {
+        currentFilePath = resolution.path;
       }
 
-      let targetPath = rawPath.replace(/^[`"']+|[`"']+$/g, '').trim();
-      if (!targetPath.startsWith('src/') && !targetPath.startsWith('tests/') && !targetPath.includes('/')) {
-        targetPath = `src/${targetPath}`;
-      }
       results.push({
-        path: targetPath,
+        path: resolution.path,
         type: 'full_file',
         content,
+        unresolved: resolution.unresolved,
+        resolutionError: resolution.resolutionError,
       });
     }
 
@@ -359,6 +530,15 @@ Only the modified code delta requires inspection; do not revert unchanged files.
 
     for (let i = 0; i < modifications.length; i++) {
       const mod = modifications[i];
+
+      // Reject unresolved or ambiguous modifications immediately
+      if (mod.unresolved || !mod.path) {
+        errors.push(
+          `Edit rejected: Target file could not be deterministically resolved (${mod.resolutionError ?? 'destination unknown or ambiguous'}). Specify an explicit file header (e.g. '// File: src/...').`
+        );
+        continue;
+      }
+
       const normalizedRelPath = path.normalize(mod.path).replace(/^[/\\]+/, '');
 
       // Path traversal protection
@@ -408,67 +588,75 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         );
 
         if (missingTypes.length > 0 && existingContent) {
-          // Check Case 1: Proposed starts with impl <Type>
-          const implMatch = proposed.match(/^(?:pub\s+)?impl(?:\s*<[^>]+>)?\s+([A-Za-z0-9_]+)/);
-          if (implMatch) {
-            const typeName = implMatch[1];
-            const implIdx = existingContent.search(new RegExp(`(?:pub\\s+)?impl(?:\\s*<[^>]+>)?\\s+${typeName}\\b`));
-            if (implIdx !== -1) {
-              const preamble = existingContent.slice(0, implIdx).trim();
-              proposed = preamble + '\n\n' + proposed;
+          // Check if proposed contains functions that already exist in existingContent
+          const proposedFns = Array.from(proposed.matchAll(/(?:pub\s+)?fn\s+([A-Za-z0-9_]+)\s*\(/g)).map((m) => m[1]);
+          const existingFnsToReplace = proposedFns.filter((fn) =>
+            new RegExp(`(?:pub\\s+)?fn\\s+${fn}\\b`).test(existingContent)
+          );
+
+          if (existingFnsToReplace.length > 0) {
+            // Replace matching functions within existing content via brace counting
+            let mergedContent = existingContent;
+            for (const fnName of existingFnsToReplace) {
+              const fnStartInExisting = mergedContent.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
+              if (fnStartInExisting === -1) continue;
+
+              // Find existing function span via brace counting
+              let depth = 0;
+              let existingFnEnd = -1;
+              for (let j = fnStartInExisting; j < mergedContent.length; j++) {
+                if (mergedContent[j] === '{') depth++;
+                else if (mergedContent[j] === '}') {
+                  depth--;
+                  if (depth === 0) {
+                    existingFnEnd = j + 1;
+                    break;
+                  }
+                }
+              }
+
+              // Find proposed function span via brace counting
+              const fnStartInProposed = proposed.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
+              if (fnStartInProposed === -1) continue;
+              let propDepth = 0;
+              let proposedFnEnd = -1;
+              for (let j = fnStartInProposed; j < proposed.length; j++) {
+                if (proposed[j] === '{') propDepth++;
+                else if (proposed[j] === '}') {
+                  propDepth--;
+                  if (propDepth === 0) {
+                    proposedFnEnd = j + 1;
+                    break;
+                  }
+                }
+              }
+
+              if (existingFnEnd !== -1 && proposedFnEnd !== -1) {
+                const newFnText = proposed.slice(fnStartInProposed, proposedFnEnd);
+                const lineBefore = mergedContent.slice(0, fnStartInExisting);
+                const lastNewline = lineBefore.lastIndexOf('\n');
+                const indent = lastNewline !== -1 ? lineBefore.slice(lastNewline + 1) : '';
+                const indentedNewFn = newFnText
+                  .split('\n')
+                  .map((l, idx) => (idx === 0 ? l.trim() : indent + l))
+                  .join('\n');
+
+                mergedContent =
+                  mergedContent.slice(0, fnStartInExisting) +
+                  indentedNewFn +
+                  mergedContent.slice(existingFnEnd);
+              }
             }
+            proposed = mergedContent;
           } else {
-            // Check Case 2: Proposed is an updated function that already exists in existingContent
-            const fnMatch = proposed.match(/(?:pub\s+)?fn\s+([A-Za-z0-9_]+)\s*\(/);
-            if (fnMatch) {
-              const fnName = fnMatch[1];
-              const fnStartInExisting = existingContent.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
-              if (fnStartInExisting !== -1) {
-                // Find existing function span via brace counting
-                let depth = 0;
-                let existingFnEnd = -1;
-                for (let j = fnStartInExisting; j < existingContent.length; j++) {
-                  if (existingContent[j] === '{') depth++;
-                  else if (existingContent[j] === '}') {
-                    depth--;
-                    if (depth === 0) {
-                      existingFnEnd = j + 1;
-                      break;
-                    }
-                  }
-                }
-
-                // Find proposed function span via brace counting
-                const fnStartInProposed = proposed.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
-                let propDepth = 0;
-                let proposedFnEnd = -1;
-                for (let j = fnStartInProposed; j < proposed.length; j++) {
-                  if (proposed[j] === '{') propDepth++;
-                  else if (proposed[j] === '}') {
-                    propDepth--;
-                    if (propDepth === 0) {
-                      proposedFnEnd = j + 1;
-                      break;
-                    }
-                  }
-                }
-
-                if (existingFnEnd !== -1 && proposedFnEnd !== -1) {
-                  const newFnText = proposed.slice(fnStartInProposed, proposedFnEnd);
-                  // Preserve indent level from existing function
-                  const lineBefore = existingContent.slice(0, fnStartInExisting);
-                  const lastNewline = lineBefore.lastIndexOf('\n');
-                  const indent = lastNewline !== -1 ? lineBefore.slice(lastNewline + 1) : '';
-                  const indentedNewFn = newFnText
-                    .split('\n')
-                    .map((l, idx) => (idx === 0 ? l.trim() : indent + l))
-                    .join('\n');
-
-                  proposed =
-                    existingContent.slice(0, fnStartInExisting) +
-                    indentedNewFn +
-                    existingContent.slice(existingFnEnd);
-                }
+            // Check Case 1: Proposed starts with impl <Type> but has brand new functions
+            const implMatch = proposed.match(/^(?:pub\s+)?impl(?:\s*<[^>]+>)?\s+([A-Za-z0-9_]+)/);
+            if (implMatch) {
+              const typeName = implMatch[1];
+              const implIdx = existingContent.search(new RegExp(`(?:pub\\s+)?impl(?:\\s*<[^>]+>)?\\s+${typeName}\\b`));
+              if (implIdx !== -1) {
+                const preamble = existingContent.slice(0, implIdx).trim();
+                proposed = preamble + '\n\n' + proposed;
               }
             }
           }
