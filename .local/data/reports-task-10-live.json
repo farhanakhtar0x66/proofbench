@@ -1,6 +1,6 @@
 {
   "version": "1",
-  "id": "report-task-10-live",
+  "id": "task-10-live",
   "runId": "task-10-live",
   "createdAt": "2026-11-05T04:15:35.000Z",
   "summary": "Held-out Task 10 (Sensor Fusion & Telemetry Aggregation Service) resolved live through stock Maxim Bifrost gateway (http://127.0.0.1:8089) in 2 turns. Zero hardcoded symbol heuristics used; target files resolved strictly via Web-Tree-Sitter AST symbol indexing. Both sensor frame parsing and anomaly threshold filtering passed all 3 acceptance tests.",

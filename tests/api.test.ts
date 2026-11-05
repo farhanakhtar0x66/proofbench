@@ -63,3 +63,89 @@ it('never invents a retrieval timestamp for offline annotations',async()=>{
  const result=await verifyAnswer({version:'1',text:'Python 2 is currently supported.'});
  expect(result.claims[0].evidence[0].retrievedAt).toBeNull();
 });
+
+it('lists discovered runs with deterministic sorting and bounds', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-runs-'));
+ const app = await createApp({ dataDir: dir, implementation: 'mock' });
+ try {
+  const initial = await app.inject('/api/runs');
+  expect(initial.statusCode).toBe(200);
+  expect(initial.json().runs).toEqual([]);
+
+  await app.inject({ method: 'POST', url: '/api/runs', payload: { version: '1', task, agentId: 'mock-local' } });
+  await app.inject({ method: 'POST', url: '/api/runs', payload: { version: '1', task, agentId: 'mock-local' } });
+
+  const listed = await app.inject('/api/runs');
+  expect(listed.statusCode).toBe(200);
+  expect(listed.json().runs.length).toBe(2);
+  expect(listed.json().runs[0].version).toBe('1');
+ } finally {
+  await app.close();
+  await rm(dir, { recursive: true, force: true });
+ }
+});
+
+it('serves controlled routing benchmark comparison with truthful Task 2 data', async () => {
+ const app = await createApp({ implementation: 'mock' });
+ try {
+  const res = await app.inject('/api/benchmarks/controlled');
+  expect(res.statusCode).toBe(200);
+  const json = res.json();
+  expect(json.taskId).toBe('task-2-missing-feature');
+  expect(json.summary.controlled_direct_frontier.avgTotalTokens).toBe(7766);
+  expect(json.summary.controlled_escalation_only.avgTotalTokens).toBe(4461);
+  expect(json.summary.controlled_bidirectional_adaptive.avgTotalTokens).toBe(6215);
+  expect(json.attribution.modelSelectionTokensSaved).toBe(3305);
+ } finally {
+  await app.close();
+ }
+});
+
+it('executes asynchronous jobs with durable status and polling support', async () => {
+ const dir = await mkdtemp(join(tmpdir(), 'proofbench-test-jobs-'));
+ const app = await createApp({ dataDir: dir, implementation: 'mock' });
+ try {
+  const submission = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task, agentId: 'mock-local' },
+  });
+  expect(submission.statusCode).toBe(202);
+  const { jobId } = submission.json();
+  expect(jobId).toBeDefined();
+
+  // Poll until completed
+  let job = null;
+  for (let i = 0; i < 20; i++) {
+   const res = await app.inject(`/api/jobs/${jobId}`);
+   expect(res.statusCode).toBe(200);
+   job = res.json();
+   if (job.status === 'completed' || job.status === 'failed') break;
+   await new Promise((r) => setTimeout(r, 50));
+  }
+  expect(job.status).toBe('completed');
+  expect(job.runId).toBeDefined();
+
+  const completedRun = await app.inject(`/api/runs/${job.runId}`);
+  expect(completedRun.statusCode).toBe(200);
+ } finally {
+  await app.close();
+  await rm(dir, { recursive: true, force: true });
+ }
+});
+
+it('rejects jobs for tasks outside allowed scope', async () => {
+ const app = await createApp({ implementation: 'mock' });
+ try {
+  const badTask = { ...task, id: 'unauthorized-task-uuid', fixtureId: undefined };
+  const res = await app.inject({
+   method: 'POST',
+   url: '/api/jobs',
+   payload: { version: '1', task: badTask, agentId: 'mock-local' },
+  });
+  expect(res.statusCode).toBe(400);
+  expect(res.json().error).toBe('invalid_task');
+ } finally {
+  await app.close();
+ }
+});

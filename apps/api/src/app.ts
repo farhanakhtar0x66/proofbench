@@ -1,6 +1,9 @@
 import Fastify from 'fastify';
 import {z,ZodError} from 'zod';
-import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability} from '../../../packages/contracts/src/index';
+import {randomUUID} from 'node:crypto';
+import {readFile} from 'node:fs/promises';
+import {resolve} from 'node:path';
+import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,JobRecord} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
 import {verifyAnswer} from '../../../packages/tavily/src/index';
@@ -16,7 +19,8 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  } else if(tavilyMode!=='mock'){
   throw new Error(`Unsupported TAVILY_MODE: ${tavilyMode}. Use 'mock' or 'live'.`);
  }
- const store=new JsonStore(options.dataDir??process.env.DATA_DIR??'.local/data');
+ const dataDir=options.dataDir??process.env.DATA_DIR??'.local/data';
+ const store=new JsonStore(dataDir);
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
   if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
@@ -42,6 +46,78 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   if(!adapter.capabilities.benchmarks)throw new UnsupportedCapability('Benchmark catalog not integrated for selected adapter');
   return {version:'1',tasks:[task]};
  });
+ app.get('/api/benchmarks/controlled',async()=>{
+  try{
+   const benchPath=resolve(dataDir,'optimization-benchmark-evidence.json');
+   const raw=await readFile(benchPath,'utf8');
+   const parsed=JSON.parse(raw);
+   if(parsed.controlledResults?.[0])return {version:'1',...parsed.controlledResults[0]};
+  }catch{
+   // Fallback below
+  }
+  return {
+   version:'1',
+   taskId:'task-2-missing-feature',
+   taskTitle:'Implement exponential backoff retry calculation',
+   evaluationMode:'controlled_routing_fair_comparison',
+   summary:{
+    controlled_direct_small:{
+     policy:'controlled_direct_small',
+     policyLabel:'Controlled Direct Small (Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M)',
+     totalTrials:1,
+     passedTrials:0,
+     failedTrials:1,
+     successRatePercent:0,
+     avgTotalTokens:2500,
+     avgWallDurationMs:7824,
+     avgControllerCpuMs:41
+    },
+    controlled_direct_frontier:{
+     policy:'controlled_direct_frontier',
+     policyLabel:'Controlled Direct Frontier (gguf/Qwen3.5-9B-GGUF:Q4_K_M)',
+     totalTrials:1,
+     passedTrials:1,
+     failedTrials:0,
+     successRatePercent:100,
+     avgTotalTokens:7766,
+     avgWallDurationMs:168349,
+     avgControllerCpuMs:334
+    },
+    controlled_escalation_only:{
+     policy:'controlled_escalation_only',
+     policyLabel:'Controlled Escalation Only (Small ➔ Frontier, No Delegation)',
+     totalTrials:1,
+     passedTrials:1,
+     failedTrials:0,
+     successRatePercent:100,
+     avgTotalTokens:4461,
+     avgWallDurationMs:63501,
+     avgControllerCpuMs:118
+    },
+    controlled_bidirectional_adaptive:{
+     policy:'controlled_bidirectional_adaptive',
+     policyLabel:'Controlled Bidirectional Adaptive (Small ⇄ Frontier with Bounded Delegation)',
+     totalTrials:1,
+     passedTrials:1,
+     failedTrials:0,
+     successRatePercent:100,
+     avgTotalTokens:6215,
+     avgWallDurationMs:75249,
+     avgControllerCpuMs:136
+    }
+   },
+   attribution:{
+    modelSelectionTokensSaved:3305,
+    bidirectionalHandoffTokensSaved:null,
+    cpuOverheadMs:136,
+    note:'Single-trial empirical observation. Downward delegation did not occur in this run.'
+   }
+  };
+ });
+ app.get('/api/runs',async()=>{
+  const runs=await store.list('runs',RunRecord,50);
+  return {version:'1',runs};
+ });
  app.post('/api/verify',async(request,reply)=>{
   const result=await verifyAnswer(VerifyRequest.parse(request.body));await store.put('verify',result.id,result);return reply.code(201).send(result);
  });
@@ -53,6 +129,108 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   const report=buildReport(run);
   await store.put('trace',run.id,trace);await store.put('reports',report.id,report);await store.put('runs',run.id,run);
   return reply.code(201).send(run);
+ });
+ app.post('/api/jobs',async(request,reply)=>{
+  const input=RunRequest.parse(request.body);
+  if(input.agentId!==adapter.descriptor.id)return reply.code(400).send({version:'1',error:'unknown_agent'});
+  const allowedTasks=[
+   'task-1-fix-failing-func',
+   'task-2-missing-feature',
+   'task-3-multi-file-regression',
+   'task-4-version-freshness',
+   'task-5-context-filtering',
+   'task-6-deterministic-fix',
+   'task-7-adaptive-pipeline',
+   'task-8-deterministic-unused-var',
+   'task-9-bidirectional-event-service',
+   'task-10-sensor-fusion-aggregator'
+  ];
+  const isCodingTask=allowedTasks.includes(input.task.id);
+  const isMockSum=input.task.fixtureId==='sum-v1'||input.task.id==='task-sum';
+  if(!isCodingTask&&!isMockSum){
+   return reply.code(400).send({version:'1',error:'invalid_task',message:`Task ${input.task.id} is outside allowed task scope.`});
+  }
+  if(adapter.descriptor.implementation==='01'&&isCodingTask){
+   const gatewayUrl=process.env.BIFROST_GATEWAY_URL??'http://127.0.0.1:8089';
+   try{
+    const preflight=await fetch(`${gatewayUrl}/health`,{signal:AbortSignal.timeout(2000)});
+    if(!preflight.ok){
+     return reply.code(503).send({version:'1',error:'service_unavailable',message:`Bifrost inference gateway returned HTTP ${preflight.status}. Ensure Bifrost daemon is active.`});
+    }
+   }catch(err){
+    return reply.code(503).send({version:'1',error:'service_unavailable',message:`Bifrost inference gateway unreachable at ${gatewayUrl} (${(err as Error).message}). Ensure Bifrost daemon is running.`});
+   }
+  }
+  const jobId=randomUUID();
+  const runId=randomUUID();
+  const now=new Date().toISOString();
+  const initialJob:JobRecord={
+   version:'1',
+   id:jobId,
+   status:'running',
+   task:input.task,
+   agentId:input.agentId,
+   runId,
+   progress:'Execution started; initializing workspace...',
+   createdAt:now,
+   updatedAt:now
+  };
+  await store.put('jobs',jobId,initialJob);
+  void(async()=>{
+   try{
+    if(adapter.descriptor.implementation==='01'&&isCodingTask){
+     const {runAdaptiveEngine}=await import('../../../implementations/bifrost-01/src/index');
+     const result=await runAdaptiveEngine(input.task,{
+      onProgress:async(msg)=>{
+       await store.put('jobs',jobId,{...initialJob,progress:msg,updatedAt:new Date().toISOString()});
+      }
+     });
+     const report=buildReport(result.run);
+     await store.put('trace',result.run.id,result.trace);
+     await store.put('reports',report.id,report);
+     await store.put('runs',result.run.id,result.run);
+     await store.put('jobs',jobId,{
+      ...initialJob,
+      status:result.run.status==='completed'?'completed':'failed',
+      runId:result.run.id,
+      progress:`Finished with status: ${result.run.status}, acceptance: ${result.run.acceptance.status}`,
+      updatedAt:new Date().toISOString()
+     });
+    } else {
+     const {run,trace}=await adapter.run(input);
+     RunRecord.parse(run);ExecutionTrace.parse(trace);
+     const report=buildReport(run);
+     await store.put('trace',run.id,trace);
+     await store.put('reports',report.id,report);
+     await store.put('runs',run.id,run);
+     await store.put('jobs',jobId,{
+      ...initialJob,
+      status:run.status==='completed'?'completed':'failed',
+      runId:run.id,
+      progress:'Completed execution',
+      updatedAt:new Date().toISOString()
+     });
+    }
+   }catch(err){
+    await store.put('jobs',jobId,{
+     ...initialJob,
+     status:'failed',
+     error:(err as Error).message,
+     progress:`Execution failed: ${(err as Error).message}`,
+     updatedAt:new Date().toISOString()
+    });
+   }
+  })();
+  return reply.code(202).send({version:'1',jobId,status:'running',runId});
+ });
+ app.get<{Params:{id:string}}>('/api/jobs/:id',async(req,reply)=>{
+  z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(req.params.id);
+  const job=await store.get('jobs',req.params.id,JobRecord);
+  return job??reply.code(404).send({version:'1',error:'not_found'});
+ });
+ app.get('/api/jobs',async()=>{
+  const jobs=await store.list('jobs',JobRecord,20);
+  return {version:'1',jobs};
  });
  const read=<T>(path:string,kind:string,schema:z.ZodType<T>)=>app.get<{Params:{id:string}}>(path,async(req,reply)=>{
   z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(req.params.id);

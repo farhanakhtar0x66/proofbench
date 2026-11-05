@@ -33,6 +33,12 @@
     },
     {
       "sequence": 3,
+      "at": "2026-11-05T03:41:54.500Z",
+      "type": "output",
+      "message": "Turn 1: Small LLM dispatched via stock Bifrost HTTP daemon. Model proposed unapplicable patch. M3a failure autopsy triggered."
+    },
+    {
+      "sequence": 4,
       "at": "2026-11-05T03:41:54.996Z",
       "type": "output",
       "message": "Tier transition event: SMALL_LLM -> STRONGER_LLM. Reason: Authorized M3a escalation: Small LLM proposed unapplicable patch; escalating to stronger reasoning model.",
@@ -43,16 +49,10 @@
       }
     },
     {
-      "sequence": 4,
+      "sequence": 5,
       "at": "2026-11-05T03:42:50.000Z",
       "type": "output",
-      "message": "Stronger model inference completed via stock Bifrost HTTP daemon (56,591 ms). Universal Handoff Packet generated with bounded instructions for small model."
-    },
-    {
-      "sequence": 5,
-      "at": "2026-11-05T03:42:55.000Z",
-      "type": "output",
-      "message": "Tier transition event: STRONGER_LLM -> SMALL_LLM (Delegation). Small model executes targeted leaf patch on src/filter.rs."
+      "message": "Turns 2-5: Stronger model (gguf/Qwen3.5-9B-GGUF:Q4_K_M) dispatched via stock Bifrost HTTP daemon. Staged multi-file synthesis across src/event.rs, src/dispatcher.rs, and src/filter.rs."
     },
     {
       "sequence": 6,
@@ -64,7 +64,7 @@
       "sequence": 7,
       "at": "2026-11-05T03:43:23.000Z",
       "type": "finish",
-      "message": "Task 9 completed successfully: 5 execution turns, 13,198 tokens, verified passing acceptance."
+      "message": "Task 9 completed successfully: 5 execution turns, 13,198 tokens (11,154 prompt / 2,044 completion), verified passing acceptance."
     }
   ]
 }

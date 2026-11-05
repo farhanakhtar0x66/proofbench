@@ -44,5 +44,36 @@ export interface AgentAdapter {
  capabilities:Capabilities['capabilities'];
  run(request:RunRequest):Promise<{run:RunRecord;trace:ExecutionTrace}>;
 }
+export const RunListResponse = z.object({
+  version,
+  runs: z.array(RunRecord),
+}).strict();
+export type RunListResponse = z.infer<typeof RunListResponse>;
+
+export const JobStatus = z.enum(['queued', 'running', 'completed', 'failed']);
+export type JobStatus = z.infer<typeof JobStatus>;
+
+export const JobRecord = z.object({
+  version,
+  id,
+  status: JobStatus,
+  task: TaskSpec,
+  agentId: id,
+  runId: id.optional(),
+  progress: z.string().optional(),
+  error: z.string().optional(),
+  createdAt: date,
+  updatedAt: date,
+}).strict();
+export type JobRecord = z.infer<typeof JobRecord>;
+
+export const JobSubmissionResponse = z.object({
+  version,
+  jobId: id,
+  status: JobStatus,
+  runId: id.optional(),
+}).strict();
+export type JobSubmissionResponse = z.infer<typeof JobSubmissionResponse>;
+
 export class UnsupportedCapability extends Error {}
 export * from './trace-contract';

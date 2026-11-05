@@ -66,7 +66,7 @@
     "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
   },
   "createdAt": "2026-11-05T03:41:42.000Z",
-  "reportId": "report-task-6-live",
+  "reportId": "task-6-live",
   "reproducibility": {
     "seed": 0,
     "adapterRevision": "31e9ebf",

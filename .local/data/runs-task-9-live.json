@@ -22,7 +22,7 @@
     "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M"
   },
   "status": "completed",
-  "output": "Successfully implemented multi-module event service across src/event.rs, src/dispatcher.rs, and src/filter.rs using bidirectional tier handoffs and M3a autopsy recovery. All 4 integration tests pass.",
+  "output": "Successfully implemented multi-module event service across src/event.rs, src/dispatcher.rs, and src/filter.rs via M3a autopsy escalation to stronger model. All 4 integration tests pass.",
   "usage": {
     "version": "1",
     "inputTokens": {
@@ -72,7 +72,7 @@
     "method": "Subprocess cargo test on isolated workspace with scrubbed environment"
   },
   "createdAt": "2026-11-05T03:41:40.000Z",
-  "reportId": "report-task-9-live",
+  "reportId": "task-9-live",
   "reproducibility": {
     "seed": 100,
     "adapterRevision": "31e9ebf",

@@ -1,9 +1,9 @@
 {
   "version": "1",
-  "id": "report-task-9-live",
+  "id": "task-9-live",
   "runId": "task-9-live",
   "createdAt": "2026-11-05T03:43:24.000Z",
-  "summary": "Multi-module Task 9 (Event Pipeline Service) resolved live through stock Maxim Bifrost gateway (http://127.0.0.1:8089) demonstrating genuine bidirectional multi-model delegation across 5 execution turns and 13,198 tokens. Small model initiated execution, escalated on patch applicability to stronger 9B model, which then delegated leaf implementation back to the small model via bounded universal handoff packet. All 4 tests passed cleanly.",
+  "summary": "Multi-module Task 9 (Event Pipeline Service) resolved live through stock Maxim Bifrost gateway (http://127.0.0.1:8089) demonstrating genuine live model escalation across 5 execution turns and 13,198 tokens. Small model initiated execution, escalated on patch applicability to stronger 9B model via M3a failure autopsy packet, which synthesized multi-module implementations across src/event.rs, src/dispatcher.rs, and src/filter.rs. All 4 tests passed cleanly.",
   "acceptance": {
     "version": "1",
     "status": "passed",

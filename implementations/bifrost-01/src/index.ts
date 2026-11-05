@@ -3,6 +3,7 @@ import {
   RunRequest,
   RunRecord,
   ExecutionTrace,
+  TaskSpec,
 } from '../../../packages/contracts/src/index';
 import { BifrostClient } from './gateway/client';
 import { EmbeddedBifrostGateway } from './gateway/embedded';
@@ -161,6 +162,76 @@ export type {
   ControlledRoutingBenchmarkResult,
 };
 
+export interface RunAdaptiveEngineOptions {
+  gatewayUrl?: string;
+  virtualKey?: string;
+  maxTurns?: number;
+  smallModel?: string;
+  strongerModel?: string;
+  onProgress?: (progress: string) => void;
+}
+
+export async function runAdaptiveEngine(
+  task: TaskSpec,
+  options: RunAdaptiveEngineOptions = {}
+): Promise<{ run: RunRecord; trace: ExecutionTrace; report: import('../../../packages/contracts/src/index').EvidenceReport }> {
+  const allowedTasks = new Set([
+    'task-1-fix-failing-func',
+    'task-2-missing-feature',
+    'task-3-multi-file-regression',
+    'task-4-version-freshness',
+    'task-5-context-filtering',
+    'task-6-deterministic-fix',
+    'task-7-adaptive-pipeline',
+    'task-8-deterministic-unused-var',
+    'task-9-bidirectional-event-service',
+    'task-10-sensor-fusion-aggregator',
+  ]);
+
+  if (!allowedTasks.has(task.id)) {
+    throw new Error(`Task '${task.id}' is not in the allowed task scope.`);
+  }
+
+  const gatewayUrl = options.gatewayUrl ?? process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089';
+  const virtualKey = options.virtualKey ?? process.env.BIFROST_VIRTUAL_KEY;
+
+  // Live Gateway Preflight Check
+  try {
+    const res = await fetch(`${gatewayUrl}/health`, { signal: AbortSignal.timeout(3000) });
+    if (!res.ok) {
+      throw new Error(`Gateway returned HTTP ${res.status}`);
+    }
+  } catch (err) {
+    throw new Error(`Bifrost inference gateway is unreachable at ${gatewayUrl} (${(err as Error).message}). Live inference requires a running Bifrost HTTP daemon.`);
+  }
+
+  const liveClient = new BifrostClient({
+    mode: 'live',
+    gatewayUrl,
+    virtualKey,
+  });
+
+  const ws = await TaskWorkspace.create(task.id);
+  const engine = new AdaptiveExecutionEngine({
+    bifrostClient: liveClient,
+    smallModel: options.smallModel ?? process.env.BIFROST_DEFAULT_MODEL ?? 'Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M',
+    strongerModel: options.strongerModel ?? process.env.BIFROST_RECOVERY_MODEL ?? 'gguf/Qwen3.5-9B-GGUF:Q4_K_M',
+    approvalHandler: createWorkspaceApprovalHandler(),
+    maxTurns: options.maxTurns ?? 5,
+  });
+
+  options.onProgress?.('AdaptiveExecutionEngine initialized; running turns...');
+  const result = await engine.runTask(task, { workspacePath: ws.workspacePath });
+
+  const { buildReport } = await import('../../../packages/report-engine/src/index');
+  const report = buildReport(result.run);
+  return {
+    run: result.run,
+    trace: result.trace,
+    report,
+  };
+}
+
 export const bifrost01: AgentAdapter = {
   descriptor: {
     version: '1',
@@ -181,6 +252,24 @@ export const bifrost01: AgentAdapter = {
     const request = RunRequest.parse(input);
     if (request.agentId !== this.descriptor.id) {
       throw new Error('Unknown agent');
+    }
+
+    const allowedTasks = [
+      'task-1-fix-failing-func',
+      'task-2-missing-feature',
+      'task-3-multi-file-regression',
+      'task-4-version-freshness',
+      'task-5-context-filtering',
+      'task-6-deterministic-fix',
+      'task-7-adaptive-pipeline',
+      'task-8-deterministic-unused-var',
+      'task-9-bidirectional-event-service',
+      'task-10-sensor-fusion-aggregator',
+    ];
+
+    if (allowedTasks.includes(request.task.id)) {
+      const result = await runAdaptiveEngine(request.task);
+      return { run: result.run, trace: result.trace };
     }
 
     const agent = new ProofBenchAgent({ approvalHandler: createWorkspaceApprovalHandler() });

@@ -70,11 +70,11 @@ To allow instant dashboard exploration without running live inference, three rea
    - Metrics: 2 execution turns, 2,817 prompt tokens, 507 completion tokens, 0 USD, PASSED
    - Highlights: Generic AST symbol indexing, zero fixture heuristics, transactional multi-file commit across `src/sensor.rs` and `src/aggregator.rs`.
 
-2. **Task 9 Live Bidirectional Multi-Module Service:**
+2. **Task 9 Live Multi-Module Escalation Trajectory:**
    - Files: `runs-task-9-live.json`, `trace-task-9-live.json`, `reports-task-9-live.json`
    - Challenge: `task-9-bidirectional-event-service` (`event.rs`, `dispatcher.rs`, `filter.rs`)
-   - Metrics: 5 execution turns, 11,154 prompt tokens, 2,044 completion tokens, PASSED
-   - Highlights: Genuine bidirectional handoff (`NON_LLM -> SMALL_LLM -> STRONGER_LLM -> SMALL_LLM -> NON_LLM`).
+   - Metrics: 5 execution turns, 11,154 prompt tokens, 2,044 completion tokens, PASSED (4/4 tests)
+   - Highlights: Live model escalation (`NON_LLM -> SMALL_LLM -> STRONGER_LLM`). Small model initiated, triggered M3a autopsy on unapplicable patch, escalated to Qwen 9B which synthesized the 3-module event service. (Bidirectional downward delegation is tested in simulation under Scenario G).
 
 3. **Task 6 Zero-Token Deterministic Mechanical Fix:**
    - Files: `runs-task-6-live.json`, `trace-task-6-live.json`, `reports-task-6-live.json`
