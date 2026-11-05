@@ -16,7 +16,7 @@ function evidence(text=quote,sourceUrl=url,published=new Date().toISOString()){
 const model=(relation='supports')=>({interpret:vi.fn(),compareEvidence:vi.fn(async()=>({assessments:[{sourceId:'S1',relation,quote}],correction:null}))});
 it('accepts one directly named reviewed official source, with no fabricated score or correction',async()=>{
  const interpreter=model();const result=await compareClaimEvidence(evidence(),{mode:'llm',interpreter});
- expect(result.outcome).toBe('supported');expect(result.explanation).toContain('One reviewed official');
+ expect(result.outcome).toBe('supported');expect(result.explanation).toContain('One operator-reviewed primary source');
  expect(result.freshnessScore).toBeNull();expect(result.correction).toBeNull();expect(interpreter.compareEvidence).toHaveBeenCalledOnce();
 });
 it('can contradict a different named holder only when the model assesses the direct source',async()=>{

@@ -8,7 +8,7 @@ afterEach(()=>vi.useRealTimers());
 const now='2026-11-04T19:11:32.000Z';
 it('accepts the complete oldest calendar date included in a current search',()=>{
  const plan=evidenceSearchPlan('Aster owns Harbor.','current',new Date(now));
- expect(plan.dateWindow?.startDate).toBe('2026-10-05');
+ expect(plan.dateWindow).toBeUndefined(); // Retrieval age is separate from optional recency scoring.
  expect(assessSourceDates({published_date:'2026-10-05T13:35:49.000Z',content:'Aster owns Harbor.',calendarDayWindow:true},now).eligible).toBe(true);
  expect(assessSourceDates({published_date:'2026-10-05T13:35:49.000Z',content:'Aster owns Harbor.'},now).eligible).toBe(false);
 });

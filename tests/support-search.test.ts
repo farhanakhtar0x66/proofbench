@@ -7,6 +7,8 @@ import {SearchBudget} from '../packages/tavily/src/budget';
 
 it.each([
  ['Python 2 is currently supported.','Python 2'],
+ ['Acme SDK 2 is currently supported upstream.','Acme SDK 2'],
+ ['Orbit 4 is supported by the upstream project.','Orbit 4'],
  ['Python 2 is not currently supported.','Python 2'],
  ['Python 2 is no longer supported.','Python 2'],
  ['Node.js 18 is supported.','Node.js 18'],
@@ -37,11 +39,11 @@ it.each([
  'According to the vendor, Python 2 receives security patches.',
 ])('does not silently remove conditions, time, attribution or ambiguity: %s',claim=>{
  expect(supportClaimSubject(claim)).toBeUndefined();
- const plan=evidenceSearchPlan(claim,'current');expect(plan.query).toBe(`${claim} current official sources`);expect(plan.dateWindow).toBeDefined();
+ const plan=evidenceSearchPlan(claim,'current');expect(plan.query).toBe(`${claim} current official sources`);expect(plan.dateWindow).toBeUndefined();
 });
-it('leaves pricing and role recency windows in place',()=>{
- expect(evidenceSearchPlan('Acme Pro costs USD 20/month.','current').dateWindow).toBeDefined();
- expect(evidenceSearchPlan('Alex is captain of Acme FC.','current').dateWindow).toBeDefined();
+it('does not exclude primary pricing and role references by publication age',()=>{
+ expect(evidenceSearchPlan('Acme Pro costs USD 20/month.','current').dateWindow).toBeUndefined();
+ expect(evidenceSearchPlan('Alex is captain of Acme FC.','current').dateWindow).toBeUndefined();
 });
 it('retrieves older lifecycle announcements with warnings, preserves the claim and reuses the existing cache',async()=>{
  const claim='Python 2 is currently supported.';
@@ -57,6 +59,6 @@ it('retrieves older lifecycle announcements with warnings, preserves the claim a
  expect(report.evidence.every(source=>source.publishedAt==='2020-01-01T00:00:00.000Z'&&source.dateReason?.includes('older than 30 days')&&source.sourceTier==='unreviewed'&&source.relation==='context')).toBe(true);
  expect(report.limitations.join(' ')).toContain('no publication-date filter');
  const compareEvidence=vi.fn();const result=await compareClaimEvidence(report,{mode:'llm',interpreter:{interpret:vi.fn(),compareEvidence}});
- expect(result.outcome).toBe('inconclusive');expect(result.correction).toBeNull();expect(result.citations.every(source=>!source.eligible)).toBe(true);expect(compareEvidence).not.toHaveBeenCalled();
+ expect(result.outcome).toBe('inconclusive');expect(result.correction).toBeNull();expect(result.citations.every(source=>source.eligible)).toBe(true);expect(compareEvidence).toHaveBeenCalledOnce();
  await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);expect(fetcher).toHaveBeenCalledOnce();
 });

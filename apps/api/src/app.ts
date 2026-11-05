@@ -3,7 +3,7 @@ import {z,ZodError} from 'zod';
 import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,ClaimExtractionRequest,EvidenceRetrievalRequest,AnalysisRequest,AnalysisReport,AnalysisStatus} from '../../../packages/contracts/src/index';
 import {task} from '../../../packages/contracts/src/examples';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
-import {SearchBudget,TavilyConfigurationError,verifyAnswer} from '../../../packages/tavily/src/index';
+import {SearchBudget,TavilyConfigurationError,verifyAnswer,requestLimit} from '../../../packages/tavily/src/index';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
@@ -51,6 +51,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   const result=await analyzeAnswer(AnalysisRequest.parse(request.body),{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode,comparisonCache});
   await store.put('analysis',result.id,result);return reply.code(201).send(result);
  });
+ app.get('/api/analysis/readiness',async()=>({version:'1',mode:tavilyMode,comparisonMode,searchAllowance:tavilyBudget.snapshot(requestLimit(process.env.TAVILY_MAX_REQUESTS)),modelCanRequest:comparisonMode==='llm'&&interpreter?.canRequest?.()===true,notice:'Runtime configuration and application allowance only; not a gateway health, billing or provider-quota check. No provider request was made.'}));
  app.get('/api/analysis/status',async()=>AnalysisStatus.parse({version:'1',mode:tavilyMode,extractionMode,comparisonMode,modelReady:comparisonMode==='llm'&&!!interpreter?.compareEvidence&&interpreter.canRequest?.()===true,modelDescription:interpreter?.description??null}));
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);

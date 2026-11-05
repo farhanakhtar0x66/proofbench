@@ -37,7 +37,7 @@ export async function retrieveClaimEvidence(input:unknown,options:Options={}):Pr
  let budget=options.budget??budgets.get(fetcher);
  if(!budget){budget=new SearchBudget();budgets.set(fetcher,budget);}
  try{
-  const cacheKey=JSON.stringify({profile:'general-passages-v6',query,dateWindow:plan.dateWindow});
+  const cacheKey=JSON.stringify({profile:'general-passages-v7',query,dateWindow:plan.dateWindow});
   const search=await budget.search(cacheKey,apiKey,limit,()=>searchTavily(query,apiKey,fetcher,{includePublishedDate:true,dateWindow:plan.dateWindow,qualityCandidates:true}),options.cacheOnly);
   const evidenceAt=new Date().toISOString();
   const seen=new Set<string>();

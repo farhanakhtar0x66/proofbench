@@ -1,4 +1,6 @@
-# Stable facts and changing facts
+# Stable facts and changing facts — earlier policy
+
+Superseded for general current-scope analysis by [evidence-first comparison](EVIDENCE-FIRST.md). The account below records the earlier stable-only exception; it is not the current date gate. Literal/as-stated comparison retains its legacy checks.
 
 The general analysis backend previously required recent publication dates even for definitions and intrinsic technical facts. A current search also filtered out older reference documentation. This could make clear factual claims inconclusive before comparison ran.
 

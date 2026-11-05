@@ -15,29 +15,30 @@ function adapter(kind='stable',relation='supports'){
 it.each([undefined,'2000-01-01'])('accepts corroborated stable reference evidence without inventing freshness: %s',async publishedAt=>{
  const result=await compareClaimEvidence(input(undefined,publishedAt),{mode:'llm',interpreter:adapter()});
  expect(result.outcome).toBe('supported');expect(result.freshness).toBe('unknown');expect(result.freshnessScore).toBeNull();
- expect(result.citations.every(c=>c.eligible&&c.dateReason?.includes('stable fact'))).toBe(true);
+ expect(result.citations.every(c=>c.eligible&&c.dateReason?.includes('publication recency is unconfirmed'))).toBe(true);
 });
 it('can contradict a stable claim without using model memory as evidence',async()=>{
  const result=await compareClaimEvidence(input('A triangle has four sides.'),{mode:'llm',interpreter:adapter('stable','contradicts')});
  expect(result.outcome).toBe('contradicted');expect(result.correction).toBeNull();
 });
-it.each(['changing','uncertain'])('does not waive dates for a %s model interpretation',async kind=>{
- const result=await compareClaimEvidence(input(),{mode:'llm',interpreter:adapter(kind)});
- expect(result.outcome).toBe('inconclusive');expect(result.citations.every(c=>!c.eligible)).toBe(true);
+it.each(['changing','uncertain'])('does not invent factual support for insufficient evidence: %s',async kind=>{
+ const result=await compareClaimEvidence(input(),{mode:'llm',interpreter:adapter(kind,'insufficient')});
+ expect(result.outcome).toBe('inconclusive');expect(result.freshnessScore).toBeNull();
 });
-it.each(['Acme Pro costs USD 20/month.','Ada is CEO of Acme.','Acme owns Orbit.','The latest release of Acme is 8.','Acme is supported.','The capital of Arcadia is Lumen.','Acme laws allow this.'])('vetoes a false stable classification for a changing claim: %s',async claim=>{
- const interpreter=adapter();const result=await compareClaimEvidence(input(claim),{mode:'llm',interpreter});
- expect(result.outcome).toBe('inconclusive');expect(interpreter.compareEvidence).not.toHaveBeenCalled();
- if(!claim.includes('supported'))expect(evidenceSearchPlan(claim,'current').dateWindow).toBeDefined();
+it.each(['Acme Pro costs USD 20/month.','Ada is CEO of Acme.','Acme owns Orbit.','The latest release of Acme is 8.'])('compares old or undated changing evidence without manufacturing publication freshness: %s',async claim=>{
+ const data=input(claim);for(const [i,source] of data.evidence.entries())source.excerpt=claim+' Source notice '+i+'.';
+ const interpreter=adapter('changing');const result=await compareClaimEvidence(data,{mode:'llm',interpreter});
+ expect(result.outcome).toBe('supported');expect(result.freshness).toBe('unknown');expect(result.freshnessScore).toBeNull();expect(interpreter.compareEvidence).toHaveBeenCalledOnce();
+ expect(evidenceSearchPlan(claim,'current').dateWindow).toBeUndefined();
 });
 it.each(['2099-01-01','not-a-date'])('does not waive invalid or future publication: %s',async date=>{
  const data=input();for(const source of data.evidence)source.dateReason=date==='not-a-date'?'The publication date is invalid or unsupported.':undefined;
  if(date!=='not-a-date')for(const source of data.evidence)source.publishedAt=new Date(date).toISOString();
  const interpreter=adapter();expect((await compareClaimEvidence(data,{mode:'llm',interpreter})).outcome).toBe('inconclusive');expect(interpreter.compareEvidence).not.toHaveBeenCalled();
 });
-it('keeps missing temporal output and missing factual evidence inconclusive',async()=>{
+it('does not require a temporal classification for evidence comparison but still abstains on insufficient evidence',async()=>{
  const interpreter={interpret:vi.fn(),compareEvidence:vi.fn(async(text:string)=>({assessments:JSON.parse(text).sources.map((s:{sourceId:string;excerpt:string})=>({sourceId:s.sourceId,relation:'supports',quote:s.excerpt})),correction:null}))};
- expect((await compareClaimEvidence(input(),{mode:'llm',interpreter})).verificationStatus).toBe('failed');
+ expect((await compareClaimEvidence(input(),{mode:'llm',interpreter})).outcome).toBe('supported');
  expect((await compareClaimEvidence(input(),{mode:'llm',interpreter:adapter('stable','insufficient')})).outcome).toBe('inconclusive');
 });
 it('requires and preserves temporal interpretation through compact and full schemas',()=>{

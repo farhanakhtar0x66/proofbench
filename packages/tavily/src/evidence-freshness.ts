@@ -11,7 +11,7 @@ export function evidenceFreshness(report:Pick<Report,'outcome'|'freshness'|'asse
  const unavailable=(freshnessScoreReason:string)=>({freshnessScore:null,freshnessScoreReason});
  if(report.outcome==='contradicted')return unavailable('No freshness score: contradiction does not establish that the original claim was previously true or when it changed.');
  if(report.outcome!=='supported')return unavailable('No freshness score: insufficient or conflicting evidence cannot establish current support.');
- if(report.freshness!=='current')return unavailable('No freshness score: historical support does not establish current freshness.');
+ if(report.freshness!=='current')return unavailable('No freshness score: publication recency or current temporal applicability is unconfirmed.');
  const supporting=report.citations.filter(source=>source.eligible&&source.relation==='supports');
  const now=Date.parse(report.assessedAt);
  const ages=supporting.map(source=>{const date=sourceDate(source.publishedAt);return publicationWindowAgeMs(date,report.assessedAt,calendarDayWindow);});

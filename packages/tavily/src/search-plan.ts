@@ -1,11 +1,10 @@
-import {requiresRecentEvidence} from './temporal-policy';
 import {captainClaimScope} from './captain-scope';
 import {supportClaimSubject} from './support-scope';
 import {datedEndOfLifeClaim} from './historical-support';
 import {completedEventClaim} from './completed-event';
 import {parsePrice} from './pricing';
 
-export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_stated',now=new Date()){
+export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_stated',now=new Date()):{query:string;dateWindow:{startDate:string;endDate:string}|undefined}{
  const literal=claim.replace(/\s+/gu,' ');
  if(scope==='as_stated')return {query:literal,dateWindow:undefined};
  const event=completedEventClaim(literal,now.toISOString());
@@ -32,8 +31,6 @@ export function evidenceSearchPlan(claim:string,scope:'as_stated'|'current'='as_
   const roleName=/^PM$/iu.test(role[1])?'prime minister':role[1];
   query=/\bcaptain\b/iu.test(role[1])&&captainClaimScope(literal)==='appointment'?`${target} current club captains captaincy appointment official sources`:`${target} current ${roleName} official sources`;
  }else if(possessive&&captainClaimScope(literal)==='appointment')query=`${possessive[1]} current club captains captaincy appointment official sources`;
- // Keep current searches for explicitly volatile claims; do not exclude evergreen
- // references for definitions and other potentially stable facts.
- const dateWindow=requiresRecentEvidence(literal)?{startDate:new Date(now.getTime()-30*86400000).toISOString().slice(0,10),endDate:new Date(now.getTime()+86400000).toISOString().slice(0,10)}:undefined;
- return {query,dateWindow};
+ // Recency is assessed after retrieval; publication filtering hides primary references.
+ return {query,dateWindow:undefined};
 }

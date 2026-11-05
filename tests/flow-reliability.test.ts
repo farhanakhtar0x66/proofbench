@@ -50,15 +50,15 @@ it('still bounds a stalled custom extractor and returns fallback without a retry
  await vi.advanceTimersByTimeAsync(20999);let resolved=false;void pending.then(()=>{resolved=true;});await Promise.resolve();expect(resolved).toBe(false);
  await vi.advanceTimersByTimeAsync(1);expect((await pending).method).toBe('rules_fallback');expect(extractClaims).toHaveBeenCalledTimes(1);
 });
-it('leaves literal historical queries unchanged and adds a date window only for explicit current scope',()=>{
+it('leaves literal historical queries unchanged and retrieves current evidence without a publication filter',()=>{
  const claim='Acme did not permit this in India in 2018.';const now=new Date('2026-11-03T18:00:00Z');
  expect(evidenceSearchPlan(claim,undefined,now)).toEqual({query:claim,dateWindow:undefined});
- expect(evidenceSearchPlan(claim,'current',now)).toEqual({query:`${claim} current official sources`,dateWindow:{startDate:'2026-10-04',endDate:'2026-11-04'}});
+ expect(evidenceSearchPlan(claim,'current',now)).toEqual({query:`${claim} current official sources`,dateWindow:undefined});
 });
 it('uses one capped basic current-evidence search, caches it and preserves the original claim',async()=>{
  const claim='Cristiano Ronaldo is not captain of Real Madrid.';const budget=new SearchBudget();
  const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{
-  const body=JSON.parse(String(init?.body));expect(body.query).toBe('Real Madrid current club captains captaincy appointment official sources');expect(body.filter_by_published_date).toBe(true);expect(body.auto_parameters).toBe(false);expect(body.search_depth).toBe('basic');expect(body.max_results).toBe(6);expect(body.start_date).toMatch(/^\d{4}-\d{2}-\d{2}$/u);return Response.json({results:[]});
+  const body=JSON.parse(String(init?.body));expect(body.query).toBe('Real Madrid current club captains captaincy appointment official sources');expect(body).not.toHaveProperty('filter_by_published_date');expect(body.auto_parameters).toBe(false);expect(body.search_depth).toBe('basic');expect(body.max_results).toBe(6);expect(body).not.toHaveProperty('start_date');return Response.json({results:[]});
  });
  const options={mode:'live',allowLiveRequests:'true',apiKey:'fake',maxRequests:1,budget,fetch:fetcher};
  const first=await retrieveClaimEvidence({version:'1',claim,scope:'current'},options);expect(first.claim).toBe(claim);expect(first.searchScope).toBe('current');expect(first.status).toBe('empty');

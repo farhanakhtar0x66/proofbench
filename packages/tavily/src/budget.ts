@@ -11,6 +11,8 @@ export class SearchBudget {
  private pending=new Map<string,Promise<{value:unknown;retrievedAt:string}>>();
  constructor(private clock:()=>number=Date.now){}
 
+ snapshot(limit:number){const ceiling=Math.min(this.ceiling,limit);return {used:this.used,limit:ceiling,remaining:Math.max(0,ceiling-this.used)};}
+
  async search<T>(query:string,key:string,limit:number,load:()=>Promise<T>,cacheOnly=false):Promise<{value:T;retrievedAt:string}>{
   this.ceiling=Math.min(this.ceiling,limit);
   const id=createHash('sha256').update(JSON.stringify([key,query])).digest('hex');

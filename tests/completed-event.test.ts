@@ -16,7 +16,7 @@ it.each(['2018-05-25','25 May 2018','May 25, 2018'])('normalizes a completed eve
  expect(completedEventClaim(`Acme was founded on ${date}.`,now)?.eventAt).toBe('2018-05-25T00:00:00.000Z');
 });
 it.each(['If approved, The Acme Regulation became applicable on 25 May 2018.','According to the vendor, Acme was founded on 25 May 2018.','Acme was released on February 30, 2020.','Acme was released on 2027-01-01.','Alex is CEO of Acme.'])('preserves unknown/qualified/current scopes: %s',text=>{
- expect(completedEventClaim(text,now)).toBeUndefined();expect(evidenceSearchPlan(text,'current',new Date(now)).dateWindow).toBeDefined();
+ expect(completedEventClaim(text,now)).toBeUndefined();expect(evidenceSearchPlan(text,'current',new Date(now)).dateWindow).toBeUndefined();
 });
 function evidence(texts:string[]){const retrievedAt=new Date().toISOString();return EvidenceRetrievalReport.parse({version:'1',claim,query:claim,mode:'live',status:'retrieved',createdAt:retrievedAt,retrievedAt,message:'SIMULATED old reports',limitations:[],evidence:texts.map((excerpt,index)=>({url:`https://source${index}.example/history`,title:'SIMULATED',excerpt,relation:'context',retrieval:'tavily',publishedAt:'2019-01-01T00:00:00.000Z',retrievedAt}))});}
 it('allows corroborated old completed-event evidence only with unknown freshness, and preserves contrary dates',async()=>{

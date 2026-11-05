@@ -51,5 +51,5 @@ it('keeps invalid/future effective dates excluded and neutralizes explicit price
  for(const date of ['February 30, 2026','November 10, 2026','next month'])expect(assessSourceDates({published_date:'2026-11-01',content:`Effective from ${date}.`},'2026-11-04T12:00:00Z').eligible).toBe(false);
  const plan=evidenceSearchPlan('Acme Pro costs USD 20/month.','current');
  expect(plan.query).toBe(evidenceSearchPlan('Acme Pro costs USD 25/month.','current').query);
- expect(plan.query).toContain('USD');expect(plan.dateWindow).toBeDefined();
+ expect(plan.query).toContain('USD');expect(plan.dateWindow).toBeUndefined();
 });

@@ -14,7 +14,7 @@ it('prepares exactly three prior misses and one historical control with no netwo
   expect(plan.cases.filter(item=>item.baselineOutcome==='inconclusive')).toHaveLength(3);
   expect(plan.cases.at(-1)).toMatchObject({baselineOutcome:'supported',expected:'supported',requiredFreshness:'unknown'});
   expect(plan.cases.at(-1)?.searchPlan.dateWindow).toBeUndefined();
-  expect(plan.cases.slice(0,3).every(item=>!!item.searchPlan.dateWindow)).toBe(true);
+  expect(plan.cases.slice(0,3).every(item=>!item.searchPlan.dateWindow)).toBe(true);
   expect(plan.cases.every(item=>!('simulatedSources' in item)&&!('simulatedRelation' in item))).toBe(true);
   expect(plan.datasetHash).toMatch(/^[a-f0-9]{64}$/u);expect(plan.selectionHash).toMatch(/^[a-f0-9]{64}$/u);
   expect(upstream).not.toHaveBeenCalled();expect(process.env).toEqual(env);

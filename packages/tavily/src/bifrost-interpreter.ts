@@ -2,7 +2,7 @@ import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {Interpretation,INTERPRETATION_PROMPT,type LanguageInterpreter} from './interpretation';
 import {ExtractionOutput,EXTRACTION_PROMPT,EXTRACTION_SCHEMA} from './claim-extraction';
-import {ComparisonOutput,COMPARISON_PROMPT,comparisonSchemaFor} from './evidence-comparison';
+import {ComparisonOutput,COMPARISON_PROMPT,comparisonSchemaFor,EVIDENCE_POLICY_PROMPT} from './evidence-comparison';
 import {referenceComparisonFor,REFERENCE_COMPARISON_PROMPT} from './comparison-references';
 
 export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+(?:\/[a-zA-Z0-9_.:-]+)?)?$/u).refine(value=>!value.split('/').some(part=>part==='.'||part==='..'),'Invalid model namespace').refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(30000).default(20000),virtualKey:z.string().optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
@@ -91,11 +91,12 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   interpret:text=>request(text,INTERPRETATION_PROMPT,'claim_interpretation',INTERPRETATION_JSON_SCHEMA,value=>Interpretation.parse(value)),
   extractClaims:text=>request(text,EXTRACTION_PROMPT,'claim_extraction',EXTRACTION_SCHEMA,value=>ExtractionOutput.parse(value)),
   compareEvidence:text=>{
+   const policy=JSON.parse(text).evidencePolicy?EVIDENCE_POLICY_PROMPT:'';
    if(settings.provider==='gemini'||settings.provider==='groq'){
     const references=referenceComparisonFor(text);
-    if(references.useCompact)return request(references.text,REFERENCE_COMPARISON_PROMPT,'evidence_comparison_references',references.schema,value=>ComparisonOutput.parse(references.parse(value)),2048);
+    if(references.useCompact)return request(references.text,REFERENCE_COMPARISON_PROMPT+policy,'evidence_comparison_references',references.schema,value=>ComparisonOutput.parse(references.parse(value)),2048);
    }
-   return request(text,COMPARISON_PROMPT,'evidence_comparison',comparisonSchemaFor(text),value=>ComparisonOutput.parse(value),2048);
+   return request(text,COMPARISON_PROMPT+policy,'evidence_comparison',comparisonSchemaFor(text),value=>ComparisonOutput.parse(value),2048);
   },
  };
 }

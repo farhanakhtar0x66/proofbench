@@ -1,6 +1,6 @@
 # General evidence comparison and quoted corrections
 
-Current policy update: [stable-fact interpretation](STABLE-EVIDENCE.md) can admit older or undated reference evidence in general current-scope analysis. It does not assign current freshness, remove corroboration requirements or waive conflicting dates/qualifications. The older 30-day-only description below still applies to changing claims and the literal comparison path.
+Current policy update: [evidence-first comparison](EVIDENCE-FIRST.md) separates factual support from publication recency for general current-scope analysis. Older or undated sources can be assessed; two agreeing source groups or one operator-reviewed primary source can qualify. Explicit temporal conflicts and lost qualifications remain blocking. The historical 30-day-only description below applies to the literal/as-stated path.
 
 
 For current website integration see [WEBSITE-ANALYSIS.md](WEBSITE-ANALYSIS.md). Supported current results now have a backend-computed [evidence-recency score](EVIDENCE-FRESHNESS.md); other results remain unscored. Earlier implementation/validation notes below describe the original endpoint stage.
