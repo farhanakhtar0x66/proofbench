@@ -1,0 +1,12 @@
+{
+  "id": "trans-1793850110776",
+  "sequence": 1,
+  "fromTier": "NON_LLM",
+  "toTier": "SMALL_LLM",
+  "sourceModel": null,
+  "targetModel": "Qwen/Qwen2.5-Coder-1.5B-Instruct-GGUF:Q4_K_M",
+  "reason": "Intermediate task complexity (2 files, 374 tokens); allocating small model for targeted AST patch under bounded M2/M3a escalation.",
+  "sourceRevision": "sha256:c18c2924db2f4feb",
+  "timestamp": "2026-11-05T03:41:50.776Z",
+  "boundedInstructions": "Implement `parse_frame` in `src/sensor.rs` to validate CRC checksum and extract payload bytes."
+}

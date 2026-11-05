@@ -1,0 +1,20 @@
+{
+  "turn": 3,
+  "tier": "STRONGER_LLM",
+  "requestedModel": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+  "actualModel": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+  "provider": "ollama",
+  "routingMetadata": {
+    "endpoint": "http://127.0.0.1:8089/v1/chat/completions",
+    "latencyMs": 56591,
+    "httpStatus": 200,
+    "is_fallback": false
+  },
+  "promptTokens": 1842,
+  "completionTokens": 412,
+  "totalTokens": 2254,
+  "sourceRevision": "sha256:c18c2924db2f4feb",
+  "transitionReason": "Authorized M3a escalation: Small LLM proposed unapplicable patch",
+  "boundedInstructions": "Implement `EventDispatcher::dispatch` with proper borrow semantics",
+  "timestamp": "2026-11-05T03:41:54.996Z"
+}
