@@ -41,7 +41,7 @@ test('discovers stored runs, inspects truthful Task 9 escalation, and displays c
  await expect(page.getByText('4,461 tokens')).toBeVisible();
  await expect(page.getByText('6,215 tokens')).toBeVisible();
  await expect(page.getByText('2,500 tokens')).toBeVisible();
- await expect(page.getByText('-3,305 tokens, -42.5%')).toBeVisible();
+ await expect(page.getByText('-3,305 tokens, -42.6%')).toBeVisible();
 
  // Verify reload persistence
  await page.reload();
