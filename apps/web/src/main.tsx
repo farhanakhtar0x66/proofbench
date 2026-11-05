@@ -1,8 +1,9 @@
 import React,{useState,useEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
-import {type Capabilities,type RunRecord,type ExecutionTrace,type VerificationReport,type EvidenceReport,type TaskSpec,type UsageRecord,type JobRecord} from '../../../packages/contracts/src/index';
+import {type Capabilities,type RunRecord,type ExecutionTrace,type EvidenceReport,type TaskSpec,type UsageRecord,type JobRecord} from '../../../packages/contracts/src/index';
 import {api,schemas,modeLabel} from './client';
 import {demoRun,demoTrace,demoReport} from '../../../packages/contracts/src/examples';
+import {Verifier} from './Verifier';
 import './style.css';
 
 const ACTIVE_JOB_KEY='proofbench_active_job_id';
@@ -24,7 +25,7 @@ function App(){
  const [tasks,setTasks]=useState<TaskSpec[]>([]);const [selectedTaskId,setSelectedTaskId]=useState<string>('');
  const [runs,setRuns]=useState<RunRecord[]>([]);
  const [selected,setSelected]=useState<RunRecord>();const [trace,setTrace]=useState<ExecutionTrace>();const [report,setReport]=useState<EvidenceReport>();
- const [verification,setVerification]=useState<VerificationReport>();const [answer,setAnswer]=useState('Python 2 is currently supported.');
+ const [answer,setAnswer]=useState('Python 2 is currently supported.');
  const [busy,setBusy]=useState(false);const [progress,setProgress]=useState('');const [loading,setLoading]=useState(true);const [error,setError]=useState('');
  const [compare,setCompare]=useState(false);
  const [activeJobId,setActiveJobId]=useState<string|null>(null);
@@ -206,12 +207,8 @@ function App(){
   }catch(e){setError((e as Error).message);setBusy(false);setProgress('');}
  }
 
- async function verify(e:React.FormEvent){
-  e.preventDefault();setBusy(true);setError('');try{
-   setVerification(await api('/verify',schemas.VerificationReport,{version:'1',text:answer}));
-  }catch(e){setError((e as Error).message);}finally{setBusy(false);}
- }
- const isTavilyLive=Boolean(caps?.limitations.some(l=>l.includes('live web research')));
+ const isTavilyLive = caps?.limitations?.some(l => l.includes('live')) ?? false;
+
  return <div className="shell">
   <aside className="sidebar"><a className="brand" href="/" aria-label="ProofBench home"><span className="brandmark">P/</span>ProofBench<span className="beta">0.1</span></a><div className="workspace"><span className="small">WORKSPACE</span><strong>Global AI Hackathon <span>↗</span></strong><small>Team workspace · November 2026</small></div>
   <nav aria-label="Workspace"><button aria-current={tab==='runs'?'page':undefined} onClick={()=>setTab('runs')}><span>▤</span> Execution lab <small>01</small></button><button aria-current={tab==='verify'?'page':undefined} onClick={()=>setTab('verify')}><span>◎</span> Freshness verifier <small>02</small></button></nav>
@@ -250,7 +247,7 @@ function App(){
   </div>
   </section>}
   {selected&&<div className="detail-grid"><section className="panel"><div className="panel-heading"><h2>Execution trace</h2><span className="small">{selected.id==='demo-run'?'DEMO PREVIEW':`${trace?.events.length??0} EVENTS`}</span></div>{trace?<ol className="timeline">{trace.events.map(e=><li key={e.sequence}><span>{String(e.sequence+1).padStart(2,'0')}</span><div><strong>{e.type}</strong><p>{e.message}</p><small>{e.at}</small></div></li>)}</ol>:<p className="empty">{selected.id==='demo-run'?'Run a fixture to inspect its recorded trace.':'Trace unavailable or loading.'}</p>}</section><section className="panel"><div className="panel-heading"><h2>Acceptance & provenance</h2><span className="mint">↗</span></div><div className="provenance">{selected.acceptance.checks.map(c=><div key={c.name}><strong>{c.passed===null?'?':c.passed?'✓':'×'} {c.name}</strong><p>{c.evidence}</p></div>)}<dl><dt>Adapter revision</dt><dd>{selected.reproducibility.adapterRevision}</dd><dt>Fixture / seed</dt><dd>{selected.reproducibility.fixtureRevision} / {selected.reproducibility.seed}</dd><dt>Environment</dt><dd>{selected.reproducibility.environment}</dd><dt>Model</dt><dd>{selected.agent.model??'None · offline fixture'}</dd></dl>{report&&<><p>{report.summary}</p>{report.limitations.map(l=><p key={l}>{l}</p>)}</>}<button className="text-button" onClick={()=>{setAnswer(selected.output);setTab('verify');}}>Check output freshness →</button></div></section></div>}
-  </>:<div className="verify-grid"><section className="panel"><div className="panel-heading"><h2>Answer to verify</h2><span className="small">{isTavilyLive?'LIVE RESEARCH':'OFFLINE'}</span></div><form onSubmit={e=>void verify(e)}><label htmlFor="answer">Paste an answer or factual statement</label><textarea id="answer" value={answer} onChange={e=>setAnswer(e.target.value)} maxLength={20000} required rows={8}/><div style={{display:'flex',gap:8,margin:'10px 0'}}><button type="button" className="secondary" onClick={()=>setAnswer('Python 2 is currently supported.')}>Try: Python 2 sunset (stale)</button><button type="button" className="secondary" onClick={()=>setAnswer('Python 2 officially reached end-of-life on January 1, 2020.')}>Try: Python 2 EOL 2020 (current)</button></div><div className="form-footer"><small>{answer.length.toLocaleString()} / 20,000 characters</small><button className="primary" disabled={busy||!answer.trim()}>{busy?'Checking…':'Verify answer →'}</button></div></form></section><section className="panel findings"><div className="panel-heading"><h2>Freshness findings</h2><span className="small">{verification?.claims.length??0} CLAIMS</span></div>{!verification?<p className="empty">Verify an answer to inspect claims, uncertainty, and reference sources.</p>:verification.claims.map(c=><article key={c.id}><div className="finding-status"><span className={`pill ${c.outcome}`}>{c.outcome}</span><span>{c.freshness}</span></div><h3>{c.text}</h3><p>{c.uncertainty}</p>{c.evidence.map(e=><a key={e.url} href={e.url} target="_blank" rel="noreferrer">{e.title} ↗<small>{e.excerpt}</small></a>)}<small>Assessment: {new Date(c.asOf).toLocaleString()} · {verification.mode}</small></article>)}</section></div>}
+  </>:<Verifier initialAnswer={answer} onBusyChange={setBusy}/>}
   <footer>ProofBench <span>/</span> Shared contracts v1 <span>/</span> Bifrost selection pending <span className="footer-right">BUILD WITH RECEIPTS.</span></footer></div></main>
  </div>;
 }

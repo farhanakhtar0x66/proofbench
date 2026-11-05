@@ -3,9 +3,14 @@ import {z,ZodError} from 'zod';
 import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {resolve} from 'node:path';
-import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,JobRecord} from '../../../packages/contracts/src/index';
+import {RunRequest,VerifyRequest,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,Capabilities,UnsupportedCapability,JobRecord,ClaimExtractionRequest,EvidenceRetrievalRequest,AnalysisRequest,AnalysisReport,AnalysisStatus} from '../../../packages/contracts/src/index';
 import {selectAdapter} from '../../../packages/agent-adapters/src/index';
-import {verifyAnswer} from '../../../packages/tavily/src/index';
+import {SearchBudget,TavilyConfigurationError,verifyAnswer,requestLimit} from '../../../packages/tavily/src/index';
+import {createLanguageInterpreter} from '../../../packages/tavily/src/language-provider';
+import {extractFactualClaims} from '../../../packages/tavily/src/claim-extraction';
+import {retrieveClaimEvidence} from '../../../packages/tavily/src/general-retrieval';
+import {analyzeAnswer,compareGeneralClaim} from '../../../packages/tavily/src/analysis';
+import {ComparisonCache} from '../../../packages/tavily/src/comparison-cache';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 import {loadCanonicalTask,listCanonicalTasks} from './tasks';
@@ -13,13 +18,12 @@ try{process.loadEnvFile?.();}catch{/* ignore missing env file */}
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
  const tavilyMode=options.tavilyMode??process.env.TAVILY_MODE??'mock';
- if(tavilyMode==='live'){
-  if(!process.env.TAVILY_API_KEY){
-   throw new Error('TAVILY_MODE=live requested, but TAVILY_API_KEY environment variable is not configured.');
-  }
- } else if(tavilyMode!=='mock'){
-  throw new Error(`Unsupported TAVILY_MODE: ${tavilyMode}. Use 'mock' or 'live'.`);
- }
+ if(!['mock','live'].includes(tavilyMode))throw new TavilyConfigurationError('TAVILY_MODE must be mock or live.');
+ const tavilyBudget=new SearchBudget();
+ const comparisonCache=new ComparisonCache();
+ const interpreter=createLanguageInterpreter();
+ const extractionMode=z.enum(['rules','llm']).parse(process.env.CLAIM_EXTRACTION_MODE??'rules');
+ const comparisonMode=z.enum(['rules','llm']).parse(process.env.EVIDENCE_COMPARISON_MODE??'rules');
  const dataDir=options.dataDir??process.env.DATA_DIR??'.local/data';
  const store=new JsonStore(dataDir);
  const activeJobIds=new Set<string>();
@@ -41,10 +45,11 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
 
  const app=Fastify({logger:false,bodyLimit:128*1024});
  app.setErrorHandler((error,_request,reply)=>{
-  if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',details:error.issues.map(i=>({path:i.path,message:i.message}))});
+  if(error instanceof ZodError)return reply.code(400).send({version:'1',error:'invalid_request',message:'Request validation failed. Use version "1", a nonempty text field of at most 20,000 characters, and at most 50 optional claims.',details:error.issues.map(i=>({path:i.path,message:i.message}))});
+  if(error instanceof TavilyConfigurationError)return reply.code(error.statusCode).send({version:'1',error:'invalid_request',message:error.message});
   if(error instanceof UnsupportedCapability)return reply.code(501).send({version:'1',error:'unsupported_capability',message:error.message});
-  if(error instanceof Error && 'statusCode' in error && typeof error.statusCode==='number' && error.statusCode<500)return reply.code(error.statusCode).send({version:'1',error:'invalid_request'});
-  return reply.code(500).send({version:'1',error:'internal_error'});
+  if(error instanceof Error && 'statusCode' in error && typeof error.statusCode==='number' && error.statusCode<500)return reply.code(error.statusCode).send({version:'1',error:'invalid_request',message:error.statusCode===413?'Request body exceeds the 128 KiB limit. Send a smaller answer.':'The request could not be read. Check JSON syntax, Content-Type and request parameters.'});
+  return reply.code(500).send({version:'1',error:'internal_error',message:'The server could not complete or save this request. Ask the backend owner to check the server; avoid repeating live requests until the cause is known.'});
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
  app.get('/api/capabilities',async()=>Capabilities.parse({
@@ -54,7 +59,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   capabilities:adapter.capabilities,
   limitations:[
    tavilyMode==='live'
-    ? 'Tavily is configured in live web research mode backed by Tavily Search API.'
+    ? 'Tavily live mode is selected; search still requires explicit spending consent, a key and remaining server budget. Only narrow English templates are evaluated; source authority is not established.'
     : 'Tavily is offline fixture mode; arbitrary claims are inconclusive.',
    'Native execution is not integrated.',
    ...(adapter.descriptor.implementation==='mock'?['Runs are simulated fixture checks, not model measurements.']:adapter.descriptor.implementation==='01'?['ProofBench Bifrost #01 token-efficient coding agent with deterministic M1 context bounding, M2 stagnation control, M3a failure autopsy, and Tavily documentation verification.','Local process isolation uses isolated temporary directories and scrubbed environments.']:['Selected Bifrost implementation is not integrated.'])
@@ -138,8 +143,23 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return {version:'1',runs};
  });
  app.post('/api/verify',async(request,reply)=>{
-  const result=await verifyAnswer(VerifyRequest.parse(request.body));await store.put('verify',result.id,result);return reply.code(201).send(result);
+  const result=await verifyAnswer(VerifyRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget,interpreter});await store.put('verify',result.id,result);return reply.code(201).send(result);
  });
+ app.post('/api/claims/extract',async(request)=>{
+  const input=ClaimExtractionRequest.parse(request.body);
+  return extractFactualClaims(input.text,{mode:extractionMode,interpreter});
+ });
+ app.post('/api/claims/retrieve',async(request)=>retrieveClaimEvidence(EvidenceRetrievalRequest.parse(request.body),{mode:tavilyMode,budget:tavilyBudget}));
+ app.post('/api/claims/compare',async(request)=>{
+  const result=await compareGeneralClaim(request.body,{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode,comparisonCache});
+  return result.comparison;
+ });
+ app.post('/api/analysis',async(request,reply)=>{
+  const result=await analyzeAnswer(AnalysisRequest.parse(request.body),{tavilyMode,budget:tavilyBudget,interpreter,extractionMode,comparisonMode,comparisonCache});
+  await store.put('analysis',result.id,result);return reply.code(201).send(result);
+ });
+ app.get('/api/analysis/readiness',async()=>({version:'1',mode:tavilyMode,comparisonMode,searchAllowance:tavilyBudget.snapshot(requestLimit(process.env.TAVILY_MAX_REQUESTS)),modelCanRequest:comparisonMode==='llm'&&interpreter?.canRequest?.()===true,notice:'Runtime configuration and application allowance only; not a gateway health, billing or provider-quota check. No provider request was made.'}));
+ app.get('/api/analysis/status',async()=>AnalysisStatus.parse({version:'1',mode:tavilyMode,extractionMode,comparisonMode,modelReady:comparisonMode==='llm'&&!!interpreter?.compareEvidence&&interpreter.canRequest?.()===true,modelDescription:interpreter?.description??null}));
  app.post('/api/runs',async(request,reply)=>{
   const input=RunRequest.parse(request.body);
   if(input.agentId!==adapter.descriptor.id)return reply.code(400).send({version:'1',error:'unknown_agent'});
@@ -275,6 +295,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   z.string().regex(/^[a-zA-Z0-9_-]{1,100}$/).parse(req.params.id);
   const result=await store.get(kind,req.params.id,schema);return result??reply.code(404).send({version:'1',error:'not_found'});
  });
+ read('/api/analysis/:id','analysis',AnalysisReport);
  read('/api/verify/:id','verify',VerificationReport);read('/api/runs/:id','runs',RunRecord);read('/api/runs/:id/trace','trace',ExecutionTrace);read('/api/reports/:id','reports',EvidenceReport);
  return app;
 }

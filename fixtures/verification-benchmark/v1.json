@@ -1,0 +1,16 @@
+{
+  "version": "1",
+  "notice": "Fictional development cases with reviewed expected evidence relations. Not an independent holdout or live-world fact check.",
+  "cases": [
+    {"id":"price-supported","claim":"Acme Pro costs USD 20/month.","evidence":["Acme Pro costs USD 20/month. Notice A.","Acme Pro costs USD 20/month. Notice B."],"expected":"supported","rationale":"Two same-currency, same-period statements explicitly match."},
+    {"id":"price-changed","claim":"Acme Pro costs USD 20/month.","evidence":["Acme Pro costs USD 25/month. Notice A.","Acme Pro costs USD 25/month. Notice B."],"expected":"contradicted","rationale":"Two statements give the same incompatible amount for the same plan and billing scope."},
+    {"id":"leadership-changed","claim":"Maya Chen is the CEO of Cedar Labs.","evidence":["Arjun Rao is the CEO of Cedar Labs. Notice A.","The current CEO of Cedar Labs is Arjun Rao. Notice B."],"expected":"contradicted","rationale":"The same organization and role explicitly name a different current holder."},
+    {"id":"version-changed","claim":"Orbit's latest API version is v2.1.","evidence":["Orbit's latest API version is v3.0. Notice A.","Orbit's latest API version is v3.0. Notice B."],"expected":"contradicted","rationale":"Both statements explicitly identify another latest API version."},
+    {"id":"ambiguous-currency","claim":"Acme Pro costs $20/month.","evidence":["Acme Pro costs USD 20/month. Notice A.","Acme Pro costs USD 20/month. Notice B."],"expected":"inconclusive","rationale":"The claim's dollar symbol does not establish whether it means USD or another dollar currency."},
+    {"id":"region-mismatch","claim":"Acme Pro costs USD 20/month in India.","evidence":["Acme Pro costs USD 20/month in the United States. Notice A.","The United States price of Acme Pro is USD 20/month. Notice B."],"expected":"inconclusive","rationale":"US pricing does not establish Indian pricing; matching amounts do not remove the region mismatch."},
+    {"id":"source-conflict","claim":"Acme Pro costs USD 20/month.","evidence":["Acme Pro costs USD 20/month. Notice A.","Acme Pro costs USD 25/month. Notice B."],"expected":"inconclusive","rationale":"The supplied sources disagree within the same billing scope."},
+    {"id":"historical-completed","claim":"Acme SDK 2 reached end of life on 2020-01-01.","evidence":["The upstream project confirms Acme SDK 2 reached end of life on 2020-01-01. Notice A.","The upstream project confirms Acme SDK 2 reached end of life on 2020-01-01. Notice B."],"publishedAt":"2020-02-01T00:00:00.000Z","expected":"supported","rationale":"Both statements report a completed dated event after it happened; this is not today's support status."},
+    {"id":"missing-evidence","claim":"Acme Pro costs USD 20/month.","evidence":[],"expected":"inconclusive","rationale":"There are no source excerpts to assess."},
+    {"id":"pricing-paraphrase","claim":"Customers pay twenty USD monthly for Acme Pro.","evidence":["Acme Pro costs USD 25/month. Notice A.","Acme Pro costs USD 25/month. Notice B."],"expected":"contradicted","rationale":"The spelled-number claim describes monthly USD pricing; both excerpts give an incompatible amount."}
+  ]
+}
