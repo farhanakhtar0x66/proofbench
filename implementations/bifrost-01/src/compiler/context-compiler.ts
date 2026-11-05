@@ -185,6 +185,13 @@ export class ContextCompiler {
   }
 
   /**
+   * Retrieves the initialized Tree-sitter Rust parser instance.
+   */
+  static async getTreeSitterParser(): Promise<TSParser | null> {
+    return RustTreeSitterEngine.getParser();
+  }
+
+  /**
    * Parses Rust code using Tree-sitter AST, extracting top-level symbols, imports, attributes, and dependencies.
    */
   async parseRustSymbols(code: string, filePath: string, revision: string): Promise<RustSymbol[]> {

@@ -6,8 +6,23 @@ import {
 } from '../implementations/bifrost-01/src/index';
 import { TaskSpec } from '../packages/contracts/src/index';
 
-describe('ProofBench — Held-Out Multi-Module Task 10 (Sensor Fusion Aggregator)', () => {
-  it('autonomously resolves Task 10 using generic file resolution without task-specific mappings', async () => {
+/**
+ * Test Evidence Classification: SIMULATED INTEGRATION VALIDATION
+ *
+ * Note: This integration test exercises autonomous multi-turn coordination,
+ * Tree-sitter AST symbol resolution, and localized search-block matching
+ * on a multi-module fixture ('task-10-sensor-fusion-aggregator') using scripted
+ * responses in EmbeddedBifrostGateway.
+ *
+ * For live model inference results against real local Qwen models on this fixture,
+ * see scripts/verify-live-task10.ts (npm run demonstrate:task10:live).
+ *
+ * Generalization Note: Task 10 was co-developed alongside the 5-level deterministic
+ * resolution engine to eliminate hardcoded fixture mappings; it serves as a multi-module
+ * structural test rather than an independently blinded third-party benchmark.
+ */
+describe('ProofBench — Multi-Module Sensor Fusion Task 10 (Simulation Validation)', () => {
+  it('autonomously resolves Task 10 via generic file resolution with scripted gateway responses (simulation validation)', async () => {
     const taskSpec = TaskSpec.parse({
       version: '1',
       id: 'task-10-sensor-fusion-aggregator',

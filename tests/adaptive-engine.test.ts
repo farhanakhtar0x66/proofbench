@@ -344,12 +344,29 @@ pub fn sliding_window_sums(slice: &[i64], window_size: usize) -> Vec<i64> {
     expect(result.run.status).toBe('completed');
     expect(result.run.acceptance.status).toBe('passed');
 
-    // Transitions show delegation: STRONGER_LLM -> SMALL_LLM
+    // 1. Trace events verify stronger model proposed transition and host validated it
+    const proposalEvent = result.trace.events.find((e) =>
+      e.message.includes('proposed tier transition to SMALL_LLM')
+    );
+    expect(proposalEvent).toBeDefined();
+
+    // 2. Transitions show delegation: STRONGER_LLM -> SMALL_LLM
     const delegation = result.controllerState.transitions.find(
       (t) => t.fromTier === 'STRONGER_LLM' && t.toTier === 'SMALL_LLM'
     );
     expect(delegation).toBeDefined();
     expect(delegation?.reason).toContain('Stronger model delegated');
+
+    // 3. Subsequent dispatch event verifies SMALL_LLM dispatched with bounded instructions
+    const smallDispatch = result.trace.events.find(
+      (e) => (e.data as Record<string, unknown> | undefined)?.tier === 'SMALL_LLM' &&
+             (e.data as Record<string, unknown> | undefined)?.hasBoundedInstructions === true
+    );
+    expect(smallDispatch).toBeDefined();
+
+    // 4. Acceptance checks confirm independently accepted code modifications
+    expect(result.run.acceptance.checks.length).toBeGreaterThan(0);
+    expect(result.run.acceptance.checks[0].passed).toBe(true);
   }, 35000);
 
   // --------------------------------------------------------------------------

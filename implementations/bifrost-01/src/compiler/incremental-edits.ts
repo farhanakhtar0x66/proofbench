@@ -277,25 +277,76 @@ Only the modified code delta requires inspection; do not revert unchanged files.
       let clean = rawPathCandidate.replace(/^[`"']+|[`"']+$/g, '').trim();
       clean = clean.replace(/\\/g, '/');
 
-      // If it already has directory prefix (src/ or tests/), verify or normalize
-      if (clean.startsWith('src/') || clean.startsWith('tests/')) {
-        return { path: clean };
+      // 1. Check for null bytes
+      if (clean.includes('\0')) {
+        return {
+          path: '',
+          unresolved: true,
+          resolutionError: `Null byte detected in candidate path '${rawPathCandidate}'.`,
+        };
       }
 
-      // Bare filename: check if it exists in known workspace files
-      if (fileContents[`src/${clean}`]) {
-        return { path: `src/${clean}` };
-      }
-      if (fileContents[`tests/${clean}`]) {
-        return { path: `tests/${clean}` };
+      // 2. Reject absolute paths (POSIX /..., Windows UNC //..., \\..., or drive-qualified C:/...)
+      if (
+        clean.startsWith('/') ||
+        clean.startsWith('\\') ||
+        clean.startsWith('//') ||
+        /^[a-zA-Z]:/.test(clean) ||
+        path.isAbsolute(clean)
+      ) {
+        return {
+          path: '',
+          unresolved: true,
+          resolutionError: `Absolute, drive-qualified, or UNC path rejected: '${rawPathCandidate}'. File headers must specify relative paths within workspace.`,
+        };
       }
 
-      // If directory not specified, prefix src/
-      if (!clean.includes('/')) {
-        return { path: `src/${clean}` };
+      // 3. Reject parent traversal ('..')
+      const rawSegments = clean.split(/[/\\]+/);
+      const normalizedPath = path.normalize(clean).replace(/\\/g, '/');
+      if (
+        rawSegments.includes('..') ||
+        normalizedPath.startsWith('../') ||
+        normalizedPath === '..' ||
+        path.isAbsolute(normalizedPath)
+      ) {
+        return {
+          path: '',
+          unresolved: true,
+          resolutionError: `Parent traversal ('..') rejected in path '${rawPathCandidate}'. File headers must remain within workspace.`,
+        };
       }
 
-      return { path: clean };
+      const cleanRel = normalizedPath.replace(/^\.\//, '');
+
+      // 4. Authorized prefix: src/ or tests/
+      if (cleanRel.startsWith('src/') || cleanRel.startsWith('tests/')) {
+        return { path: cleanRel };
+      }
+
+      // 5. Bare filename without directory: check if it exists in src/ or tests/
+      if (!cleanRel.includes('/')) {
+        if (fileContents[`src/${cleanRel}`]) {
+          return { path: `src/${cleanRel}` };
+        }
+        if (fileContents[`tests/${cleanRel}`]) {
+          return { path: `tests/${cleanRel}` };
+        }
+        // Default bare Rust files to src/
+        return { path: `src/${cleanRel}` };
+      }
+
+      // 6. Non-standard directory: check if file explicitly exists in known workspace files
+      if (fileContents[cleanRel]) {
+        return { path: cleanRel };
+      }
+
+      // Otherwise reject paths targeting unauthorized locations outside src/ and tests/
+      return {
+        path: '',
+        unresolved: true,
+        resolutionError: `Path '${rawPathCandidate}' is outside authorized workspace locations ('src/' or 'tests/').`,
+      };
     }
 
     // Step 2: Multi-patch inheritance (consecutive patch in same response)
@@ -414,10 +465,10 @@ Only the modified code delta requires inspection; do not revert unchanged files.
     const results: ProposedModification[] = [];
     if (!responseText) return results;
 
-    // Preprocess: unwrap redundant outer code fences before file headers (e.g. ```rust\n// File: src/foo.rs\n```rust)
+    // Preprocess: unwrap redundant outer code fences at the start of response before file headers
     const normalizedText = responseText
-      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:\/\/|###?)\s*(?:File:\s*)?([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, '// File: $1\n')
-      .replace(/```(?:rust|rs)?\s*\r?\n\s*(?:File:\s*)([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/gi, 'File: $1\n');
+      .replace(/^\s*```(?:rust|rs)?\s*\r?\n\s*(?:\/\/|###?)\s*(?:File:\s*)?([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/i, '// File: $1\n')
+      .replace(/^\s*```(?:rust|rs)?\s*\r?\n\s*(?:File:\s*)([^\r\n]+\.rs)\s*\r?\n\s*```(?:rust|rs)?/i, 'File: $1\n');
 
     // 1. Parse Search & Replace blocks:
     // // File: <path> [(rev: ...)]
@@ -519,7 +570,202 @@ Only the modified code delta requires inspection; do not revert unchanged files.
   }
 
   /**
+   * Merges a partial Rust file (e.g. an updated impl block or function) into existing file content
+   * using Tree-sitter AST syntax ranges. Does NOT use fragile brace counting.
+   * If a reliable AST-based replacement cannot be established, fails closed with an error.
+   */
+  static async mergePartialFileAST(
+    existingContent: string,
+    proposedContent: string,
+    _filePath: string
+  ): Promise<{ success: boolean; mergedContent?: string; error?: string }> {
+    try {
+      const { ContextCompiler } = await import('./context-compiler.js');
+      const parser = await ContextCompiler.getTreeSitterParser();
+      if (!parser) {
+        return {
+          success: false,
+          error: 'Tree-sitter parser is not available. Cannot perform safe AST partial replacement.',
+        };
+      }
+
+      const existingTree = parser.parse(existingContent);
+      const proposedTree = parser.parse(proposedContent);
+
+      if (!existingTree || !proposedTree || existingTree.rootNode.hasError || proposedTree.rootNode.hasError) {
+        return {
+          success: false,
+          error: 'Tree-sitter syntax errors detected in existing or proposed code. Rejecting partial merge to prevent corruption.',
+        };
+      }
+
+      interface AstFunctionSpan {
+        name: string;
+        enclosingImplType?: string;
+        start: number;
+        end: number;
+        text: string;
+      }
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const extractFunctions = (rootNode: any): AstFunctionSpan[] => {
+        const fns: AstFunctionSpan[] = [];
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const walk = (node: any, enclosingImplType?: string) => {
+          if (node.type === 'impl_item') {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const typeNode = node.children.find((c: any) => c.type === 'type_identifier');
+            const implType = typeNode ? typeNode.text : undefined;
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const declList = node.children.find((c: any) => c.type === 'declaration_list');
+            if (declList) {
+              for (let i = 0; i < declList.childCount; i++) {
+                walk(declList.child(i), implType);
+              }
+            }
+            return;
+          }
+
+          if (node.type === 'function_item') {
+            const nameNode =
+              node.childForFieldName?.('name') ||
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              node.children.find((c: any) => c.type === 'identifier');
+            if (nameNode) {
+              fns.push({
+                name: nameNode.text,
+                enclosingImplType,
+                start: node.startIndex,
+                end: node.endIndex,
+                text: node.text,
+              });
+            }
+          }
+
+          for (let i = 0; i < node.childCount; i++) {
+            walk(node.child(i), enclosingImplType);
+          }
+        };
+
+        walk(rootNode, undefined);
+        return fns;
+      };
+
+      const existingFns = extractFunctions(existingTree.rootNode);
+      const proposedFns = extractFunctions(proposedTree.rootNode);
+
+      if (proposedFns.length === 0) {
+        return {
+          success: false,
+          error: 'No valid Rust functions found in proposed replacement to merge.',
+        };
+      }
+
+      const replacements: Array<{ start: number; end: number; newText: string }> = [];
+
+      for (const pf of proposedFns) {
+        const matches = existingFns.filter(
+          (ef) =>
+            ef.name === pf.name &&
+            (!pf.enclosingImplType || !ef.enclosingImplType || ef.enclosingImplType === pf.enclosingImplType)
+        );
+
+        if (matches.length === 1) {
+          const match = matches[0];
+          // Preserve indentation of original function
+          const lineStart = existingContent.lastIndexOf('\n', match.start) + 1;
+          const indent = existingContent.slice(lineStart, match.start);
+          const indentedText = pf.text
+            .split('\n')
+            .map((line, idx) => (idx === 0 ? line : indent + line.replace(/^\s+/, '    ')))
+            .join('\n');
+
+          replacements.push({
+            start: match.start,
+            end: match.end,
+            newText: indentedText,
+          });
+        } else if (matches.length > 1) {
+          return {
+            success: false,
+            error: `Ambiguous function match for '${pf.name}': multiple candidate functions in existing AST.`,
+          };
+        } else {
+          // If function is new, check if enclosing impl exists to append
+          if (pf.enclosingImplType) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            let implNode: any = null;
+            for (let i = 0; i < existingTree.rootNode.childCount; i++) {
+              const child = existingTree.rootNode.child(i);
+              if (child && child.type === 'impl_item') {
+                // eslint-disable-next-line @typescript-eslint/no-explicit-any
+                const typeNode = child.children.find((c: any) => c.type === 'type_identifier');
+                if (typeNode && typeNode.text === pf.enclosingImplType) {
+                  implNode = child;
+                  break;
+                }
+              }
+            }
+
+            if (implNode) {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const declList = implNode.children.find((c: any) => c.type === 'declaration_list');
+              if (declList && declList.childCount >= 2) {
+                const closingBrace = declList.child(declList.childCount - 1);
+                replacements.push({
+                  start: closingBrace.startIndex,
+                  end: closingBrace.startIndex,
+                  newText: `    ${pf.text}\n`,
+                });
+              }
+            } else {
+              return {
+                success: false,
+                error: `Could not locate target impl for '${pf.enclosingImplType}' to insert new method '${pf.name}'.`,
+              };
+            }
+          } else {
+            return {
+              success: false,
+              error: `Function '${pf.name}' does not exist in target file and cannot be placed unambiguously.`,
+            };
+          }
+        }
+      }
+
+      // Sort replacements by start descending
+      replacements.sort((a, b) => b.start - a.start);
+
+      let merged = existingContent;
+      for (const r of replacements) {
+        merged = merged.slice(0, r.start) + r.newText + merged.slice(r.end);
+      }
+
+      // Verify merged code parses cleanly with Tree-sitter
+      const verifyTree = parser.parse(merged);
+      if (!verifyTree || verifyTree.rootNode.hasError) {
+        return {
+          success: false,
+          error: 'Merged AST contains syntax errors after replacement. Rejecting partial merge.',
+        };
+      }
+
+      return {
+        success: true,
+        mergedContent: merged,
+      };
+    } catch (err) {
+      return {
+        success: false,
+        error: `AST merge exception: ${(err as Error).message}`,
+      };
+    }
+  }
+
+  /**
    * Validates, seeks host approval, and executes all proposed modifications within workspace.
+   * Enforces transactional multi-file atomicity: if any edit fails validation or approval,
+   * zero disk writes occur. If a commit fails midway, changes are safely rolled back.
    */
   async applyModifications(
     modifications: ProposedModification[],
@@ -528,10 +774,22 @@ Only the modified code delta requires inspection; do not revert unchanged files.
     const applied: IncrementalEditResult['appliedModifications'] = [];
     const errors: string[] = [];
 
+    if (!modifications || modifications.length === 0) {
+      return { success: false, appliedModifications: [], errors: ['No modifications provided'] };
+    }
+
+    // -------------------------------------------------------------------------
+    // STAGE 1: TRANSACTION VALIDATION & IN-MEMORY STAGING (ZERO DISK WRITES)
+    // -------------------------------------------------------------------------
+    const stagedFiles = new Map<string, string>();
+    const originalFiles = new Map<string, string | null>();
+    const initialRevisions = new Map<string, string>();
+    const stagedModDetails: Array<{ path: string; type: 'full_file' | 'localized_patch'; isNewFile: boolean }> = [];
+
     for (let i = 0; i < modifications.length; i++) {
       const mod = modifications[i];
 
-      // Reject unresolved or ambiguous modifications immediately
+      // 1. Unresolved or missing path check
       if (mod.unresolved || !mod.path) {
         errors.push(
           `Edit rejected: Target file could not be deterministically resolved (${mod.resolutionError ?? 'destination unknown or ambiguous'}). Specify an explicit file header (e.g. '// File: src/...').`
@@ -539,10 +797,12 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         continue;
       }
 
-      const normalizedRelPath = path.normalize(mod.path).replace(/^[/\\]+/, '');
+      const normalizedRelPath = path.normalize(mod.path).replace(/\\/g, '/').replace(/^[/\\]+/, '');
 
-      // Path traversal protection
+      // 2. Path traversal security checks
+      const rawSegments = mod.path.split(/[/\\]+/);
       if (
+        rawSegments.includes('..') ||
         normalizedRelPath.startsWith('..') ||
         path.isAbsolute(normalizedRelPath) ||
         normalizedRelPath.includes('\0')
@@ -551,129 +811,89 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         continue;
       }
 
+      // 3. Workspace containment check
       const absPath = path.resolve(this.workspacePath, normalizedRelPath);
       if (!absPath.startsWith(path.resolve(this.workspacePath))) {
         errors.push(`Security rejection: path escapes workspace '${mod.path}'`);
         continue;
       }
 
-      let finalContent = '';
+      // 4. Retrieve or read base content for this file
+      let isNewFile = false;
+      let baseContent: string;
+      if (stagedFiles.has(normalizedRelPath)) {
+        baseContent = stagedFiles.get(normalizedRelPath)!;
+      } else {
+        let diskContent: string | null = null;
+        try {
+          diskContent = await fs.readFile(absPath, 'utf8');
+          originalFiles.set(normalizedRelPath, diskContent);
+          initialRevisions.set(normalizedRelPath, IncrementalEditManager.hashContent(diskContent));
+          baseContent = diskContent;
+        } catch {
+          // File does not exist yet on disk
+          originalFiles.set(normalizedRelPath, null);
+          initialRevisions.set(normalizedRelPath, 'sha256:0000000000000000');
+          baseContent = '';
+          isNewFile = true;
+        }
+      }
 
+      // 5. Revision verification if expectedRevision specified
+      if (mod.expectedRevision) {
+        const currentRev = initialRevisions.get(normalizedRelPath);
+        if (currentRev && currentRev !== mod.expectedRevision) {
+          errors.push(
+            `Stale revision conflict for '${normalizedRelPath}': expected ${mod.expectedRevision}, but current file is ${currentRev}`
+          );
+          continue;
+        }
+      }
+
+      // 6. Compute next content
+      let finalContent = '';
       if (mod.type === 'full_file') {
         let proposed = (mod.content ?? '').trim();
 
-        // Safety check: reject full-file replacements that contain unparsed diff conflict markers
+        // Reject unparsed diff conflict markers
         if (/(?:<<<<<<<\s*(?:SEARCH|HEAD|ORIGINAL)|=======\r?\n|>>>>>>>\s*(?:REPLACE|TAIL|MODIFIED))/i.test(proposed)) {
           errors.push(`Rejected malformed full-file replacement for '${normalizedRelPath}': contains unparsed diff markers.`);
           continue;
         }
 
-        // Clean any pseudo-symbol lines copied from context prompt (e.g. pub impl_block ... or // Symbol: ...)
         proposed = proposed.replace(/^\s*(?:pub\s+)?impl_block\s*\([^)]*\)\s*$/gm, '');
         proposed = proposed.replace(/^\s*\/\/\s*Symbol:[^\r\n]*\r?\n?/gm, '');
 
-        let existingContent = '';
-        try {
-          existingContent = await fs.readFile(absPath, 'utf8');
-        } catch {
-          // File does not exist yet; new file
-        }
-
-        // If existing file has structs/enums/imports that the proposed full-file omitted
-        // (e.g. model generated only the updated `impl ...` block or a single updated function), preserve existing definitions!
-        const existingStructs = Array.from(existingContent.matchAll(/(?:pub\s+)?struct\s+([A-Za-z0-9_]+)/g)).map((m) => m[1]);
-        const existingEnums = Array.from(existingContent.matchAll(/(?:pub\s+)?enum\s+([A-Za-z0-9_]+)/g)).map((m) => m[1]);
-        const missingTypes = [...existingStructs, ...existingEnums].filter(
-          (t) => !new RegExp(`(?:struct|enum)\\s+${t}\\b`).test(proposed)
-        );
-
-        if (missingTypes.length > 0 && existingContent) {
-          // Check if proposed contains functions that already exist in existingContent
-          const proposedFns = Array.from(proposed.matchAll(/(?:pub\s+)?fn\s+([A-Za-z0-9_]+)\s*\(/g)).map((m) => m[1]);
-          const existingFnsToReplace = proposedFns.filter((fn) =>
-            new RegExp(`(?:pub\\s+)?fn\\s+${fn}\\b`).test(existingContent)
+        if (!isNewFile && baseContent) {
+          // Check if proposed is a partial file (omits structs/enums/imports present in baseContent)
+          const existingStructs = Array.from(baseContent.matchAll(/(?:pub\s+)?struct\s+([A-Za-z0-9_]+)/g)).map((m) => m[1]);
+          const existingEnums = Array.from(baseContent.matchAll(/(?:pub\s+)?enum\s+([A-Za-z0-9_]+)/g)).map((m) => m[1]);
+          const missingTypes = [...existingStructs, ...existingEnums].filter(
+            (t) => !new RegExp(`(?:struct|enum)\\s+${t}\\b`).test(proposed)
           );
 
-          if (existingFnsToReplace.length > 0) {
-            // Replace matching functions within existing content via brace counting
-            let mergedContent = existingContent;
-            for (const fnName of existingFnsToReplace) {
-              const fnStartInExisting = mergedContent.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
-              if (fnStartInExisting === -1) continue;
-
-              // Find existing function span via brace counting
-              let depth = 0;
-              let existingFnEnd = -1;
-              for (let j = fnStartInExisting; j < mergedContent.length; j++) {
-                if (mergedContent[j] === '{') depth++;
-                else if (mergedContent[j] === '}') {
-                  depth--;
-                  if (depth === 0) {
-                    existingFnEnd = j + 1;
-                    break;
-                  }
-                }
-              }
-
-              // Find proposed function span via brace counting
-              const fnStartInProposed = proposed.search(new RegExp(`(?:pub\\s+)?fn\\s+${fnName}\\b`));
-              if (fnStartInProposed === -1) continue;
-              let propDepth = 0;
-              let proposedFnEnd = -1;
-              for (let j = fnStartInProposed; j < proposed.length; j++) {
-                if (proposed[j] === '{') propDepth++;
-                else if (proposed[j] === '}') {
-                  propDepth--;
-                  if (propDepth === 0) {
-                    proposedFnEnd = j + 1;
-                    break;
-                  }
-                }
-              }
-
-              if (existingFnEnd !== -1 && proposedFnEnd !== -1) {
-                const newFnText = proposed.slice(fnStartInProposed, proposedFnEnd);
-                const lineBefore = mergedContent.slice(0, fnStartInExisting);
-                const lastNewline = lineBefore.lastIndexOf('\n');
-                const indent = lastNewline !== -1 ? lineBefore.slice(lastNewline + 1) : '';
-                const indentedNewFn = newFnText
-                  .split('\n')
-                  .map((l, idx) => (idx === 0 ? l.trim() : indent + l))
-                  .join('\n');
-
-                mergedContent =
-                  mergedContent.slice(0, fnStartInExisting) +
-                  indentedNewFn +
-                  mergedContent.slice(existingFnEnd);
-              }
+          if (missingTypes.length > 0) {
+            // Proposed is a partial file: use Tree-sitter AST merge!
+            const astMerge = await IncrementalEditManager.mergePartialFileAST(baseContent, proposed, normalizedRelPath);
+            if (!astMerge.success || !astMerge.mergedContent) {
+              errors.push(
+                `Partial file replacement rejected for '${normalizedRelPath}': ${astMerge.error ?? 'AST structural merge failed'}. Provide a complete file or localized search/replace block.`
+              );
+              continue;
             }
-            proposed = mergedContent;
-          } else {
-            // Check Case 1: Proposed starts with impl <Type> but has brand new functions
-            const implMatch = proposed.match(/^(?:pub\s+)?impl(?:\s*<[^>]+>)?\s+([A-Za-z0-9_]+)/);
-            if (implMatch) {
-              const typeName = implMatch[1];
-              const implIdx = existingContent.search(new RegExp(`(?:pub\\s+)?impl(?:\\s*<[^>]+>)?\\s+${typeName}\\b`));
-              if (implIdx !== -1) {
-                const preamble = existingContent.slice(0, implIdx).trim();
-                proposed = preamble + '\n\n' + proposed;
-              }
-            }
+            proposed = astMerge.mergedContent;
           }
         }
 
         finalContent = proposed;
       } else if (mod.type === 'localized_patch') {
-        let existingContent = '';
-        try {
-          existingContent = await fs.readFile(absPath, 'utf8');
-        } catch {
+        if (isNewFile) {
           errors.push(`Cannot apply localized patch: file '${normalizedRelPath}' does not exist.`);
           continue;
         }
 
         const validation = IncrementalEditManager.validatePatch(
-          existingContent,
+          baseContent,
           mod.searchBlock ?? '',
           mod.replaceBlock ?? '',
           mod.expectedRevision
@@ -687,11 +907,11 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         finalContent = validation.resolvedContent;
       }
 
-      // Check Host Approval Engine
+      // 7. Host Approval Check
       const action: ProposedToolAction = {
         id: `edit-${attemptNumber}-${i + 1}`,
-        tool: 'write_file',
-        parameters: { path: normalizedRelPath, content: finalContent },
+        tool: isNewFile ? 'create_file' : 'write_file',
+        parameters: { path: normalizedRelPath, content: finalContent, isNewFile },
         category: 'write',
       };
 
@@ -701,26 +921,98 @@ Only the modified code delta requires inspection; do not revert unchanged files.
         continue;
       }
 
-      // Write approved content
-      await fs.mkdir(path.dirname(absPath), { recursive: true });
-      await fs.writeFile(absPath, finalContent, 'utf8');
+      // Update in-memory staged file
+      stagedFiles.set(normalizedRelPath, finalContent);
+      stagedModDetails.push({ path: normalizedRelPath, type: mod.type, isNewFile });
+    }
 
-      const newRevision = IncrementalEditManager.hashContent(finalContent);
+    // -------------------------------------------------------------------------
+    // FAIL-CLOSED GATE: ZERO DISK MUTATIONS IF ANY ERROR OCCURRED
+    // -------------------------------------------------------------------------
+    if (errors.length > 0) {
+      return {
+        success: false,
+        appliedModifications: [],
+        errors,
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // STAGE 2: ATOMIC COMMIT WITH SAFE ROLLBACK
+    // -------------------------------------------------------------------------
+    const committedPaths: string[] = [];
+    try {
+      for (const [relPath, content] of stagedFiles.entries()) {
+        const absPath = path.resolve(this.workspacePath, relPath);
+        await fs.mkdir(path.dirname(absPath), { recursive: true });
+        await fs.writeFile(absPath, content, 'utf8');
+        committedPaths.push(relPath);
+      }
+    } catch (commitErr) {
+      // Rollback committed files to prior state
+      for (const relPath of committedPaths) {
+        const absPath = path.resolve(this.workspacePath, relPath);
+        const orig = originalFiles.get(relPath);
+        try {
+          if (orig === null || orig === undefined) {
+            await fs.unlink(absPath).catch(() => {});
+          } else {
+            await fs.writeFile(absPath, orig, 'utf8');
+          }
+        } catch {
+          // ignore rollback cleanup errors
+        }
+      }
+      return {
+        success: false,
+        appliedModifications: [],
+        errors: [`Transaction commit failed: ${(commitErr as Error).message}. Workspace rolled back to prior state.`],
+      };
+    }
+
+    // -------------------------------------------------------------------------
+    // STAGE 3: POST-COMMIT REVISION VERIFICATION & AUDIT TRAIL
+    // -------------------------------------------------------------------------
+    for (const [relPath, expectedContent] of stagedFiles.entries()) {
+      const absPath = path.resolve(this.workspacePath, relPath);
+      const actualContent = await fs.readFile(absPath, 'utf8');
+      const actualRevision = IncrementalEditManager.hashContent(actualContent);
+      const expectedRevision = IncrementalEditManager.hashContent(expectedContent);
+
+      if (actualRevision !== expectedRevision) {
+        // Rollback all files!
+        for (const rPath of stagedFiles.keys()) {
+          const aPath = path.resolve(this.workspacePath, rPath);
+          const orig = originalFiles.get(rPath);
+          if (orig === null || orig === undefined) {
+            await fs.unlink(aPath).catch(() => {});
+          } else {
+            await fs.writeFile(aPath, orig, 'utf8').catch(() => {});
+          }
+        }
+        return {
+          success: false,
+          appliedModifications: [],
+          errors: [`Post-commit revision verification failed for '${relPath}'. Transaction rolled back.`],
+        };
+      }
+
+      const modDetail = stagedModDetails.find((m) => m.path === relPath);
       applied.push({
-        path: normalizedRelPath,
-        type: mod.type,
-        bytesWritten: Buffer.byteLength(finalContent, 'utf8'),
-        newRevision,
+        path: relPath,
+        type: modDetail?.type ?? 'localized_patch',
+        bytesWritten: Buffer.byteLength(actualContent, 'utf8'),
+        newRevision: actualRevision,
       });
     }
 
-    // Update snapshot after edits
+    // Update snapshot after successful transaction
     await this.captureSnapshot();
 
     return {
-      success: applied.length > 0 && errors.length === 0,
+      success: true,
       appliedModifications: applied,
-      errors,
+      errors: [],
     };
   }
 }

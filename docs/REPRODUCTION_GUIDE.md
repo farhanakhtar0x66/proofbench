@@ -42,14 +42,16 @@ In accordance with empirical evidence standards, v1.5 explicitly separates **sim
    - Subprocess CPU metrics report `subprocessCpuMs: null` when isolated per-process CPU timing is unsupported by OS subprocess primitives, using `testSubprocessWallMs` for wall time instead.
    - Non-exercised metrics (such as bidirectional handoff savings on single-turn tasks) report `bidirectionalHandoffTokensSaved: null` to preserve scientific integrity.
 7. **Model Identity & Trace Provenance:** Emits structured `modelInference` events with requested vs actual model IDs, provider routing info, latency, prompt/completion tokens, and source revision hashes validated against `trace-contract.ts`.
-8. **Generic Deterministic File Resolution & Held-Out Generalization (Task 10):**
+8. **Generic Deterministic File Resolution & Multi-Module Verification (Task 10):**
    - Replaced all fixture-specific symbol strings with a deterministic 5-level resolution engine:
-     1. Verified explicit file headers (`// File: src/...`)
+     1. Verified explicit file headers (`// File: src/...`) with absolute-path & traversal rejection
      2. Consecutive multi-patch inheritance (verified against search block containment)
      3. Unique matches against actual workspace source across `.rs` files
      4. Tree-sitter symbol declarations/implementations matching workspace symbol index
      5. Strict rejection of ambiguous or unestablished destinations (refusing to guess `src/lib.rs`).
-   - Verified on held-out multi-module Task 10 (`task-10-sensor-fusion-aggregator`) with unfamiliar files (`sensor.rs`, `aggregator.rs`, `fusion.rs`) and symbols (`SensorReading`, `TelemetryAggregator`, `KalmanFusionEngine`), resolving and passing all 3 integration tests live through the stock Bifrost gateway.
+   - Transactional multi-file patch atomicity: pre-validates all edits and staged content before writing to disk; safe rollback restores files on any commit failure; post-commit SHA-256 verification.
+   - Tested on multi-module Task 10 (`task-10-sensor-fusion-aggregator`) with unfamiliar files (`sensor.rs`, `aggregator.rs`, `fusion.rs`) and symbols (`SensorReading`, `TelemetryAggregator`, `KalmanFusionEngine`), resolving without hardcoded mappings both in simulation (`tests/held-out-task10.test.ts`) and live through stock Bifrost gateway with local Qwen models (`scripts/verify-live-task10.ts`).
+   - *Evidence Classification Note:* Task 10 was co-developed alongside the generic resolver to prove the complete elimination of fixture heuristics; it is a multi-module structural test rather than an independently blinded third-party benchmark.
 
 ---
 
@@ -158,9 +160,9 @@ npx vitest run tests/adversarial-governance.test.ts
 
 ---
 
-### Step 5: Run the Live Held-Out Multi-Module Task 10 Demonstration
+### Step 5: Run the Live Multi-Module Task 10 Demonstration
 
-Directly executes genuine live multi-model inference against the held-out task with unfamiliar file names and symbols via Bifrost:
+Directly executes genuine live multi-model inference against the multi-module sensor fusion task (`task-10-sensor-fusion-aggregator`) via local Bifrost gateway:
 
 ```bash
 npm run demonstrate:task10:live
@@ -170,6 +172,7 @@ npm run demonstrate:task10:live
 - Generalization of deterministic file resolution without fixture-specific symbol strings.
 - Autonomous bidirectional tier transitions across live local Qwen 1.5B and Qwen 9B.
 - Full resolution and passing acceptance across all 3 integration tests in 4 execution turns.
+- *Evidence Note:* Demonstrates live Bifrost execution against the co-developed multi-module fixture. For simulated unit validation, see `npm test tests/held-out-task10.test.ts`.
 
 ---
 
@@ -178,8 +181,8 @@ npm run demonstrate:task10:live
 | Component / Subsystem | Test Suite | Verified Invariant |
 | :--- | :--- | :--- |
 | **Adaptive Execution Engine** | `tests/adaptive-engine.test.ts` | Scenarios A–G: 0-token fixes, small model routing, direct complex routing, M3a autopsy escalation, bounded small model delegation, crash resumption, and genuine bidirectional routing on `task-9`. |
-| **Held-Out Task Generalization** | `tests/held-out-task10.test.ts` | Multi-module project with unfamiliar symbols and files (`task-10-sensor-fusion-aggregator`), resolving via generic AST symbol & source matching without hardcoded fixtures. |
-| **Deterministic File Resolution** | `tests/incremental-resolution.test.ts` | 5-level deterministic resolution: explicit headers, verified inheritance, unique source matching, Tree-sitter symbol indexing, and strict ambiguity rejection (zero `src/lib.rs` guessing). |
+| **Multi-Module Task Validation** | `tests/held-out-task10.test.ts` | Multi-module project with unfamiliar symbols and files (`task-10-sensor-fusion-aggregator`), resolving via generic AST symbol & source matching without hardcoded fixtures (simulation validation). |
+| **Deterministic File Resolution** | `tests/incremental-resolution.test.ts` | 5-level deterministic resolution, absolute path / traversal rejection, transactional commit & rollback, and Tree-sitter AST function merge without brace counting. |
 | **OS Process Restarts** | `tests/process-restart.test.ts` | True child-process isolation via `child_process.fork`, planned suspension, abrupt `SIGKILL` recovery, and disk checkpoint continuation without turn replay. |
 | **Adversarial Governance** | `tests/adversarial-governance.test.ts` | 12 adversarial attacks verified: fake verification rejection, anti-privilege escalation, confidential mode loopback enforcement, budget halts, test environment credential scrubbing, and frozen harness tamper detection. |
 | **Persistence & Continuity** | `tests/persistence.test.ts` | Atomic JSONL event append, schema validation, checkpoint restoration across inter-tier handoffs, external git revision drift detection, and diagnostic log preservation. |

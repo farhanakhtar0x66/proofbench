@@ -359,6 +359,22 @@ async function copyRecursive(src: string, dest: string): Promise<void> {
     const srcPath = path.join(src, entry.name);
     const destPath = path.join(dest, entry.name);
     if (entry.name === 'target' || entry.name === '.git') continue;
+
+    // Fail-closed security rejection for symlinks (both file and directory)
+    if (entry.isSymbolicLink()) {
+      throw new Error(
+        `Security rejection: Symbolic link detected at '${srcPath}'. ProofBench strictly prohibits symlinks in workspace templates.`
+      );
+    }
+
+    // Additional defense-in-depth: check lstat to ensure hard/junction links aren't masking symlinks
+    const lstat = await fs.lstat(srcPath);
+    if (lstat.isSymbolicLink()) {
+      throw new Error(
+        `Security rejection: Symbolic link detected at '${srcPath}'. ProofBench strictly prohibits symlinks in workspace templates.`
+      );
+    }
+
     if (entry.isDirectory()) {
       await copyRecursive(srcPath, destPath);
     } else {
