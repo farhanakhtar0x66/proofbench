@@ -1,3 +1,4 @@
+import {supportTableExcerpt,hasSupportTableContext} from './support-table';
 import {roleClaimAnchors,roleEntityMentioned} from './evidence-relevance';
 import {supportClaimSubject} from './support-scope';
 import {priceCurrencyEvidenceReason} from './claim-ambiguity';
@@ -25,10 +26,11 @@ export function excerptQualityReason(claim:string,excerpt:string):string|undefin
  if(packageLines>=3&&packageLines>lines.length/2)return 'The excerpt is dominated by package identifiers rather than a support statement. Fuller explanatory evidence is required.';
  const currencyReason=priceCurrencyEvidenceReason(claim,excerpt);if(currencyReason)return currencyReason;
  const subject=supportClaimSubject(claim);
- if(subject&&(!phrase(excerpt,subject)||!supportTerms.test(excerpt)))return 'This support claim needs an explicit matching product/version and support context in the excerpt. Generic compatibility wording or another version cannot corroborate it.';
+ if(subject&&(!phrase(excerpt,subject)||!supportTerms.test(excerpt))&&!hasSupportTableContext(claim,excerpt))return 'This support claim needs an explicit matching product/version and support context in the excerpt. Generic compatibility wording or another version cannot corroborate it.';
 }
 
 export function selectEvidenceExcerpt(claim:string,content:string,sourceUrl?:string){
+ const table=supportTableExcerpt(claim,content);if(table&&!excerptQualityReason(claim,table.excerpt))return table;
  const sourceLength=content.length;
  const role=roleClaimAnchors(claim);const subject=supportClaimSubject(claim);
  const event=completedEventClaim(claim,new Date().toISOString());

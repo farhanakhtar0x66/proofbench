@@ -22,3 +22,7 @@ Final offline validation: 784 tests across 65 files passed, along with lint, Typ
 ## Live launcher follow-up
 
 A bounded `dev:live -- --requests N` launcher now validates local configuration, checks gateway health and development ports, and starts the existing backend and website with matching live caps. Its `--check` configuration-only command passed with the selected Groq setup without any network requests. The follow-up passed 804 offline tests across 66 files, lint, build and fixture evaluation. No additional Tavily/Groq calls or browser verification were performed; the software-support fresh-validation gap above remains open.
+
+## Manual software-support follow-up
+
+The user subsequently ran the corrected neutral lifecycle query through the website. It still returned inconclusive: Groq assessed one eligible source as contradicting; the other contradicting source failed historical/as-of scope checks, and the official guide was represented by navigation text and excluded on update/publication metadata. [Support-table handling and publication-estimate separation](SUPPORT-TABLES.md) were then corrected and tested offline. No new Tavily/Groq requests were made for that correction; its fresh app outcome remains unconfirmed.

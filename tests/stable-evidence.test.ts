@@ -63,5 +63,7 @@ it('does not manufacture an update conflict from date-only midnight precision on
  for(const source of data.evidence){source.publishedAt=published;source.updatedAt=published.slice(0,10)+'T00:00:00.000Z';}
  expect((await compareClaimEvidence(data,{mode:'llm',interpreter:adapter()})).outcome).toBe('supported');
  for(const source of data.evidence)source.updatedAt=new Date(Date.parse(published)-86400000).toISOString();
- const interpreter=adapter();expect((await compareClaimEvidence(data,{mode:'llm',interpreter})).outcome).toBe('inconclusive');expect(interpreter.compareEvidence).not.toHaveBeenCalled();
+ const interpreter=adapter();const mismatch=await compareClaimEvidence(data,{mode:'llm',interpreter});expect(mismatch.outcome).toBe('supported');expect(mismatch.freshness).toBe('unknown');expect(mismatch.freshnessScore).toBeNull();
+ for(const source of data.evidence)source.updatedAt='2099-01-01T00:00:00.000Z';
+ const blocked=adapter();expect((await compareClaimEvidence(data,{mode:'llm',interpreter:blocked})).outcome).toBe('inconclusive');expect(blocked.compareEvidence).not.toHaveBeenCalled();
 });

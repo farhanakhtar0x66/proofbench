@@ -63,3 +63,5 @@ This endpoint is not a provider-health/billing audit. Server-lifetime ceilings a
 Run `npm test`, `npm run lint`, `npm run build` and `npm run evaluate` for offline regressions. They validate date/recency separation, primary identity bounds, ambiguous evidence, conflicting evidence, exact quotes, protocol handling and allowance snapshots. They are not live accuracy measurements. Record fresh API checks and saved-source replays separately and retain failures. No arbitrary-statement reliability guarantee is implied by passing examples or test counts.
 
 Fresh development results and the unresolved software-support case are recorded in [EVIDENCE-FIRST-RESULTS.md](EVIDENCE-FIRST-RESULTS.md).
+
+For version/status table extraction and current-scope publication-estimate ordering warnings, see [SUPPORT-TABLES.md](SUPPORT-TABLES.md). These warnings do not establish fresh publication dates.
