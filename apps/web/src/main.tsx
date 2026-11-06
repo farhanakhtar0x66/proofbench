@@ -8,6 +8,7 @@ import { Activity, ArrowUpRight, CirclePlay, Radar, ScanLine, Workflow } from 'l
 import { EvidenceMap } from './EvidenceMap';
 import { BenchmarkDetails, BenchmarkOverview, useControlledBenchmark } from './ControlledBenchmark';
 import { PortalArt } from './PresentationArt';
+import { TrackDBench } from './TrackDBench';
 import { ApiTerminal, WorkspaceShowcase, type VerifierDestination } from './WorkspaceShowcase';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -259,7 +260,7 @@ function App(){
     <nav aria-label="Workspace">
      <button aria-current={tab==='runs'?'page':undefined} onClick={()=>{setTab('runs');window.scrollTo(0,0);}}><Workflow size={15} aria-hidden="true"/> Execution lab</button>
      <button aria-current={tab==='verify'?'page':undefined} onClick={()=>{setReplayRequest(undefined);setTab('verify');window.scrollTo(0,0);}}><Radar size={15} aria-hidden="true"/> Freshness verifier</button>
-     {tab==='runs'&&<><a href="#controlled-benchmark">Benchmarks</a><a href="#workspace-features">Features</a></>}
+     {tab==='runs'&&<><a href="#track-d">Track D</a><a href="#controlled-benchmark">Benchmarks</a><a href="#workspace-features">Features</a></>}
     </nav>
     <span className="badge"><span className="dot" aria-hidden="true"/>{mode}</span>
    </div>
@@ -284,6 +285,7 @@ function App(){
      {monitoringPaused&&activeJobId&&<button type="button" className="secondary" onClick={resumeMonitoring} title="Resume monitoring active job">Resume monitoring</button>}
     </div>}
     {tab==='verify'&&<a className="primary hero-link" href="#workspace">Open verifier <ArrowUpRight size={14} aria-hidden="true"/></a>}
+    {tab==='runs'&&<a className="track-mobile-link" href="#track-d">Open Track D benchmark <ArrowUpRight size={13} aria-hidden="true"/></a>}
     <ApiTerminal key={tab} defaultTab={tab}/>
    </section>
    <div className="workspace-content" id="workspace">
@@ -298,6 +300,7 @@ function App(){
      <article><span>ELAPSED TIME</span><strong className="smaller">{selected?metric(selected.usage.duration):'Not reported'}</strong><small>From the selected run</small></article>
     </section>
     <EvidenceMap key={selected?.id??'empty'} run={selected} trace={trace} replayToken={replayRequest?.runId===selected?.id?replayRequest?.sequence:undefined}/>
+    <TrackDBench onVerify={text=>{setAnswer(text);openVerifier('verification-input');}}/>
     <BenchmarkOverview {...benchmark}/>
     <WorkspaceShowcase hasRun={Boolean(selected)} openVerifier={openVerifier}/>
     <section className="panel ledger" id="run-ledger" aria-label="Run ledger">
