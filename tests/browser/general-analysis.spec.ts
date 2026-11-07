@@ -2,7 +2,7 @@ import {test,expect} from '@playwright/test';
 import {AnalysisReport} from '../../packages/contracts/src/index';
 
 test('general analysis uses the real offline API with accurate mode and no fabricated sources',async({page})=>{
- await page.goto('/');await page.getByRole('button',{name:/Freshness verifier/}).click();
+ await page.goto('/');await page.getByRole('link',{name:'Verifier',exact:true}).click();
  await expect(page.getByLabel('Verification flow')).toHaveValue('general');
  await expect(page.getByText('Backend is in offline mode.',{exact:false})).toBeVisible();
  await page.getByLabel('Paste an answer or factual statement').fill('Acme Pro costs USD 20/month.');
@@ -33,7 +33,7 @@ test('shows per-claim verdicts, source warnings and corrections from a validated
   });
   await route.fulfill({status:201,json:AnalysisReport.parse(report)});
  });
- await page.goto('/');await page.getByRole('button',{name:/Freshness verifier/}).click();
+ await page.goto('/');await page.getByRole('link',{name:'Verifier',exact:true}).click();
  await page.getByLabel('Paste an answer or factual statement').fill('First statement. Second statement. Third statement. Fourth statement.');
  await page.getByRole('button',{name:'Verify answer →'}).click();
  for(const verdict of ['supported','contradicted','inconclusive'])await expect(page.getByText(verdict,{exact:true})).toBeVisible();
@@ -54,7 +54,7 @@ test('shows per-claim verdicts, source warnings and corrections from a validated
 test('blocks duplicate submissions while pending and shows a recoverable error without retrying',async({page})=>{
  let release!:()=>void;const waiting=new Promise<void>(resolve=>{release=resolve;});let requests=0;
  await page.route('**/api/analysis',async route=>{requests++;await waiting;await route.fulfill({status:503,json:{}});});
- await page.goto('/');await page.getByRole('button',{name:/Freshness verifier/}).click();
+ await page.goto('/');await page.getByRole('link',{name:'Verifier',exact:true}).click();
  await page.getByRole('button',{name:'Verify answer →'}).click();
  await expect(page.getByRole('button',{name:'Checking…'})).toBeDisabled();
  await expect(page.getByLabel('Paste an answer or factual statement')).toBeDisabled();

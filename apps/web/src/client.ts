@@ -2,6 +2,9 @@ import {z} from 'zod';
 import {Capabilities,RunRecord,ExecutionTrace,EvidenceReport,VerificationReport,TaskSpec,RunListResponse,JobRecord,JobSubmissionResponse,AnalysisReport,AnalysisStatus} from '../../../packages/contracts/src/index';
 import {demoRun,demoTrace,demoReport,task} from '../../../packages/contracts/src/examples';
 const localMock=import.meta.env.VITE_API_MODE==='mock';
+export class ApiResponseError extends Error {
+ constructor(message:string, readonly status:number){super(message);}
+}
 export async function api<T>(path:string,schema:z.ZodType<T>,body?:unknown):Promise<T>{
  if(localMock){
   const fixtures:Record<string,unknown>={
@@ -51,8 +54,8 @@ export async function api<T>(path:string,schema:z.ZodType<T>,body?:unknown):Prom
    if(errorJson.message)serverMessage=errorJson.message;
    else if(errorJson.error)serverMessage=`Error ${response.status}: ${errorJson.error}`;
   }catch{/* ignore non-json */}
-  if(serverMessage)throw new Error(serverMessage);
-  throw new Error(`Request failed (${response.status}). ${response.status===501?'Selected capability is not integrated.':response.status===503?'Inference gateway is offline. Start the Bifrost HTTP daemon on :8089.':'Check that the API is running, then retry.'}`);
+  if(serverMessage)throw new ApiResponseError(serverMessage,response.status);
+  throw new ApiResponseError(`Request failed (${response.status}). ${response.status===501?'Selected capability is not integrated.':response.status===503?'Inference gateway is offline. Start the Bifrost HTTP daemon on :8089.':'Check that the API is running, then retry.'}`,response.status);
  }
  return schema.parse(await response.json());
 }

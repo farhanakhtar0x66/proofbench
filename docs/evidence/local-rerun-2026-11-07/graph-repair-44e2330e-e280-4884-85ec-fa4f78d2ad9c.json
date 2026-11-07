@@ -1,0 +1,541 @@
+{
+    "id": "44e2330e-e280-4884-85ec-fa4f78d2ad9c",
+    "createdAt": "2026-11-07T13:40:44.426Z",
+    "request": {
+        "mode": "live",
+        "agents": [
+            "proofbench",
+            "opencode"
+        ],
+        "tasks": [
+            "distance-width",
+            "directed-edges"
+        ],
+        "repeats": 1,
+        "fault": "none"
+    },
+    "status": "completed",
+    "model": "ollama/gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+    "comparable": false,
+    "worker": {
+        "kind": "docker",
+        "id": "sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9"
+    },
+    "oracle": "hackathon-raptors/speed-demon-2026@3e4004f74de60ffd0670115ab653aa4d4cd3647d",
+    "adapterRevision": "graph-repair-adapters-v2",
+    "publicSuiteRevision": "graph-repair-public-v2",
+    "reasoningEffort": "none",
+    "limits": {
+        "modelCalls": 6,
+        "outputTokensPerCall": 3500,
+        "agentSeconds": 150
+    },
+    "runs": [
+        {
+            "id": "7f477c99-ac6c-4b32-b994-6e0c7ab4d29f",
+            "agent": "ProofBench \u00b7 fixed model",
+            "agentId": "proofbench",
+            "task": "distance-width",
+            "repeat": 1,
+            "seed": 3612372634,
+            "verdict": "unavailable",
+            "unavailableReason": "grader-error",
+            "agentMs": 28648.698417,
+            "verdictMs": 28648.715624999997,
+            "inputTokens": 3564,
+            "outputTokens": 652,
+            "costUsd": null,
+            "steps": null,
+            "toolCalls": null,
+            "sourceSha256": "af65ede7966324ed7f08011ad4d09ec3270586193cb07f9aec8a332fec6adff5",
+            "diff": "",
+            "checks": [],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "7e327b6d-1cdc-4ab7-8d38-0a27d562834f",
+                    "input": 708,
+                    "output": 193,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "27bd3b2c-46e5-441b-b2e0-d1a8a8f44575",
+                    "input": 714,
+                    "output": 116,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "30e837be-6546-468b-9afe-be86e1ccd2e3",
+                    "input": 714,
+                    "output": 177,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "bbcce138-041c-41ea-97e7-3bb9a8df856a",
+                    "input": 714,
+                    "output": 130,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "42cf4ac0-7b9e-489c-8bd5-68b36eb15af2",
+                    "input": 714,
+                    "output": 36,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:40:44.427Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 1 returned HTTP 200.",
+                    "at": "2026-11-07T13:40:56.161Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 2 returned HTTP 200.",
+                    "at": "2026-11-07T13:41:01.588Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 3 returned HTTP 200.",
+                    "at": "2026-11-07T13:41:08.510Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 4 returned HTTP 200.",
+                    "at": "2026-11-07T13:41:12.175Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 5 returned HTTP 200.",
+                    "at": "2026-11-07T13:41:12.877Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Host approved the text edit for public build and regression checks.",
+                    "at": "2026-11-07T13:41:12.884Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Grader worker: unavailable. The restricted worker failed to start or exceeded its process limits.",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Public checks were unavailable; kept the last buildable main.cpp.",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public checks were unavailable. The trial stopped without submitting an unvalidated edit.",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 7e327b6d-1cdc-4ab7-8d38-0a27d562834f",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 27bd3b2c-46e5-441b-b2e0-d1a8a8f44575",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 30e837be-6546-468b-9afe-be86e1ccd2e3",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 bbcce138-041c-41ea-97e7-3bb9a8df856a",
+                    "at": "2026-11-07T13:41:13.076Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 42cf4ac0-7b9e-489c-8bd5-68b36eb15af2",
+                    "at": "2026-11-07T13:41:13.076Z"
+                }
+            ]
+        },
+        {
+            "id": "5a3cfbdf-d6a7-417c-873f-ec8817267cde",
+            "agent": "OpenCode CLI",
+            "agentId": "opencode",
+            "task": "distance-width",
+            "repeat": 1,
+            "seed": 3612372634,
+            "verdict": "unavailable",
+            "unavailableReason": "grader-error",
+            "agentMs": 27007.57825,
+            "verdictMs": 27366.563583999996,
+            "inputTokens": 14591,
+            "outputTokens": 339,
+            "costUsd": null,
+            "steps": 3,
+            "toolCalls": 2,
+            "sourceSha256": "044ae85761dfc20e2db87f6c72c6088aafa4a1b50b153532c1dd31fbe6477292",
+            "agentNote": "The fix changes `Distance` from `std::uint32_t` to `std::uint64_t` to handle path sums that exceed 32 bits. This prevents overflow when accumulating edge weights along long paths.",
+            "diff": "diff --git a/starter.cpp b/submission.cpp\nindex 7324e50..8906e85 100644\n--- a/starter.cpp\n+++ b/submission.cpp\n@@ -8,7 +8,7 @@\n #include <utility>\n #include <vector>\n \n-using Distance = std::uint32_t;\n+using Distance = std::uint64_t;\n using Edge = std::pair<int, std::uint32_t>;\n using Entry = std::pair<Distance, int>;\n \n",
+            "checks": [
+                {
+                    "name": "Grader worker",
+                    "outcome": "unavailable",
+                    "detail": "The restricted worker failed to start or exceeded its process limits."
+                }
+            ],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "526bb350-8324-4765-9ff5-9c662b82e8df",
+                    "input": 666,
+                    "output": 8,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "cd983050-3d41-487c-b9c0-36128fde4763",
+                    "input": 4018,
+                    "output": 68,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "41bedc71-76df-4197-9977-1f9c438e25ab",
+                    "input": 4835,
+                    "output": 216,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "a604cced-159a-41d9-996c-1df4ce82b3be",
+                    "input": 5072,
+                    "output": 47,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:41:13.079Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: read \u00b7 completed.",
+                    "at": "2026-11-07T13:41:39.911Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: edit \u00b7 completed.",
+                    "at": "2026-11-07T13:41:39.912Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 526bb350-8324-4765-9ff5-9c662b82e8df",
+                    "at": "2026-11-07T13:41:40.086Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 cd983050-3d41-487c-b9c0-36128fde4763",
+                    "at": "2026-11-07T13:41:40.086Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 41bedc71-76df-4197-9977-1f9c438e25ab",
+                    "at": "2026-11-07T13:41:40.086Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 a604cced-159a-41d9-996c-1df4ce82b3be",
+                    "at": "2026-11-07T13:41:40.086Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Grader worker: unavailable.",
+                    "at": "2026-11-07T13:41:40.445Z"
+                }
+            ]
+        },
+        {
+            "id": "e9b33131-cbe1-4718-9e0e-1278a20d722b",
+            "agent": "ProofBench \u00b7 fixed model",
+            "agentId": "proofbench",
+            "task": "directed-edges",
+            "repeat": 1,
+            "seed": 1776114545,
+            "verdict": "unavailable",
+            "unavailableReason": "grader-error",
+            "agentMs": 9635.755165999995,
+            "verdictMs": 9635.772833000003,
+            "inputTokens": 721,
+            "outputTokens": 157,
+            "costUsd": null,
+            "steps": null,
+            "toolCalls": null,
+            "sourceSha256": "b01a7dfd1148ec6a57196de76bbff4e8762e1f392cc477a7d2485e00e9945b2f",
+            "diff": "",
+            "checks": [],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "33c67d91-e9fa-441c-bebf-1f5de2f878a1",
+                    "input": 721,
+                    "output": 157,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:41:40.460Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 1 returned HTTP 200.",
+                    "at": "2026-11-07T13:41:49.955Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Host approved the text edit for public build and regression checks.",
+                    "at": "2026-11-07T13:41:49.956Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Grader worker: unavailable. The restricted worker failed to start or exceeded its process limits.",
+                    "at": "2026-11-07T13:41:50.096Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Public checks were unavailable; kept the last buildable main.cpp.",
+                    "at": "2026-11-07T13:41:50.096Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public checks were unavailable. The trial stopped without submitting an unvalidated edit.",
+                    "at": "2026-11-07T13:41:50.096Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 33c67d91-e9fa-441c-bebf-1f5de2f878a1",
+                    "at": "2026-11-07T13:41:50.096Z"
+                }
+            ]
+        },
+        {
+            "id": "c8c90087-50b8-4ba0-b3c7-8f98b4289801",
+            "agent": "OpenCode CLI",
+            "agentId": "opencode",
+            "task": "directed-edges",
+            "repeat": 1,
+            "seed": 1776114545,
+            "verdict": "unavailable",
+            "unavailableReason": "grader-error",
+            "agentMs": 24801.415790999992,
+            "verdictMs": 24927.066624999992,
+            "inputTokens": 23313,
+            "outputTokens": 506,
+            "costUsd": null,
+            "steps": 5,
+            "toolCalls": 5,
+            "sourceSha256": "044ae85761dfc20e2db87f6c72c6088aafa4a1b50b153532c1dd31fbe6477292",
+            "agentNote": "I can see the issue. The graph is built with **undirected** edges (line 29: `edges[v].emplace_back(u, weight)`), but the problem states it's a **directed** graph. This causes queries to find paths even when no directed path exists.\n\nThe fix is to remove the undirected edge addition:",
+            "diff": "diff --git a/starter.cpp b/submission.cpp\nindex 010a24c..8906e85 100644\n--- a/starter.cpp\n+++ b/submission.cpp\n@@ -26,7 +26,6 @@ int main() {\n         std::uint32_t weight;\n         graph >> u >> v >> weight;\n         edges[u].emplace_back(v, weight);\n-        edges[v].emplace_back(u, weight);\n     }\n     const auto infinity = std::numeric_limits<Distance>::max();\n     for (int s, t; queries >> s >> t;) {\n",
+            "checks": [
+                {
+                    "name": "Grader worker",
+                    "outcome": "unavailable",
+                    "detail": "The restricted worker failed to start or exceeded its process limits."
+                }
+            ],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "2400a40d-f676-4f89-9237-6dba3654af9b",
+                    "input": 668,
+                    "output": 8,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "6df35c7b-25b6-4108-b25f-a0216f885181",
+                    "input": 4018,
+                    "output": 67,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "488556d9-43ef-43a9-ba9f-3767da2a126c",
+                    "input": 4229,
+                    "output": 27,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "d619f19b-5f4e-4336-af77-8d011ab63c88",
+                    "input": 4465,
+                    "output": 27,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "3a000031-f28f-4a27-85e8-51140329cd6d",
+                    "input": 4552,
+                    "output": 67,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "8610e918-27ec-4c7e-afdd-a00b0033f6c6",
+                    "input": 5381,
+                    "output": 310,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 429,
+                    "model": null,
+                    "provider": null,
+                    "requestId": null,
+                    "input": 0,
+                    "output": 0,
+                    "costUsd": 0,
+                    "injected": false,
+                    "relayRejection": "model-call-limit"
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:41:50.099Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode stopped after the shared model-call limit. Grading its last source artifact.",
+                    "at": "2026-11-07T13:42:14.781Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: read \u00b7 failed. The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules [{\"permission\":\"*\",\"action\":\"allow\",\"pattern\":\"*\"},{\"permission\":\"read\",\"pattern\":\"*\",\"action\":\"allow\"},{\"permission\":\"read\",\"pattern\":\"*.env\",\"action\":\"ask\"},{\"permission\":\"read\"",
+                    "at": "2026-11-07T13:42:14.783Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: read \u00b7 failed. The user has specified a rule which prevents you from using this specific tool call. Here are some of the relevant rules [{\"permission\":\"*\",\"action\":\"allow\",\"pattern\":\"*\"},{\"permission\":\"external_directory\",\"pattern\":\"*\",\"action\":\"ask\"},{\"permission\":\"external_directory\",\"pattern\":\"<run>/profile/ope",
+                    "at": "2026-11-07T13:42:14.783Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: glob \u00b7 completed.",
+                    "at": "2026-11-07T13:42:14.783Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: read \u00b7 completed.",
+                    "at": "2026-11-07T13:42:14.783Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: edit \u00b7 completed.",
+                    "at": "2026-11-07T13:42:14.783Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 2400a40d-f676-4f89-9237-6dba3654af9b",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 6df35c7b-25b6-4108-b25f-a0216f885181",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 488556d9-43ef-43a9-ba9f-3767da2a126c",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 d619f19b-5f4e-4336-af77-8d011ab63c88",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 3a000031-f28f-4a27-85e8-51140329cd6d",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 8610e918-27ec-4c7e-afdd-a00b0033f6c6",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Relay rejected a request after the model-call cap. No Bifrost request was made.",
+                    "at": "2026-11-07T13:42:14.900Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Grader worker: unavailable.",
+                    "at": "2026-11-07T13:42:15.026Z"
+                }
+            ]
+        }
+    ]
+}

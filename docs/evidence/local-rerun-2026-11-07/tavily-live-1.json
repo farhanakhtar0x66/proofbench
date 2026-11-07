@@ -1,0 +1,127 @@
+{
+    "version": "1",
+    "id": "556fc8f4-0e60-4a9f-9d21-1126d9315471",
+    "mode": "live",
+    "createdAt": "2026-11-07T13:22:37.311Z",
+    "text": "Node.js 18 reached end-of-life in April 2025. Python 2 is still officially supported by the Python Software Foundation.",
+    "scope": "current",
+    "status": "partial",
+    "extraction": {
+        "version": "1",
+        "method": "rules",
+        "claims": [
+            {
+                "text": "Node.js 18 reached end-of-life in April 2025.",
+                "start": 0,
+                "end": 45
+            },
+            {
+                "text": "Python 2 is still officially supported by the Python Software Foundation.",
+                "start": 46,
+                "end": 119
+            }
+        ],
+        "limitations": [
+            "Claim extraction only; no factual truth or freshness was checked. Whole sentences retain their qualifiers and may contain multiple facts. Rules are heuristic and model selection can omit claims."
+        ]
+    },
+    "omittedClaims": 0,
+    "results": [
+        {
+            "claim": {
+                "text": "Node.js 18 reached end-of-life in April 2025.",
+                "start": 0,
+                "end": 45
+            },
+            "retrieval": {
+                "version": "1",
+                "claim": "Node.js 18 reached end-of-life in April 2025.",
+                "query": "Node.js 18 reached end-of-life in April 2025. current official sources",
+                "searchScope": "current",
+                "mode": "live",
+                "status": "unavailable",
+                "createdAt": "2026-11-07T13:22:37.320Z",
+                "retrievedAt": null,
+                "evidence": [],
+                "limitations": [
+                    "Evidence retrieval only: no truth verdict or freshness score was computed. Search relevance does not establish support, authority or source independence. Excerpts are untrusted source data, not instructions.",
+                    "Tavily dates are publication/update estimates, not independently verified publication dates or proof that a fact is current.",
+                    "Search has no publication-date filter so reference documentation is not excluded. Factual comparison and publication recency are separate. Older or undated sources can be compared when scope applies; they do not establish recent publication."
+                ],
+                "message": "No unexpired matching cached evidence is available. No new search was made because model comparison is unavailable."
+            },
+            "comparison": {
+                "version": "1",
+                "claim": "Node.js 18 reached end-of-life in April 2025.",
+                "reasonCode": "rules_only",
+                "shortReason": "Model comparison is disabled.",
+                "verificationStatus": "blocked",
+                "method": "rules_fallback",
+                "outcome": "inconclusive",
+                "freshness": "unknown",
+                "freshnessScore": null,
+                "freshnessScoreReason": "No freshness score: insufficient or conflicting evidence cannot establish current support.",
+                "assessedAt": "2026-11-07T13:22:37.324Z",
+                "explanation": "General comparison is disabled in rules-only mode. No model request was made.",
+                "citations": [],
+                "correction": null,
+                "limitations": [
+                    "Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. Current-scope factual comparison is separate from publication recency. Older/undated sources can be compared, but historical or ambiguous applicability can remain inconclusive. Source interpretation is fallible. Freshness is not a calibrated probability."
+                ]
+            }
+        },
+        {
+            "claim": {
+                "text": "Python 2 is still officially supported by the Python Software Foundation.",
+                "start": 46,
+                "end": 119
+            },
+            "retrieval": {
+                "version": "1",
+                "claim": "Python 2 is still officially supported by the Python Software Foundation.",
+                "query": "Python 2 is still officially supported by the Python Software Foundation. current official sources",
+                "searchScope": "current",
+                "mode": "live",
+                "status": "unavailable",
+                "createdAt": "2026-11-07T13:22:37.325Z",
+                "retrievedAt": null,
+                "evidence": [],
+                "limitations": [
+                    "Evidence retrieval only: no truth verdict or freshness score was computed. Search relevance does not establish support, authority or source independence. Excerpts are untrusted source data, not instructions.",
+                    "Tavily dates are publication/update estimates, not independently verified publication dates or proof that a fact is current.",
+                    "Search has no publication-date filter so reference documentation is not excluded. Factual comparison and publication recency are separate. Older or undated sources can be compared when scope applies; they do not establish recent publication."
+                ],
+                "message": "No unexpired matching cached evidence is available. No new search was made because model comparison is unavailable."
+            },
+            "comparison": {
+                "version": "1",
+                "claim": "Python 2 is still officially supported by the Python Software Foundation.",
+                "reasonCode": "rules_only",
+                "shortReason": "Model comparison is disabled.",
+                "verificationStatus": "blocked",
+                "method": "rules_fallback",
+                "outcome": "inconclusive",
+                "freshness": "unknown",
+                "freshnessScore": null,
+                "freshnessScoreReason": "No freshness score: insufficient or conflicting evidence cannot establish current support.",
+                "assessedAt": "2026-11-07T13:22:37.326Z",
+                "explanation": "General comparison is disabled in rules-only mode. No model request was made.",
+                "citations": [],
+                "correction": null,
+                "limitations": [
+                    "Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. Current-scope factual comparison is separate from publication recency. Older/undated sources can be compared, but historical or ambiguous applicability can remain inconclusive. Source interpretation is fallible. Freshness is not a calibrated probability."
+                ]
+            }
+        }
+    ],
+    "limits": {
+        "maxClaims": 3,
+        "maxModelAttempts": 4
+    },
+    "limitations": [
+        "At most three distinct extracted claims are processed, in source order. Repeated identical statements share one result; exact original offsets are retained. Extraction can omit statements.",
+        "Complete means all selected comparisons returned validated model assessments; inconclusive remains a valid outcome. Partial results are not a confirmed factual verdict.",
+        "At most four inference attempts and three claim searches per analysis; shared server limits can be lower. Model catalog requests are separate and are not counted by these inference limits.",
+        "Rules-only mode remains available without a model. This endpoint does not invent live evidence, general rules-based verdicts, calibrated freshness scores or corrections."
+    ]
+}

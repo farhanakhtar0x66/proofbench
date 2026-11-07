@@ -14,6 +14,7 @@ import {ComparisonCache} from '../../../packages/tavily/src/comparison-cache';
 import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 import {loadCanonicalTask,listCanonicalTasks} from './tasks';
+import {registerTrackD} from './track-d';
 try{process.loadEnvFile?.();}catch{/* ignore missing env file */}
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
@@ -52,6 +53,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
   return reply.code(500).send({version:'1',error:'internal_error',message:'The server could not complete or save this request. Ask the backend owner to check the server; avoid repeating live requests until the cause is known.'});
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
+ await registerTrackD(app,store);
  app.get('/api/capabilities',async()=>Capabilities.parse({
   version:'1',
   implementation:adapter.descriptor.implementation,

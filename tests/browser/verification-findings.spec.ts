@@ -12,7 +12,7 @@ test.beforeEach(async({page})=>{
   await route.fulfill({status:201,json:result});
  });
  await page.goto('/');
- await page.getByRole('button',{name:/Freshness verifier/}).click();
+ await page.getByRole('link',{name:'Verifier',exact:true}).click();
  await page.getByLabel('Verification flow').selectOption('fixture');
 });
 

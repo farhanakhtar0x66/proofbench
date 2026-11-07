@@ -1,0 +1,58 @@
+{
+    "version": "1",
+    "id": "629736ef-cca2-4540-b2f6-30113d2426d5",
+    "mode": "live",
+    "createdAt": "2026-11-07T13:23:16.677Z",
+    "text": "Node.js 18 is currently supported by the Node.js project.",
+    "claims": [
+        {
+            "version": "1",
+            "id": "01d24ab7-7b8a-4642-89e5-64b2b0edf47e",
+            "text": "Node.js 18 is currently supported by the Node.js project.",
+            "timeSensitive": "yes",
+            "outcome": "inconclusive",
+            "freshness": "unknown",
+            "freshnessScore": null,
+            "asOf": "2026-11-07T13:23:18.804Z",
+            "uncertainty": "This claim does not match a supported English pricing, CEO or latest-version pattern. Try a complete statement with an explicit product or company, value and billing unit when applicable. No verdict can be inferred from related search results. Source ranking: 0 reviewed, 0 likely official (unverified), 3 unreviewed. Heuristic identity and unreviewed agreement do not establish authority; exact-copy detection cannot prove independence.",
+            "evidence": [
+                {
+                    "url": "https://nodejs.org/en/blog/announcements/v18-release-announce",
+                    "title": "Node.js \u2014 Node.js 18 is now available!",
+                    "retrievedAt": "2026-11-07T13:23:18.799Z",
+                    "dateReason": "The publication date is missing; an update or retrieval date cannot replace it.",
+                    "excerpt": "Initially, Node.js 18 will replace Node.js 17 as our \u2018Current\u2019 release line. As per the release schedule, Node.js 18 will be the 'Current' release for the next 6 months and then promoted to Long-term Support (LTS) in October 2022. Once promoted to long-term support the release will be designated the codename 'Hydrogen'. Node.js 18 will be supported until April 2025.\n\nYou can read more about our release policy at . [...] Node.js does not support running on operating systems that are no longer supported by their vendor. For operating systems where their vendor has planned to end support earlier than April 2025, such as Windows 8.1 (January 2023) and Windows Server 2012 R2 (October 2023), support for Node.js 18 will end at the earlier date.\n\nFull details about the supported toolchains and compilers are documented in the Node.js BUILDING.md file. [...] The project is also continuing its \u2018Next 10\u2019 effort. The goal of this effort is to reflect on what led to success in the first 10 years of Node.js and set the direction for success in the next 10. Several meetings have been held to discuss the next steps on the agreed technical priorities. There have already been great discussions on Mod",
+                    "relation": "context",
+                    "retrieval": "tavily",
+                    "sourceTier": "unreviewed",
+                    "sourceReason": "No qualifying reviewed mapping or sufficient identity signals for this entity and page. Relevance is not authority.",
+                    "corroborationGroup": "nodejs.org"
+                },
+                {
+                    "url": "https://aws.amazon.com/blogs/devops/announcing-the-end-of-support-for-node-js-18-x-in-aws-cdk",
+                    "title": "Announcing the end of support for Node.js 18.x in AWS CDK | AWS DevOps & Developer Productivity Blog",
+                    "retrievedAt": "2026-11-07T13:23:18.799Z",
+                    "dateReason": "An explicit effective or as-of date could not be parsed; its temporal scope is uncertain.",
+                    "excerpt": "Beginning December 1st, 2025, AWS CDK will officially discontinue support for Node.js 18.x across all components and ecosystem projects. From this point forward, all bug fixes, security patches, and new feature development will target only supported Node.js versions, currently 20.x and 22.x as of June 2025. We strongly recommend using this transition period to migrate to Node.js 22.x, the current Active Long Term Support version, which will provide the longest runway for future compatibility as [...] Node.js 18.x reached its End of Life support on April 30, 2025, per the Node.js Release Schedule. This means the Node.js community no longer provides bug fixes or security updates for this version. By dropping support for end-of-life versions, we ensure that AWS CDK users benefit from the latest security patches, performance improvements, and modern Node.js capabilities. This approach aligns with AWS\u2019s commitment to security best practices and our standard policy of supporting only actively [...] ## What\u2019s changing?\n\nStarting December 1, 2025, AWS CDK will officially end support for Node.js 18.x. While your existing CDK deployments may continue to function, we will no longer address is",
+                    "relation": "context",
+                    "retrieval": "tavily",
+                    "sourceTier": "unreviewed",
+                    "sourceReason": "No qualifying reviewed mapping or sufficient identity signals for this entity and page. Relevance is not authority.",
+                    "corroborationGroup": "aws.amazon.com"
+                },
+                {
+                    "url": "https://tuxcare.com/blog/node-js-18-end-of-life",
+                    "title": "Node.js 18 End of Life: Support and Migration Options",
+                    "retrievedAt": "2026-11-07T13:23:18.799Z",
+                    "dateReason": "The publication date is missing; an update or retrieval date cannot replace it.",
+                    "excerpt": "Almost nobody chooses to run an end-of-life runtime. Teams end up there because the upgrade ticket keeps losing to shipping work, and because nothing looks wrong. Node.js 18 reached end of life on April 30, 2025 \u2013 more than a year ago \u2013 and has received no security patches, bug fixes, or official support from the Node.js project since. [...] Node.js 18 reached end of life on April 30, 2025, and no longer receives security updates or bug fixes from the Node.js project.\n The project treats every end-of-life release line as affected whenever a security release occurs, so the number of unpatched vulnerabilities in Node.js 18 grows on its schedule, not yours.\n Node.js 24 is the only Active LTS line today. Node.js 22 is already in Maintenance LTS and reaches end of life on April 30, 2027, which makes it a weak migration target. [...] The project\u2019s stated position is useful ammunition if you need to justify the work internally: end-of-life versions are always affected when a security release occurs. Node.js does not re-test EOL lines, so its advisories list supported versions only \u2013 but the vulnerable code paths are still sitting in 18, and no official patch is coming for them.\n\nThe Janua",
+                    "relation": "context",
+                    "retrieval": "tavily",
+                    "sourceTier": "unreviewed",
+                    "sourceReason": "No qualifying reviewed mapping or sufficient identity signals for this entity and page. Relevance is not authority.",
+                    "corroborationGroup": "tuxcare.com"
+                }
+            ]
+        }
+    ]
+}
