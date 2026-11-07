@@ -77,3 +77,20 @@ it('connects the Fastify verify route to the configured gateway adapter without 
   expect((await app.inject(`/api/verify/${response.json().id}`)).statusCode).toBe(200);
  }finally{await app.close();vi.restoreAllMocks();vi.unstubAllEnvs();await rm(dir,{recursive:true,force:true});}
 },20000);
+it('sends reasoning_effort only when BIFROST_LLM_REASONING_EFFORT=none is configured',async()=>{
+ const bodies:Record<string,unknown>[]=[];
+ const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{bodies.push(JSON.parse(String(init?.body)));return Response.json(envelope());});
+ await interpretationSession(createLanguageInterpreter({...local,LANGUAGE_MODE:'bifrost'},fetcher)!).normalize(text);
+ await interpretationSession(createLanguageInterpreter({...local,LANGUAGE_MODE:'bifrost',BIFROST_LLM_REASONING_EFFORT:'none'},fetcher)!).normalize(text);
+ expect(bodies[0]).not.toHaveProperty('reasoning_effort');expect(bodies[1].reasoning_effort).toBe('none');
+ expect(()=>bifrostSettings({...local,BIFROST_LLM_REASONING_EFFORT:'high'})).toThrow();
+});
+it('keeps json_object for local providers unless strict json_schema is opted in',async()=>{
+ const formats:unknown[]=[];
+ const fetcher=vi.fn<typeof fetch>(async(_url,init)=>{formats.push(JSON.parse(String(init?.body)).response_format);return Response.json(envelope());});
+ await interpretationSession(createLanguageInterpreter({...local,LANGUAGE_MODE:'bifrost'},fetcher)!).normalize(text);
+ await interpretationSession(createLanguageInterpreter({...local,LANGUAGE_MODE:'bifrost',BIFROST_LLM_RESPONSE_FORMAT:'json_schema'},fetcher)!).normalize(text);
+ expect(formats[0]).toEqual({type:'json_object'});
+ expect(formats[1]).toMatchObject({type:'json_schema',json_schema:{strict:true}});
+ expect(()=>bifrostSettings({...local,BIFROST_LLM_RESPONSE_FORMAT:'yaml'})).toThrow();
+});

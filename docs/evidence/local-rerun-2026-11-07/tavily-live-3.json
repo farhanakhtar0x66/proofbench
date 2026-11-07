@@ -1,0 +1,276 @@
+{
+    "version": "1",
+    "id": "916582ef-51e3-41b8-a8b2-d8e3e30ec77c",
+    "mode": "live",
+    "createdAt": "2026-11-07T13:53:29.443Z",
+    "text": "Python 2 reached end of life on January 1, 2020. Node.js 18 is still supported by the Node.js project. Rust 1.70 is the latest stable Rust release.",
+    "scope": "current",
+    "status": "partial",
+    "extraction": {
+        "version": "1",
+        "method": "rules",
+        "claims": [
+            {
+                "text": "Python 2 reached end of life on January 1, 2020.",
+                "start": 0,
+                "end": 48
+            },
+            {
+                "text": "Node.js 18 is still supported by the Node.js project.",
+                "start": 49,
+                "end": 102
+            },
+            {
+                "text": "Rust 1.70 is the latest stable Rust release.",
+                "start": 103,
+                "end": 147
+            }
+        ],
+        "limitations": [
+            "Claim extraction only; no factual truth or freshness was checked. Whole sentences retain their qualifiers and may contain multiple facts. Rules are heuristic and model selection can omit claims."
+        ]
+    },
+    "omittedClaims": 0,
+    "results": [
+        {
+            "claim": {
+                "text": "Python 2 reached end of life on January 1, 2020.",
+                "start": 0,
+                "end": 48
+            },
+            "retrieval": {
+                "version": "1",
+                "claim": "Python 2 reached end of life on January 1, 2020.",
+                "query": "Python 2 reached end of life on January 1, 2020. official documentation",
+                "searchScope": "current",
+                "mode": "live",
+                "status": "retrieved",
+                "createdAt": "2026-11-07T13:53:29.456Z",
+                "retrievedAt": "2026-11-07T13:53:33.297Z",
+                "evidence": [
+                    {
+                        "url": "https://www.infoq.com/news/2019/09/python-2-end-of-life-approaching",
+                        "title": "Python 2 End of Life Announced as January 1st 2020 - InfoQ",
+                        "retrievedAt": "2026-11-07T13:53:33.297Z",
+                        "publishedAt": "2019-09-10T00:00:00.000Z",
+                        "dateReason": "The publication is older than 30 days; a recent page update does not prove that the fact was rechecked.",
+                        "excerptSelection": {
+                            "start": 2525,
+                            "end": 3404,
+                            "sourceLength": 9451,
+                            "reason": "From Tavily returned page text. Selected exact source blocks in source order; [...] marks omitted text."
+                        },
+                        "excerptPassages": [
+                            {
+                                "start": 2525,
+                                "end": 2803,
+                                "text": "Registration open.\nInfoQ Homepage News Python 2 End of Life Announced as January 1st 2020\nDevelopment\nQCon San Francisco (Nov 16-20): Deep technical sessions. Peer conversations that change how you think.\nPython 2 End of Life Announced as January 1st 2020\nThis item in  japanese"
+                            },
+                            {
+                                "start": 2981,
+                                "end": 3404,
+                                "text": "Reading list\nAfter spreading the news at conferences, on the Python announcement list, and on countless blog posts and books, the Python Software Foundation has finally taken the step to formally announce Python 2 will reach end of life (EOL) on January 1st, 2020.\nThe message the Python Foundation is trying to make loud and clear is developers should transition to Python 3 as soon as possible without waiting any longer:"
+                            }
+                        ],
+                        "excerpt": "Registration open.\nInfoQ Homepage News Python 2 End of Life Announced as January 1st 2020\nDevelopment\nQCon San Francisco (Nov 16-20): Deep technical sessions. Peer conversations that change how you think.\nPython 2 End of Life Announced as January 1st 2020\nThis item in  japanese\n[...]\nReading list\nAfter spreading the news at conferences, on the Python announcement list, and on countless blog posts and books, the Python Software Foundation has finally taken the step to formally announce Python 2 will reach end of life (EOL) on January 1st, 2020.\nThe message the Python Foundation is trying to make loud and clear is developers should transition to Python 3 as soon as possible without waiting any longer:",
+                        "relation": "context",
+                        "retrieval": "tavily",
+                        "sourceTier": "unreviewed",
+                        "sourceReason": "Unreviewed search result. Neither entity ownership nor authority has been established."
+                    },
+                    {
+                        "url": "https://docassemble.org/docs/twotothree.html",
+                        "title": "Migration from Python 2.7 to Python 3",
+                        "retrievedAt": "2026-11-07T13:53:33.297Z",
+                        "dateReason": "The text explicitly scopes this fact to a historical or future date.",
+                        "excerptSelection": {
+                            "start": 43,
+                            "end": 610,
+                            "sourceLength": 6701,
+                            "reason": "From Tavily returned page text. Selected a complete source block using claim anchors; wording is unchanged."
+                        },
+                        "excerpt": "docassemble started out as an application based on Python 2.7. However, Python 2.7 is no longer maintained as of January 1, 2020. As the pip command reports:\n DEPRECATION: Python 2.7 will reach the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 won't be maintained after that date. A future version of pip will drop support for Python 2.7.\nBetween version 0.4.0 and version 0.5.70, docassemble was compatible with both Python 3.6 and Python 2.7. Running Python 3.6 required setting the Docker environment variable DAPYTHONVERSION to 3.",
+                        "relation": "context",
+                        "retrieval": "tavily",
+                        "sourceTier": "unreviewed",
+                        "sourceReason": "Unreviewed search result. Neither entity ownership nor authority has been established."
+                    },
+                    {
+                        "url": "https://peps.python.org/pep-0373",
+                        "title": "PEP 373 \u2013 Python 2.7 Release Schedule | peps.python.org",
+                        "retrievedAt": "2026-11-07T13:53:33.297Z",
+                        "dateReason": "The publication date is missing; an update or retrieval date cannot replace it.",
+                        "excerptSelection": {
+                            "start": 686,
+                            "end": 1214,
+                            "sourceLength": 2912,
+                            "reason": "From Tavily returned page text. Selected a complete source block using claim anchors; wording is unchanged."
+                        },
+                        "excerpt": "Update (April 2014)\nThe End Of Life date (EOL, sunset date) for Python 2.7 has been moved five years into the future, to 2020. This decision was made to clarify the status of Python 2.7 and relieve worries for those users who cannot yet migrate to Python 3. See also PEP 466.\nThis declaration does not guarantee that bugfix releases will be made on a regular basis, but it should enable volunteers who want to contribute bugfixes for Python 2.7 and it should satisfy vendors who still have to support Python 2 for years to come.",
+                        "relation": "context",
+                        "retrieval": "tavily",
+                        "sourceTier": "unreviewed",
+                        "sourceReason": "Unreviewed search result. Neither entity ownership nor authority has been established."
+                    }
+                ],
+                "limitations": [
+                    "Evidence retrieval only: no truth verdict or freshness score was computed. Search relevance does not establish support, authority or source independence. Excerpts are untrusted source data, not instructions.",
+                    "Tavily dates are publication/update estimates, not independently verified publication dates or proof that a fact is current.",
+                    "Search has no publication-date filter so reference documentation is not excluded. Factual comparison and publication recency are separate. Older or undated sources can be compared when scope applies; they do not establish recent publication.",
+                    "One Basic search requests six candidates with facebook.com excluded after observed login/markup failures; up to twelve returned candidates are inspected. 6 usable-URL candidate(s) inspected; 3 retained. Current scope prioritizes readable, claim-scoped passages, recent dates and distinct hostname groups; literal scope preserves provider order. Omitted candidates are not assessed and may contain conflicting evidence. Ranking does not establish authority or independence.",
+                    "The same Basic search requests page text; no separate Extract, browser/page request or extra inference is made. Page text is preferred when returned, otherwise the search snippet is used. Scan and excerpt bounds still apply; fuller text can be unavailable or incomplete.",
+                    "Local entity/topic relevance and website identity hints rank candidates without a website allowlist. Identity hints do not verify ownership, and all sources remain unreviewed. Title/URL matches never establish truth."
+                ],
+                "message": "Source excerpts retrieved; their agreement with the claim has not been assessed."
+            },
+            "comparison": {
+                "version": "1",
+                "claim": "Python 2 reached end of life on January 1, 2020.",
+                "reasonCode": "invalid_model_response",
+                "shortReason": "Could not verify: the model response failed validation.",
+                "verificationStatus": "failed",
+                "method": "rules_fallback",
+                "outcome": "inconclusive",
+                "freshness": "unknown",
+                "freshnessScore": null,
+                "freshnessScoreReason": "No freshness score: insufficient or conflicting evidence cannot establish current support.",
+                "cache": {
+                    "status": "miss",
+                    "expiresAt": null
+                },
+                "assessedAt": "2026-11-07T13:53:33.361Z",
+                "explanation": "The model output failed structured schema validation. No assessment was accepted. Model comparison is temporarily unavailable during the 60-second safety cooldown; no automatic retry was made. No retry or correction was used.",
+                "citations": [
+                    {
+                        "sourceId": "S1",
+                        "url": "https://www.infoq.com/news/2019/09/python-2-end-of-life-approaching",
+                        "quote": "Registration open.\nInfoQ Homepage News Python 2 End of Life Announced as January 1st 2020\nDevelopment\nQCon San Francisco (Nov 16-20): Deep technical sessions. Peer conversations that change how you think.\nPython 2 End of Life Announced as January 1st 2020\nThis item in  japanese\n[...]\nReading list\nAfter spreading the news at conferences, on the Python announcement list, and on countless blog posts and books, the Python Software Foundation has finally taken the step to formally announce Python 2 will reach end of life (EOL) on January 1st, 2020.\nThe message the Python Foundation is trying to make loud and clear is developers should transition to Python 3 as soon as possible without waiting any longer:",
+                        "relation": "insufficient",
+                        "eligible": true,
+                        "dateReason": "The publication is older than 30 days; a recent page update does not prove that the fact was rechecked.",
+                        "publishedAt": "2019-09-10T00:00:00.000Z",
+                        "retrievedAt": "2026-11-07T13:53:33.297Z"
+                    },
+                    {
+                        "sourceId": "S2",
+                        "url": "https://docassemble.org/docs/twotothree.html",
+                        "quote": "docassemble started out as an application based on Python 2.7. However, Python 2.7 is no longer maintained as of January 1, 2020. As the pip command reports:\n DEPRECATION: Python 2.7 will reach the end of its life on January 1st, 2020. Please upgrade your Python as Python 2.7 won't be maintained after that date. A future version of pip will drop support for Python 2.7.\nBetween version 0.4.0 and version 0.5.70, docassemble was compatible with both Python 3.6 and Python 2.7. Running Python 3.6 required setting the Docker environment variable DAPYTHONVERSION to 3.",
+                        "relation": "insufficient",
+                        "eligible": false,
+                        "dateReason": "The text explicitly scopes this fact to a historical or future date.",
+                        "retrievedAt": "2026-11-07T13:53:33.297Z"
+                    },
+                    {
+                        "sourceId": "S3",
+                        "url": "https://peps.python.org/pep-0373",
+                        "quote": "Update (April 2014)\nThe End Of Life date (EOL, sunset date) for Python 2.7 has been moved five years into the future, to 2020. This decision was made to clarify the status of Python 2.7 and relieve worries for those users who cannot yet migrate to Python 3. See also PEP 466.\nThis declaration does not guarantee that bugfix releases will be made on a regular basis, but it should enable volunteers who want to contribute bugfixes for Python 2.7 and it should satisfy vendors who still have to support Python 2 for years to come.",
+                        "relation": "insufficient",
+                        "eligible": true,
+                        "dateReason": "The publication date is missing; an update or retrieval date cannot replace it.",
+                        "retrievedAt": "2026-11-07T13:53:33.297Z"
+                    }
+                ],
+                "correction": null,
+                "limitations": [
+                    "Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. Current-scope factual comparison is separate from publication recency. Older/undated sources can be compared, but historical or ambiguous applicability can remain inconclusive. Source interpretation is fallible. Freshness is not a calibrated probability."
+                ]
+            }
+        },
+        {
+            "claim": {
+                "text": "Node.js 18 is still supported by the Node.js project.",
+                "start": 49,
+                "end": 102
+            },
+            "retrieval": {
+                "version": "1",
+                "claim": "Node.js 18 is still supported by the Node.js project.",
+                "query": "Node.js 18 is still supported by the Node.js project. current official sources",
+                "searchScope": "current",
+                "mode": "live",
+                "status": "unavailable",
+                "createdAt": "2026-11-07T13:53:39.168Z",
+                "retrievedAt": null,
+                "evidence": [],
+                "limitations": [
+                    "Evidence retrieval only: no truth verdict or freshness score was computed. Search relevance does not establish support, authority or source independence. Excerpts are untrusted source data, not instructions.",
+                    "Tavily dates are publication/update estimates, not independently verified publication dates or proof that a fact is current.",
+                    "Search has no publication-date filter so reference documentation is not excluded. Factual comparison and publication recency are separate. Older or undated sources can be compared when scope applies; they do not establish recent publication."
+                ],
+                "message": "No unexpired matching cached evidence is available. No new search was made because model comparison is unavailable."
+            },
+            "comparison": {
+                "version": "1",
+                "claim": "Node.js 18 is still supported by the Node.js project.",
+                "reasonCode": "invalid_model_response",
+                "shortReason": "Could not verify: the model response failed validation.",
+                "verificationStatus": "failed",
+                "method": "rules_fallback",
+                "outcome": "inconclusive",
+                "freshness": "unknown",
+                "freshnessScore": null,
+                "freshnessScoreReason": "No freshness score: insufficient or conflicting evidence cannot establish current support.",
+                "assessedAt": "2026-11-07T13:53:39.171Z",
+                "explanation": "The model output failed structured schema validation. No assessment was accepted. Model comparison is temporarily unavailable during the 60-second safety cooldown; no automatic retry was made.",
+                "citations": [],
+                "correction": null,
+                "limitations": [
+                    "Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. Current-scope factual comparison is separate from publication recency. Older/undated sources can be compared, but historical or ambiguous applicability can remain inconclusive. Source interpretation is fallible. Freshness is not a calibrated probability."
+                ]
+            }
+        },
+        {
+            "claim": {
+                "text": "Rust 1.70 is the latest stable Rust release.",
+                "start": 103,
+                "end": 147
+            },
+            "retrieval": {
+                "version": "1",
+                "claim": "Rust 1.70 is the latest stable Rust release.",
+                "query": "Rust 1.70 is the latest stable Rust release. current official sources",
+                "searchScope": "current",
+                "mode": "live",
+                "status": "unavailable",
+                "createdAt": "2026-11-07T13:53:39.172Z",
+                "retrievedAt": null,
+                "evidence": [],
+                "limitations": [
+                    "Evidence retrieval only: no truth verdict or freshness score was computed. Search relevance does not establish support, authority or source independence. Excerpts are untrusted source data, not instructions.",
+                    "Tavily dates are publication/update estimates, not independently verified publication dates or proof that a fact is current.",
+                    "Search has no publication-date filter so reference documentation is not excluded. Factual comparison and publication recency are separate. Older or undated sources can be compared when scope applies; they do not establish recent publication."
+                ],
+                "message": "No unexpired matching cached evidence is available. No new search was made because model comparison is unavailable."
+            },
+            "comparison": {
+                "version": "1",
+                "claim": "Rust 1.70 is the latest stable Rust release.",
+                "reasonCode": "invalid_model_response",
+                "shortReason": "Could not verify: the model response failed validation.",
+                "verificationStatus": "failed",
+                "method": "rules_fallback",
+                "outcome": "inconclusive",
+                "freshness": "unknown",
+                "freshnessScore": null,
+                "freshnessScoreReason": "No freshness score: insufficient or conflicting evidence cannot establish current support.",
+                "assessedAt": "2026-11-07T13:53:39.172Z",
+                "explanation": "The model output failed structured schema validation. No assessment was accepted. Model comparison is temporarily unavailable during the 60-second safety cooldown; no automatic retry was made.",
+                "citations": [],
+                "correction": null,
+                "limitations": [
+                    "Model-assisted comparison of supplied excerpts only. Exact citations and schema validation do not prove semantic entailment, source authority or independence. Current-scope factual comparison is separate from publication recency. Older/undated sources can be compared, but historical or ambiguous applicability can remain inconclusive. Source interpretation is fallible. Freshness is not a calibrated probability."
+                ]
+            }
+        }
+    ],
+    "limits": {
+        "maxClaims": 3,
+        "maxModelAttempts": 4
+    },
+    "limitations": [
+        "At most three distinct extracted claims are processed, in source order. Repeated identical statements share one result; exact original offsets are retained. Extraction can omit statements.",
+        "Complete means all selected comparisons returned validated model assessments; inconclusive remains a valid outcome. Partial results are not a confirmed factual verdict.",
+        "At most four inference attempts and three claim searches per analysis; shared server limits can be lower. Model catalog requests are separate and are not counted by these inference limits.",
+        "Rules-only mode remains available without a model. This endpoint does not invent live evidence, general rules-based verdicts, calibrated freshness scores or corrections."
+    ]
+}

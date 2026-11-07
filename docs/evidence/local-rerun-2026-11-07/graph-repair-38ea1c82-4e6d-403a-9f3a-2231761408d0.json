@@ -1,0 +1,615 @@
+{
+    "id": "38ea1c82-4e6d-403a-9f3a-2231761408d0",
+    "createdAt": "2026-11-07T13:42:50.376Z",
+    "request": {
+        "mode": "live",
+        "agents": [
+            "proofbench",
+            "opencode"
+        ],
+        "tasks": [
+            "distance-width",
+            "directed-edges"
+        ],
+        "repeats": 1,
+        "fault": "none"
+    },
+    "status": "completed",
+    "model": "ollama/gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+    "comparable": true,
+    "worker": {
+        "kind": "docker",
+        "id": "sha256:51d7ef77d4e5ca232d635ce4a2a3154f18f9ccd01542a14bc06794e853ffddb9"
+    },
+    "oracle": "hackathon-raptors/speed-demon-2026@3e4004f74de60ffd0670115ab653aa4d4cd3647d",
+    "adapterRevision": "graph-repair-adapters-v2",
+    "publicSuiteRevision": "graph-repair-public-v2",
+    "reasoningEffort": "none",
+    "limits": {
+        "modelCalls": 6,
+        "outputTokensPerCall": 3500,
+        "agentSeconds": 150
+    },
+    "runs": [
+        {
+            "id": "2c366da6-fdde-4d6b-b034-ddd1cde9953a",
+            "agent": "ProofBench \u00b7 fixed model",
+            "agentId": "proofbench",
+            "task": "distance-width",
+            "repeat": 1,
+            "seed": 3744396082,
+            "verdict": "passed",
+            "agentMs": 11910.545416,
+            "verdictMs": 12393.536208000001,
+            "inputTokens": 708,
+            "outputTokens": 171,
+            "costUsd": null,
+            "steps": 1,
+            "toolCalls": 2,
+            "sourceSha256": "044ae85761dfc20e2db87f6c72c6088aafa4a1b50b153532c1dd31fbe6477292",
+            "agentNote": "The problem states that distances can exceed 32 bits due to long paths with large edge weights. The current code uses `std::uint32_t` for distances, which will cause overflow when the path sum exceeds $2^{32}-1$. Changing the `Distance` type to `std::uint64_t` ensures that the shortest path calculations can correctly handle sums that fit within 64 bits, while still using an unsigned integer as required by the non-negative edge weights. This also updates the `infinity` limit and the `Entry` pair type implicitly via the priority queue usage, ensuring correctness for large distances.",
+            "diff": "diff --git a/starter.cpp b/submission.cpp\nindex 7324e50..8906e85 100644\n--- a/starter.cpp\n+++ b/submission.cpp\n@@ -8,7 +8,7 @@\n #include <utility>\n #include <vector>\n \n-using Distance = std::uint32_t;\n+using Distance = std::uint64_t;\n using Edge = std::pair<int, std::uint32_t>;\n using Entry = std::pair<Distance, int>;\n \n",
+            "checks": [
+                {
+                    "name": "Public smoke case",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 ab1253ef6eda7e3b6c9978e5bef38bfe5bb74723d6e5fb4e5c55b27fee006a4b"
+                },
+                {
+                    "name": "Public directed paths and wide sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 74f5e701df41e287573919c2cdb6984c7f1efee8495d357c670d73dece42a286"
+                },
+                {
+                    "name": "Wide path sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 7ac8a6989806b472a11c4647d09770202cefe968eee9940c1be4144bd7c53a58"
+                },
+                {
+                    "name": "Directed and unreachable nodes",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 567ad8dcb1b807444e7812921db129624341123f36292162697ae6d5e8b0fae9"
+                },
+                {
+                    "name": "Generated graph",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 7d47cddd5f457502db7f9fd4ab3957b969672e06f953dccae1880259609199d5"
+                }
+            ],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "468e6962-1094-4c68-a306-ba5b5b516a24",
+                    "input": 708,
+                    "output": 171,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:42:50.376Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 1 returned HTTP 200.",
+                    "at": "2026-11-07T13:43:01.100Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Host approved the text edit for public build and regression checks.",
+                    "at": "2026-11-07T13:43:01.101Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public smoke case: passed. Exact output matched \u00b7 SHA-256 ab1253ef6eda7e3b6c9978e5bef38bfe5bb74723d6e5fb4e5c55b27fee006a4b",
+                    "at": "2026-11-07T13:43:02.287Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public directed paths and wide sums: passed. Exact output matched \u00b7 SHA-256 74f5e701df41e287573919c2cdb6984c7f1efee8495d357c670d73dece42a286",
+                    "at": "2026-11-07T13:43:02.287Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Host kept the buildable edit to main.cpp.",
+                    "at": "2026-11-07T13:43:02.287Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 468e6962-1094-4c68-a306-ba5b5b516a24",
+                    "at": "2026-11-07T13:43:02.287Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public smoke case: passed.",
+                    "at": "2026-11-07T13:43:02.770Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public directed paths and wide sums: passed.",
+                    "at": "2026-11-07T13:43:02.770Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Wide path sums: passed.",
+                    "at": "2026-11-07T13:43:02.770Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Directed and unreachable nodes: passed.",
+                    "at": "2026-11-07T13:43:02.770Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Generated graph: passed.",
+                    "at": "2026-11-07T13:43:02.770Z"
+                }
+            ]
+        },
+        {
+            "id": "d72230f9-73eb-4579-beee-a5805b87d23f",
+            "agent": "OpenCode CLI",
+            "agentId": "opencode",
+            "task": "distance-width",
+            "repeat": 1,
+            "seed": 3744396082,
+            "verdict": "passed",
+            "agentMs": 32849.564249999996,
+            "verdictMs": 34381.99587499999,
+            "inputTokens": 24732,
+            "outputTokens": 570,
+            "costUsd": null,
+            "steps": 5,
+            "toolCalls": 4,
+            "sourceSha256": "dfa472f9efab8d6c9513ebe49d5b1bc61bba4aed4d4091c17428dc619e319ff5",
+            "agentNote": "The fix is complete. The key changes were:\n\n1. Changed `Distance` type from `std::uint32_t` to `std::uint64_t` to handle distances that exceed 32 bits\n2. Changed `infinity` from `auto` to explicit `Distance` type for clarity\n\nThis allows the shortest-path algorithm to correctly handle paths whose total weight exceeds the 32-bit unsigned integer limit.",
+            "diff": "diff --git a/starter.cpp b/submission.cpp\nindex 7324e50..a2a3f18 100644\n--- a/starter.cpp\n+++ b/submission.cpp\n@@ -8,7 +8,7 @@\n #include <utility>\n #include <vector>\n \n-using Distance = std::uint32_t;\n+using Distance = std::uint64_t;\n using Edge = std::pair<int, std::uint32_t>;\n using Entry = std::pair<Distance, int>;\n \n@@ -27,7 +27,7 @@ int main() {\n         graph >> u >> v >> weight;\n         edges[u].emplace_back(v, weight);\n     }\n-    const auto infinity = std::numeric_limits<Distance>::max();\n+    const Distance infinity = std::numeric_limits<Distance>::max();\n     for (int s, t; queries >> s >> t;) {\n         std::vector<Distance> distances(n, infinity);\n         std::priority_queue<Entry, std::vector<Entry>, std::greater<Entry>> pending;\n",
+            "checks": [
+                {
+                    "name": "Public smoke case",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 ab1253ef6eda7e3b6c9978e5bef38bfe5bb74723d6e5fb4e5c55b27fee006a4b"
+                },
+                {
+                    "name": "Public directed paths and wide sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 74f5e701df41e287573919c2cdb6984c7f1efee8495d357c670d73dece42a286"
+                },
+                {
+                    "name": "Wide path sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 7ac8a6989806b472a11c4647d09770202cefe968eee9940c1be4144bd7c53a58"
+                },
+                {
+                    "name": "Directed and unreachable nodes",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 567ad8dcb1b807444e7812921db129624341123f36292162697ae6d5e8b0fae9"
+                },
+                {
+                    "name": "Generated graph",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 7d47cddd5f457502db7f9fd4ab3957b969672e06f953dccae1880259609199d5"
+                }
+            ],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "90dcc236-f4b5-4520-919e-a74e22ca29ae",
+                    "input": 666,
+                    "output": 8,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "def67045-1053-4c93-8b25-091764c4b8e2",
+                    "input": 3980,
+                    "output": 49,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "e3c71c99-f24e-44b7-9adf-15a60383e23d",
+                    "input": 4759,
+                    "output": 196,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "34faa308-f185-4f7f-9a94-861e29167a8c",
+                    "input": 4976,
+                    "output": 99,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "7f613731-0c88-47c3-bc8e-57b64964acb7",
+                    "input": 5096,
+                    "output": 129,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "a258017a-9451-4ac7-aae1-df663de2a113",
+                    "input": 5255,
+                    "output": 89,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:43:02.784Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: read \u00b7 completed.",
+                    "at": "2026-11-07T13:43:35.337Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: edit \u00b7 completed.",
+                    "at": "2026-11-07T13:43:35.338Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: edit \u00b7 completed.",
+                    "at": "2026-11-07T13:43:35.338Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: edit \u00b7 failed. No changes to apply: oldString and newString are identical.",
+                    "at": "2026-11-07T13:43:35.338Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 90dcc236-f4b5-4520-919e-a74e22ca29ae",
+                    "at": "2026-11-07T13:43:35.634Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 def67045-1053-4c93-8b25-091764c4b8e2",
+                    "at": "2026-11-07T13:43:35.634Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 e3c71c99-f24e-44b7-9adf-15a60383e23d",
+                    "at": "2026-11-07T13:43:35.634Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 34faa308-f185-4f7f-9a94-861e29167a8c",
+                    "at": "2026-11-07T13:43:35.634Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 7f613731-0c88-47c3-bc8e-57b64964acb7",
+                    "at": "2026-11-07T13:43:35.634Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 a258017a-9451-4ac7-aae1-df663de2a113",
+                    "at": "2026-11-07T13:43:35.634Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public smoke case: passed.",
+                    "at": "2026-11-07T13:43:37.166Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public directed paths and wide sums: passed.",
+                    "at": "2026-11-07T13:43:37.166Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Wide path sums: passed.",
+                    "at": "2026-11-07T13:43:37.166Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Directed and unreachable nodes: passed.",
+                    "at": "2026-11-07T13:43:37.166Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Generated graph: passed.",
+                    "at": "2026-11-07T13:43:37.166Z"
+                }
+            ]
+        },
+        {
+            "id": "49813a6d-8cfd-4b73-b8ac-34f7f7f8669f",
+            "agent": "ProofBench \u00b7 fixed model",
+            "agentId": "proofbench",
+            "task": "directed-edges",
+            "repeat": 1,
+            "seed": 3110660763,
+            "verdict": "passed",
+            "agentMs": 9787.334792000001,
+            "verdictMs": 10231.431917000002,
+            "inputTokens": 721,
+            "outputTokens": 117,
+            "costUsd": null,
+            "steps": 1,
+            "toolCalls": 2,
+            "sourceSha256": "b888ba2e2ca50472a1917bac2ad230a80924036b6f06b5023b43f3be5e736a25",
+            "agentNote": "The problem specifies a 'directed graph', but the current code treats edges as undirected by adding a reverse edge `edges[v].emplace_back(u, weight)`. This incorrect modification allows paths to exist where none should in a directed graph, violating the problem constraints. Removing this line fixes the logic to respect edge directionality. The logic for handling 64-bit distances and the Dijkstra implementation otherwise appears correct.",
+            "diff": "diff --git a/starter.cpp b/submission.cpp\nindex 010a24c..6682435 100644\n--- a/starter.cpp\n+++ b/submission.cpp\n@@ -26,7 +26,7 @@ int main() {\n         std::uint32_t weight;\n         graph >> u >> v >> weight;\n         edges[u].emplace_back(v, weight);\n-        edges[v].emplace_back(u, weight);\n+        \n     }\n     const auto infinity = std::numeric_limits<Distance>::max();\n     for (int s, t; queries >> s >> t;) {\n",
+            "checks": [
+                {
+                    "name": "Public smoke case",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 ab1253ef6eda7e3b6c9978e5bef38bfe5bb74723d6e5fb4e5c55b27fee006a4b"
+                },
+                {
+                    "name": "Public directed paths and wide sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 74f5e701df41e287573919c2cdb6984c7f1efee8495d357c670d73dece42a286"
+                },
+                {
+                    "name": "Wide path sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 7ac8a6989806b472a11c4647d09770202cefe968eee9940c1be4144bd7c53a58"
+                },
+                {
+                    "name": "Directed and unreachable nodes",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 567ad8dcb1b807444e7812921db129624341123f36292162697ae6d5e8b0fae9"
+                },
+                {
+                    "name": "Generated graph",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 fd1af08bdd494c5ff64f47ab1dcb1a1af166adc80c04ae1101445e27b85b2882"
+                }
+            ],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "a485e224-b19b-4d09-807c-46cf082d8dfa",
+                    "input": 721,
+                    "output": 117,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:43:37.177Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "Model request 1 returned HTTP 200.",
+                    "at": "2026-11-07T13:43:46.432Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Host approved the text edit for public build and regression checks.",
+                    "at": "2026-11-07T13:43:46.432Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public smoke case: passed. Exact output matched \u00b7 SHA-256 ab1253ef6eda7e3b6c9978e5bef38bfe5bb74723d6e5fb4e5c55b27fee006a4b",
+                    "at": "2026-11-07T13:43:46.964Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public directed paths and wide sums: passed. Exact output matched \u00b7 SHA-256 74f5e701df41e287573919c2cdb6984c7f1efee8495d357c670d73dece42a286",
+                    "at": "2026-11-07T13:43:46.964Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "Host kept the buildable edit to main.cpp.",
+                    "at": "2026-11-07T13:43:46.964Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 a485e224-b19b-4d09-807c-46cf082d8dfa",
+                    "at": "2026-11-07T13:43:46.964Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public smoke case: passed.",
+                    "at": "2026-11-07T13:43:47.408Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public directed paths and wide sums: passed.",
+                    "at": "2026-11-07T13:43:47.408Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Wide path sums: passed.",
+                    "at": "2026-11-07T13:43:47.408Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Directed and unreachable nodes: passed.",
+                    "at": "2026-11-07T13:43:47.408Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Generated graph: passed.",
+                    "at": "2026-11-07T13:43:47.408Z"
+                }
+            ]
+        },
+        {
+            "id": "cef35c8a-f19c-4093-a636-c89c29e941fb",
+            "agent": "OpenCode CLI",
+            "agentId": "opencode",
+            "task": "directed-edges",
+            "repeat": 1,
+            "seed": 3110660763,
+            "verdict": "passed",
+            "agentMs": 32570.465665999996,
+            "verdictMs": 33677.501083,
+            "inputTokens": 14455,
+            "outputTokens": 328,
+            "costUsd": null,
+            "steps": 3,
+            "toolCalls": 2,
+            "sourceSha256": "044ae85761dfc20e2db87f6c72c6088aafa4a1b50b153532c1dd31fbe6477292",
+            "agentNote": "Done. The fix removes the bidirectional edge addition, making the graph directed as specified. Now queries will correctly return -1 when there's no path in the directed graph.",
+            "diff": "diff --git a/starter.cpp b/submission.cpp\nindex 010a24c..8906e85 100644\n--- a/starter.cpp\n+++ b/submission.cpp\n@@ -26,7 +26,6 @@ int main() {\n         std::uint32_t weight;\n         graph >> u >> v >> weight;\n         edges[u].emplace_back(v, weight);\n-        edges[v].emplace_back(u, weight);\n     }\n     const auto infinity = std::numeric_limits<Distance>::max();\n     for (int s, t; queries >> s >> t;) {\n",
+            "checks": [
+                {
+                    "name": "Public smoke case",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 ab1253ef6eda7e3b6c9978e5bef38bfe5bb74723d6e5fb4e5c55b27fee006a4b"
+                },
+                {
+                    "name": "Public directed paths and wide sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 74f5e701df41e287573919c2cdb6984c7f1efee8495d357c670d73dece42a286"
+                },
+                {
+                    "name": "Wide path sums",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 7ac8a6989806b472a11c4647d09770202cefe968eee9940c1be4144bd7c53a58"
+                },
+                {
+                    "name": "Directed and unreachable nodes",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 567ad8dcb1b807444e7812921db129624341123f36292162697ae6d5e8b0fae9"
+                },
+                {
+                    "name": "Generated graph",
+                    "outcome": "passed",
+                    "detail": "Exact output matched \u00b7 SHA-256 fd1af08bdd494c5ff64f47ab1dcb1a1af166adc80c04ae1101445e27b85b2882"
+                }
+            ],
+            "receipts": [
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "903ceb4b-5ca4-42a5-951c-9bddfd30cd88",
+                    "input": 668,
+                    "output": 9,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "74271818-c73e-404c-b662-4aaa6fc760bf",
+                    "input": 3982,
+                    "output": 49,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "0c82b264-bd9c-4c1f-8a67-2225c749294c",
+                    "input": 4775,
+                    "output": 234,
+                    "costUsd": null,
+                    "injected": false
+                },
+                {
+                    "status": 200,
+                    "model": "gguf/Qwen3.5-9B-GGUF:Q4_K_M",
+                    "provider": "ollama",
+                    "requestId": "46ac55be-849c-47c6-bd78-071979b7e088",
+                    "input": 5030,
+                    "output": 36,
+                    "costUsd": null,
+                    "injected": false
+                }
+            ],
+            "trace": [
+                {
+                    "source": "adapter",
+                    "message": "Fresh workspace initialized from the frozen Track D starter.",
+                    "at": "2026-11-07T13:43:47.419Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: read \u00b7 completed.",
+                    "at": "2026-11-07T13:44:19.819Z"
+                },
+                {
+                    "source": "adapter",
+                    "message": "OpenCode tool: edit \u00b7 completed.",
+                    "at": "2026-11-07T13:44:19.819Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 903ceb4b-5ca4-42a5-951c-9bddfd30cd88",
+                    "at": "2026-11-07T13:44:19.990Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 74271818-c73e-404c-b662-4aaa6fc760bf",
+                    "at": "2026-11-07T13:44:19.990Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 0c82b264-bd9c-4c1f-8a67-2225c749294c",
+                    "at": "2026-11-07T13:44:19.990Z"
+                },
+                {
+                    "source": "gateway",
+                    "message": "HTTP 200 \u00b7 gguf/Qwen3.5-9B-GGUF:Q4_K_M \u00b7 46ac55be-849c-47c6-bd78-071979b7e088",
+                    "at": "2026-11-07T13:44:19.990Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public smoke case: passed.",
+                    "at": "2026-11-07T13:44:21.097Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Public directed paths and wide sums: passed.",
+                    "at": "2026-11-07T13:44:21.097Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Wide path sums: passed.",
+                    "at": "2026-11-07T13:44:21.097Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Directed and unreachable nodes: passed.",
+                    "at": "2026-11-07T13:44:21.097Z"
+                },
+                {
+                    "source": "grader",
+                    "message": "Generated graph: passed.",
+                    "at": "2026-11-07T13:44:21.097Z"
+                }
+            ]
+        }
+    ]
+}

@@ -5,9 +5,9 @@ import {ExtractionOutput,EXTRACTION_PROMPT,EXTRACTION_SCHEMA} from './claim-extr
 import {ComparisonOutput,COMPARISON_PROMPT,comparisonSchemaFor,EVIDENCE_POLICY_PROMPT} from './evidence-comparison';
 import {referenceComparisonFor,REFERENCE_COMPARISON_PROMPT} from './comparison-references';
 
-export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+(?:\/[a-zA-Z0-9_.:-]+)?)?$/u).refine(value=>!value.split('/').some(part=>part==='.'||part==='..'),'Invalid model namespace').refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(30000).default(20000),virtualKey:z.string().optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
+export const BifrostSettings=z.object({endpoint:z.string().default('http://127.0.0.1:8080'),provider:z.enum(['gemini','groq','ollama']),model:z.string().regex(/^(?:(?:gemini|groq|ollama)\/[a-zA-Z0-9_.:-]+(?:\/[a-zA-Z0-9_.:-]+)?)?$/u).refine(value=>!value.split('/').some(part=>part==='.'||part==='..'),'Invalid model namespace').refine(value=>!value.toLowerCase().includes('cloud'),'Cloud aliases are disabled'),timeoutMs:z.coerce.number().int().min(100).max(30000).default(20000),virtualKey:z.string().optional(),reasoningEffort:z.enum(['none']).optional(),responseFormat:z.enum(['json_object','json_schema']).optional(),maxRequests:z.coerce.number().int().min(0).max(100).default(0)});
 export function bifrostSettings(env:NodeJS.ProcessEnv=process.env){
- const settings=BifrostSettings.parse({endpoint:env.BIFROST_LLM_ENDPOINT,provider:env.BIFROST_LLM_PROVIDER??env.BIFROST_LLM_MODEL?.split('/')[0]??'gemini',model:env.BIFROST_LLM_MODEL??'',timeoutMs:env.BIFROST_LLM_TIMEOUT_MS,virtualKey:env.BIFROST_LLM_VIRTUAL_KEY,maxRequests:env.BIFROST_LLM_MAX_REQUESTS});
+ const settings=BifrostSettings.parse({endpoint:env.BIFROST_LLM_ENDPOINT,provider:env.BIFROST_LLM_PROVIDER??env.BIFROST_LLM_MODEL?.split('/')[0]??'gemini',model:env.BIFROST_LLM_MODEL??'',timeoutMs:env.BIFROST_LLM_TIMEOUT_MS,virtualKey:env.BIFROST_LLM_VIRTUAL_KEY,reasoningEffort:env.BIFROST_LLM_REASONING_EFFORT||undefined,responseFormat:env.BIFROST_LLM_RESPONSE_FORMAT||undefined,maxRequests:env.BIFROST_LLM_MAX_REQUESTS});
  if(settings.model&&!settings.model.startsWith(`${settings.provider}/`))throw new Error('Model route must match selected provider');
  const url=new URL(settings.endpoint);
  if(url.protocol!=='http:'||!['127.0.0.1','localhost','[::1]'].includes(url.hostname)||url.username||url.password||url.search||url.hash||url.pathname!=='/')throw new Error('Bifrost endpoint must be a local HTTP origin without credentials, path, query or fragment');
@@ -47,9 +47,11 @@ export function createBifrostInterpreter(env:NodeJS.ProcessEnv=process.env,fetch
   if(settings.virtualKey)headers['x-bf-vk']=settings.virtualKey;
   // Gemini's newer models reject sampling overrides; use provider defaults.
   const sampling=settings.provider==='gemini'?{}:{temperature:0};
+  // Opt-in: local reasoning models can spend the whole timeout thinking before a short JSON answer.
+  if(settings.reasoningEffort)Object.assign(sampling,{reasoning_effort:settings.reasoningEffort});
   let failure='Cannot connect to Bifrost. Start the local gateway with npm run bifrost:start and keep it running.';
   try{
-  const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:maxTokens,response_format:settings.provider==='ollama'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
+  const response=await fetcher(new URL('/v1/chat/completions',settings.endpoint),{method:'POST',redirect:'error',signal:AbortSignal.timeout(settings.timeoutMs),headers,body:JSON.stringify({model:settings.model,stream:false,n:1,...sampling,max_tokens:maxTokens,response_format:settings.provider==='ollama'&&settings.responseFormat!=='json_schema'?{type:'json_object'}:{type:'json_schema',json_schema:{name,strict:true,schema}},messages:[{role:'system',content:prompt},{role:'user',content:JSON.stringify({untrustedText:text})}]})});
   if(!response.ok){
    let status=response.status;
    // Some gateways wrap an upstream 503 in a generic 500/502 envelope.
