@@ -29,7 +29,7 @@ Matrix usage, both entries on the same model, limits, seeds and alternating orde
 | Median agent time | 11.6 s | 37.4 s |
 
 Failures:
-- **ProofBench, `distance-width` repeat 3:** the first edit built but failed the public wide-sum check. The next model call got **HTTP 502** from the gateway. The llama.cpp log shows a connection read error; the root cause is not established. The adapter stops on any non-503 error, so it submitted the half-fixed source. This upstream error is why the session is `comparable: false`, and it shows the adapter does not retry transient gateway errors.
+- **ProofBench, `distance-width` repeat 3:** the first edit built but failed the public wide-sum check. The next model call got **HTTP 502** from the gateway. The llama.cpp log shows a connection read error; the root cause is not established. At the time the adapter stopped on any non-503 error, so it submitted the half-fixed source. This upstream error is why the session is `comparable: false`. The adapter now treats 502 and 504 like 503: the failed request spends one model-call turn and the loop continues, still bounded by the same call limit. The matrix has not been rerun with that change.
 - **OpenCode, `distance-width` repeat 1:** it submitted an edit that still returned `-1` for distances above 32 bits.
 
 ### What this changes
@@ -50,7 +50,21 @@ The user approved a cap of 5 Tavily requests, and all 5 were used. Nothing in th
 | `tavily-live-3.json` | LLM, reasoning off | 1 | Model reply **failed schema validation**: a flat object instead of `assessments[]`. Correct inconclusive fallback. |
 | `tavily-live-4.json` | LLM, reasoning off, strict `json_schema` | 2 | **Python 2 EOL: supported**, citing InfoQ, docassemble and PEP 373. **Node.js 18 still supported:** correct official sources retrieved, but the model **timed out**, so inconclusive. |
 
-A contradicted verdict has not been demonstrated live on this stack yet. The Node.js 18 claim needs either a faster model or a timeout above the verifier's current 30 s ceiling.
+The user then approved 3 more Tavily requests (8 in total), and all 3 were used:
+
+| File | Request | Tavily requests | Result |
+| --- | --- | --- | --- |
+| `tavily-live-5.json` | Node.js 18 still supported, default `as_stated` scope | 1 | Blocked before any model call: no source passed the date checks. Correct fail-closed behaviour. |
+| `tavily-live-6.json` | False claim "Python 2 reached end of life on January 1, 2015", `as_stated` | 1 | Same date-check block; no model call. |
+| `tavily-live-7.json` | Same false claim, `scope: current` | 1 | Reached the model, then reported as `invalid_model_response`. |
+
+An offline replay of the saved `tavily-live-7` evidence (no Tavily traffic) found two bugs:
+- `interpretationDeadline()` only honoured timeouts up to 30 s and silently used 10 s for anything larger, so a 90 s local setting cut the comparison off after 10 s.
+- A comparison timeout was reported as "the model response failed validation". It is now reported as a timeout (`model_timeout`).
+
+After both fixes, the same replay completed in 15 s with every quote copied exactly. Qwen marked python3statement.github.io and Wikipedia as **contradicting** the 2015 date. The verdict stayed **inconclusive**, because only one eligible independent source group contradicted it and the policy requires two. **A live contradicted verdict is still not demonstrated.** The replay result is offline re-analysis of saved live evidence, not a new live run.
+
+Local timeouts: `BIFROST_LLM_TIMEOUT_MS` may now be up to 120,000 ms when the provider is `ollama` (local). Hosted providers keep the 30,000 ms ceiling.
 
 ### Verifier changes made for local models
 

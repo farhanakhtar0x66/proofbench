@@ -19,8 +19,11 @@ it('coordinates provider, client and outer deadlines without adding retries',()=
  const settings=bifrostSettings(env);expect(settings.timeoutMs).toBe(20000);
  const config=buildBifrostConfig(env);expect(config.providers.gemini.network_config.default_request_timeout_in_seconds).toBe(19);expect(config.providers.gemini.network_config.max_retries).toBe(0);
  const adapter=createBifrostInterpreter(env);expect(adapter.timeoutMs).toBe(20000);expect(interpretationDeadline(adapter)).toBe(21000);
+ expect(interpretationDeadline({interpret:vi.fn(),timeoutMs:90000})).toBe(91000);expect(interpretationDeadline({interpret:vi.fn(),timeoutMs:120001})).toBe(10000);
  expect(interpretationDeadline(undefined)).toBe(10000);expect(interpretationDeadline({interpret:vi.fn(),timeoutMs:Infinity})).toBe(10000);
  expect(()=>bifrostSettings({...env,BIFROST_LLM_TIMEOUT_MS:'30001'})).toThrow();
+ expect(bifrostSettings({BIFROST_LLM_MODEL:'ollama/local:test',BIFROST_LLM_TIMEOUT_MS:'90000'}).timeoutMs).toBe(90000);
+ expect(()=>bifrostSettings({BIFROST_LLM_MODEL:'ollama/local:test',BIFROST_LLM_TIMEOUT_MS:'120001'})).toThrow();
 });
 it('permits only the explicit timeout-only gateway refresh and preserves the inspected object',()=>{
  const expected=buildBifrostConfig(env);const old=structuredClone(expected);old.providers.gemini.network_config.default_request_timeout_in_seconds=9;

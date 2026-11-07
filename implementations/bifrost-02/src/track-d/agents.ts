@@ -58,7 +58,8 @@ export async function fixedProofBench(context: AgentContext): Promise<Candidate>
       ],
     });
     trace('gateway', `Model request ${turn} returned HTTP ${response.status}.`);
-    if (response.status === 503) continue;
+    // Transient gateway failures spend this turn but do not end the repair; the model-call limit still bounds retries.
+    if ([502, 503, 504].includes(response.status)) continue;
     if (!response.ok) break;
     const payload = await response.json() as { choices?: { message?: { content?: string } }[] };
     const patch = patchResponse(payload.choices?.[0]?.message?.content ?? '', source);

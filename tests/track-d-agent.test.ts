@@ -53,6 +53,16 @@ describe('Graph Repair edit recovery', () => {
     expect(context.trace).toHaveBeenCalledWith('adapter', expect.stringContaining('last buildable'));
   });
 
+  it('spends a turn on a transient gateway 502 instead of submitting the unfinished edit', async () => {
+    grade.mockResolvedValueOnce([smokePassed]);
+    const { context, complete } = contextFor([{ search: distanceType, replacement: repairedType, explanation: 'Use 64-bit distances.' }]);
+    const answer = complete.getMockImplementation()!;
+    complete.mockImplementationOnce(async () => new Response(null, { status: 502 })).mockImplementation(answer);
+    const result = await fixedProofBench(context);
+    expect(result).toMatchObject({ source: baseline.replace(distanceType, repairedType), steps: 2 });
+    expect(complete).toHaveBeenCalledTimes(2);
+  });
+
   it('does not return a rejected edit or its explanation when repair attempts fail', async () => {
     grade.mockResolvedValue([compilerFailure]);
     const patch = { search: distanceType, replacement: invalidType, explanation: 'This did not compile.' };

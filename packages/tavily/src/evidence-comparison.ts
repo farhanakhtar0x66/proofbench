@@ -132,6 +132,7 @@ export async function compareClaimEvidence(input:Input,options:{mode?:'rules'|'l
  }catch(error){
   const reasons:Record<string,string>={
    'Missing temporal interpretation':'The model omitted the required temporal interpretation.',
+   'Comparison timeout':'The model comparison timed out before a validated response arrived.',
    'Every source must be assessed':'The model omitted or added source assessments.',
    'Invalid citation or altered source context':'The model changed a source ID, source order or the complete quoted excerpt.',
    'Duplicate correction citations':'The model repeated correction citations.',
