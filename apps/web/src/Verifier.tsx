@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { AnalysisReport, AnalysisStatus, type VerificationReport } from '../../../packages/contracts/src/index';
 import { api, schemas } from './client';
 import { BinaryField } from './PresentationArt';
+import { EncryptedText } from './EncryptedText';
 
 const time = (value: string | null | undefined) => value ? new Date(value).toLocaleString() : 'Not provided';
 type Verdict = 'supported' | 'contradicted' | 'inconclusive';
@@ -70,7 +71,7 @@ function ClaimFinding({ result, mode }: { result: Analysis['results'][number]; m
   </article>;
 }
 
-export function Verifier({ initialAnswer, onBusyChange }: { initialAnswer: string; onBusyChange: (busy: boolean) => void }) {
+export function Verifier({ initialAnswer }: { initialAnswer: string }) {
   const [answer, setAnswer] = useState(initialAnswer);
   const [flow, setFlow] = useState('general');
   const [scope, setScope] = useState('current');
@@ -96,14 +97,14 @@ export function Verifier({ initialAnswer, onBusyChange }: { initialAnswer: strin
 
   async function verify(event: FormEvent) {
     event.preventDefault();
-    setBusy(true); onBusyChange(true); setError(''); setSaved(false); setAnalysis(undefined); setFixture(undefined);
+    setBusy(true); setError(''); setSaved(false); setAnalysis(undefined); setFixture(undefined);
     try {
       if (flow === 'fixture') setFixture(await api('/verify', schemas.VerificationReport, { version:'1', text:answer }));
       else setAnalysis(await api('/analysis', schemas.AnalysisReport, { version:'1', text:answer, scope }));
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Analysis could not complete.');
     } finally {
-      setBusy(false); onBusyChange(false); void refresh();
+      setBusy(false); void refresh();
     }
   }
 
@@ -111,14 +112,14 @@ export function Verifier({ initialAnswer, onBusyChange }: { initialAnswer: strin
   async function loadSaved(event: FormEvent) {
     event.preventDefault();
     if (!validSavedId) return;
-    setBusy(true); setLoadingSaved(true); onBusyChange(true); setError(''); setSaved(false); setAnalysis(undefined); setFixture(undefined);
+    setBusy(true); setLoadingSaved(true); setError(''); setSaved(false); setAnalysis(undefined); setFixture(undefined);
     try {
       const report = await api(`/analysis/${encodeURIComponent(savedId.trim())}`, schemas.AnalysisReport);
       setAnswer(report.text); setScope(report.scope); setFlow('general'); setAnalysis(report); setSaved(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Saved assessment could not be loaded.');
     } finally {
-      setBusy(false); setLoadingSaved(false); onBusyChange(false);
+      setBusy(false); setLoadingSaved(false);
     }
   }
 
@@ -207,7 +208,7 @@ export function Verifier({ initialAnswer, onBusyChange }: { initialAnswer: strin
       </section>
       <section className="panel findings" id="freshness-findings" tabIndex={-1} aria-busy={busy}>
         <div className="panel-heading findings-header">
-          <div><p className="eyebrow">02 / RESULTS</p><h2>Freshness findings</h2></div>
+          <div><p className="eyebrow">02 / <EncryptedText text="RESULTS"/></p><h2>Freshness findings</h2></div>
           <span className="finding-count">{count} {count===1?'CLAIM':'CLAIMS'}</span>
         </div>
         <div className="findings-body">

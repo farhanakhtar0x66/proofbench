@@ -1,6 +1,7 @@
 import { Component, lazy, Suspense, useEffect, useState, type ReactNode } from 'react';
 import { Activity, ArrowDown, ArrowUpRight, Braces, Check, CircleHelp, FileText, GitFork, Pause, Play, ShieldCheck, X } from 'lucide-react';
 import type { ExecutionTrace, RunRecord } from '../../../packages/contracts/src/index';
+import { EncryptedText } from './EncryptedText';
 
 const TraceScene = lazy(() => import('./TraceScene'));
 const REPLAY_STEP_MS = 4200;
@@ -96,8 +97,8 @@ export function EvidenceMap({ run, trace, replayToken }: { run?: RunRecord; trac
         </button>)}
       </div>
     </div>
-    <div className="run-inspector" id="run-inspector">
-      <div className="inspector-meta"><span className="eyebrow">EVIDENCE INSPECTOR</span><span className="small">0{active + 1} / 05</span></div>
+    <div className="run-inspector" id="run-inspector" tabIndex={-1}>
+      <div className="inspector-meta"><span className="eyebrow"><EncryptedText text="EVIDENCE INSPECTOR"/></span><span className="small">0{active + 1} / 05</span></div>
       <div className="inspector-body" aria-live={playing?'off':'polite'} aria-atomic="true"><div className="inspector-stage" key={active}>
         <span className="stage-symbol"><StageIcon size={19} aria-hidden="true"/></span>
         <h2>{stage.name}</h2>

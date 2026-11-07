@@ -1,20 +1,37 @@
-import React,{useState,useEffect,useRef} from 'react';
+import React,{useState,useEffect,useLayoutEffect,useRef} from 'react';
 import {createRoot} from 'react-dom/client';
 import {type Capabilities,type RunRecord,type ExecutionTrace,type EvidenceReport,type TaskSpec,type UsageRecord,type JobRecord} from '../../../packages/contracts/src/index';
 import {api,schemas} from './client';
 import {demoRun,demoTrace,demoReport} from '../../../packages/contracts/src/examples';
 import {Verifier} from './Verifier';
-import { Activity, ArrowUpRight, CirclePlay, Radar, ScanLine, Workflow } from 'lucide-react';
+import { Activity, ArrowUpRight, CirclePlay, ScanLine } from 'lucide-react';
 import { EvidenceMap } from './EvidenceMap';
 import { BenchmarkDetails, BenchmarkOverview, useControlledBenchmark } from './ControlledBenchmark';
-import { PortalArt } from './PresentationArt';
+import { OverviewPage, OverviewFooter } from './OverviewPage';
 import { TrackDBench } from './TrackDBench';
 import { ApiTerminal, WorkspaceShowcase, type VerifierDestination } from './WorkspaceShowcase';
+import { WorkspaceLink, useWorkspaceNavigation, type WorkspacePath } from './WorkspaceNavigation';
+import { WorkspaceOpening, type OpeningScene } from './WorkspaceOpening';
+import { EncryptedText } from './EncryptedText';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
 import './style.css';
 
 const ACTIVE_JOB_KEY='proofbench_active_job_id';
+
+const destinations = [
+ {path:'/',label:'Overview'}, {path:'/execution',label:'Execution'}, {path:'/benchmarks',label:'Benchmarks'},
+ {path:'/verify',label:'Verifier'}, {path:'/guide',label:'Guide'},
+] as const;
+
+const pageInfo: Record<Exclude<WorkspacePath, '/'>, { scene: OpeningScene; label: string; title: string; description: string }> = {
+ '/execution': { scene:'execution', label:'EXECUTION', title:'Execution lab', description:'Run a coding task and follow the decisions, model calls, and checks behind it.' },
+ '/execution/runs': { scene:'ledger', label:'EXECUTION ARCHIVE', title:'Run ledger', description:'Browse recorded runs and offline fixtures, then open the evidence for any result.' },
+ '/benchmarks': { scene:'graph', label:'BENCHMARKS', title:'Graph Repair', description:'' },
+ '/benchmarks/routing': { scene:'routing', label:'BENCHMARKS', title:'Model routing', description:'' },
+ '/verify': { scene:'verifier', label:'VERIFICATION', title:'Freshness verifier', description:'Check factual claims against sources you can inspect.' },
+ '/guide': { scene:'guide', label:'REFERENCE', title:'Workspace guide', description:'Find the right tool and see how to reach the local API.' },
+};
 
 function metric(value:UsageRecord['inputTokens']){
  if(value.status==='missing')return 'Not reported';if(value.status==='incomparable')return 'Incomparable';
@@ -29,30 +46,43 @@ function runBadge(r:RunRecord){
 }
 
 function App(){
- const [tab,setTab]=useState<'runs'|'verify'>('runs');const [caps,setCaps]=useState<Capabilities>();
+ const {route,navigate}=useWorkspaceNavigation();
+ const page=route.path;
+ const execution=page==='/execution'||page==='/execution/runs';
+ const benchmarking=page==='/benchmarks'||page==='/benchmarks/routing';
+ const [caps,setCaps]=useState<Capabilities>();
  const [tasks,setTasks]=useState<TaskSpec[]>([]);const [selectedTaskId,setSelectedTaskId]=useState<string>('');
  const [runs,setRuns]=useState<RunRecord[]>([]);
  const [selected,setSelected]=useState<RunRecord>();const [trace,setTrace]=useState<ExecutionTrace>();const [report,setReport]=useState<EvidenceReport>();
  const [answer,setAnswer]=useState('Python 2 is currently supported.');
  const [busy,setBusy]=useState(false);const [progress,setProgress]=useState('');const [loading,setLoading]=useState(true);const [error,setError]=useState('');
- const [compare,setCompare]=useState(false);
- const [verifierDestination,setVerifierDestination]=useState<VerifierDestination>();
- const benchmark=useControlledBenchmark(Boolean(caps));
+ const [verifierVisited,setVerifierVisited]=useState(page==='/verify');
+ const [verifierRevision,setVerifierRevision]=useState(0);
+ const benchmark=useControlledBenchmark(page==='/benchmarks/routing');
+ const lastScroll=useRef<typeof route | undefined>(undefined);
 
  function openVerifier(destination:VerifierDestination) {
   setReplayRequest(undefined);
-  setVerifierDestination(destination);
-  setTab('verify');
+  navigate(`/verify#${destination}`);
  }
 
- useEffect(()=>{
-  if(tab!=='verify'||loading||!verifierDestination)return;
-  const target=document.getElementById(verifierDestination);
+ function verifyText(text:string) {
+  setAnswer(text);
+  setVerifierRevision(previous=>previous+1);
+  openVerifier('verification-input');
+ }
+
+ useEffect(()=>{if(page==='/verify')setVerifierVisited(true);},[page]);
+ useLayoutEffect(()=>{
+  if(lastScroll.current===route||(execution&&loading&&route.anchor))return;
+  const previous=lastScroll.current;
+  lastScroll.current=route;
+  document.title=page==='/'?'ProofBench — Evidence Lab':`${pageInfo[page].title} · ProofBench`;
+  const target=route.anchor?document.getElementById(route.anchor.slice(1)):null;
   if(target instanceof HTMLDetailsElement)target.open=true;
-  target?.focus({preventScroll:true});
-  target?.scrollIntoView({block:'start'});
-  setVerifierDestination(undefined);
- },[tab,loading,verifierDestination]);
+  if(target){target.focus({preventScroll:true});target.scrollIntoView({block:'start'});}
+  else{window.scrollTo(0,0);if(previous&&previous.path!==page)document.querySelector<HTMLElement>('main h1')?.focus({preventScroll:true});}
+ },[route,page,execution,loading]);
  const [runFilter,setRunFilter]=useState<'all'|'recorded'|'fixtures'>('all');
  const [replayRequest,setReplayRequest]=useState<{runId:string;sequence:number}>();
  const replaySequence=useRef(0);
@@ -60,6 +90,7 @@ function App(){
  const [monitoringPaused,setMonitoringPaused]=useState(false);
  const inspectionRef=useRef(0);
  const pollingRef=useRef<{jobId:string;cancelled:boolean}|null>(null);
+ const executionConnected=useRef(false);
 
  async function inspect(run:RunRecord){
   const inspection = ++inspectionRef.current;
@@ -86,10 +117,7 @@ function App(){
 
   try{
    while(iteration<maxIterations){
-    if(pollSession.cancelled){
-     setProgress('Monitoring stopped by user.');
-     return;
-    }
+    if(pollSession.cancelled)return;
     await new Promise(r=>setTimeout(r,1500));
     if(pollSession.cancelled)return;
     iteration++;
@@ -97,8 +125,10 @@ function App(){
     let job:JobRecord;
     try{
      job=await api(`/jobs/${jobId}`,schemas.JobRecord);
+     if(pollSession.cancelled)return;
      consecutiveErrors=0;
     }catch(err){
+     if(pollSession.cancelled)return;
      consecutiveErrors++;
      if(consecutiveErrors>=5){
       throw new Error(`Lost connection to server while monitoring job (${(err as Error).message})`);
@@ -118,6 +148,7 @@ function App(){
      setRuns(list.runs);
      const target=(targetRunId?list.runs.find(r=>r.id===targetRunId):undefined)??list.runs[0];
      if(target){setSelected(target);await inspect(target);}
+     setProgress('');
      return;
     }
 
@@ -134,10 +165,14 @@ function App(){
    setError(`Monitoring paused after 7 minutes. The job may still be executing on the server (Job ID: ${jobId}). You can resume monitoring or check status.`);
   }catch(e){
    setError((e as Error).message);
+   if(localStorage.getItem(ACTIVE_JOB_KEY)===jobId){
+    setMonitoringPaused(true);
+    setProgress('Monitoring paused. Resume to check the job again.');
+   }else setProgress('');
   }finally{
    if(pollingRef.current===pollSession){
+    pollingRef.current=null;
     setBusy(false);
-    if(!monitoringPaused)setProgress('');
    }
   }
  }
@@ -217,7 +252,9 @@ function App(){
   }catch(e){setError((e as Error).message);}finally{setLoading(false);}
  }
 
- useEffect(()=>{void connect();},[]);
+ useEffect(()=>{
+  if(execution&&!executionConnected.current){executionConnected.current=true;void connect();}
+ },[execution]);
 
  async function execute(){
   setBusy(true);setProgress('Submitting execution job…');setError('');setMonitoringPaused(false);
@@ -250,49 +287,55 @@ function App(){
  }
 
  const isMock = caps?.implementation === 'mock';
- const mode = isMock ? 'Offline mock' : caps ? `Bifrost ${caps.implementation}` : loading ? 'Connecting' : 'Disconnected';
+ const mode = isMock ? 'Lab · offline' : caps ? `Lab · Bifrost ${caps.implementation}` : loading ? 'Connecting' : 'Disconnected';
 
  return <div className="shell">
-  <div className="system-banner"><span>PROOFBENCH / LOCAL WORKSPACE</span><a href="#workspace">OPEN WORKSPACE <ArrowUpRight size={12} aria-hidden="true"/></a></div>
+  {page==='/'&&<div className="system-banner"><span>PROOFBENCH / LOCAL WORKSPACE</span></div>}
   <header className="masthead">
    <div className="masthead-inner">
-    <a className="brand" href="/" aria-label="ProofBench home"><span className="brandmark"><ScanLine size={20} aria-hidden="true"/></span>ProofBench</a>
+    <WorkspaceLink className="brand" href="/" navigate={navigate}><span className="brandmark"><ScanLine size={20} aria-hidden="true"/></span>ProofBench</WorkspaceLink>
     <nav aria-label="Workspace">
-     <button aria-current={tab==='runs'?'page':undefined} onClick={()=>{setTab('runs');window.scrollTo(0,0);}}><Workflow size={15} aria-hidden="true"/> Execution lab</button>
-     <button aria-current={tab==='verify'?'page':undefined} onClick={()=>{setReplayRequest(undefined);setTab('verify');window.scrollTo(0,0);}}><Radar size={15} aria-hidden="true"/> Freshness verifier</button>
-     {tab==='runs'&&<><a href="#track-d">Track D</a><a href="#controlled-benchmark">Benchmarks</a><a href="#workspace-features">Features</a></>}
+     {destinations.map(item=><WorkspaceLink key={item.path} href={item.path} navigate={navigate}
+      active={item.path==='/execution'?execution:item.path==='/benchmarks'?benchmarking:page===item.path}>{item.label}</WorkspaceLink>)}
     </nav>
-    <span className="badge"><span className="dot" aria-hidden="true"/>{mode}</span>
+    <span className="badge"><span className="dot" aria-hidden="true"/>{execution?mode:'Local workspace'}</span>
    </div>
   </header>
   <main className="content">
-   <section className="page-heading">
-    <PortalArt key={tab}/>
-    <p className="eyebrow hero-kicker">[ {tab==='runs'?'EXECUTION & EVIDENCE':'FRESHNESS VERIFICATION'} ]</p>
-    <h1>{tab==='runs'?<>Trust the<br/>evidence.</>:<>Check what<br/>changed.</>}</h1>
-    <p className="hero-description">{tab==='runs'?'Trace a coding run from model routing to the final acceptance check.':'Check factual claims against sources you can inspect.'}</p>
-    {tab==='runs'&&<div className="task-runner-controls">
+   {page==='/'?<OverviewPage navigate={navigate}/>:!benchmarking&&<WorkspaceOpening key={page} {...pageInfo[page]}>
+    {page==='/execution'&&<div className="task-runner-controls">
      {featuredRun&&<button className="replay-cta" type="button" onClick={replayFeatured} disabled={busy||loading}>
       <CirclePlay size={18} aria-hidden="true"/> Replay recorded run
      </button>}
      {tasks.length>1&&<select className="task-select" value={selectedTaskId} onChange={e=>setSelectedTaskId(e.target.value)} disabled={busy||loading} aria-label="Select task">
       {tasks.map(t=><option key={t.id} value={t.id}>{t.id}: {t.title}</option>)}
      </select>}
-     <button className="primary" disabled={busy||loading||!caps?.capabilities.execute||!tasks.length} onClick={()=>void execute()}>
+     <button className="primary" disabled={busy||Boolean(activeJobId)||loading||!caps?.capabilities.execute||!tasks.length} onClick={()=>void execute()}>
       {busy?<><Activity size={16} aria-hidden="true"/> Running…</>:isMock?'+ Run fixture':'+ Run task'}
      </button>
      {busy&&activeJobId&&<button type="button" className="secondary" onClick={stopMonitoring} title="Stop monitoring without stopping backend execution">Stop monitoring</button>}
      {monitoringPaused&&activeJobId&&<button type="button" className="secondary" onClick={resumeMonitoring} title="Resume monitoring active job">Resume monitoring</button>}
     </div>}
-    {tab==='verify'&&<a className="primary hero-link" href="#workspace">Open verifier <ArrowUpRight size={14} aria-hidden="true"/></a>}
-    {tab==='runs'&&<a className="track-mobile-link" href="#track-d">Open Track D benchmark <ArrowUpRight size={13} aria-hidden="true"/></a>}
-    <ApiTerminal key={tab} defaultTab={tab}/>
-   </section>
-   <div className="workspace-content" id="workspace">
-   {tab==='runs'&&progress&&<p className="job-progress" role="status">{progress}</p>}
-   {error&&<div className="error" role="alert">{error} <button onClick={()=>void connect()}>Retry connection</button></div>}
-   {loading?<p role="status" className="empty">Connecting to workspace…</p>:tab==='runs'?<>
-    <p className="section-caption">[ RUN METRICS AT A GLANCE ]</p>
+   {page==='/guide'&&<nav className="guide-jumps" aria-label="On this page">
+    <WorkspaceLink href="/guide#workspace-features" navigate={navigate}>Workflows</WorkspaceLink>
+    <WorkspaceLink href="/guide#guide-api-title" navigate={navigate}>Local API</WorkspaceLink>
+    <WorkspaceLink href="/guide#workspace-faq" navigate={navigate}>FAQ</WorkspaceLink>
+   </nav>}
+   </WorkspaceOpening>}
+   {execution&&<nav className="workspace-subnav" aria-label="Execution views">
+    <WorkspaceLink href="/execution" navigate={navigate} active={page==='/execution'}>Run workspace</WorkspaceLink>
+    <WorkspaceLink href="/execution/runs" navigate={navigate} active={page==='/execution/runs'}>Run ledger</WorkspaceLink>
+   </nav>}
+   {benchmarking&&<nav className="workspace-subnav" aria-label="Benchmark views">
+    <WorkspaceLink href="/benchmarks" navigate={navigate} active={page==='/benchmarks'}>Graph Repair</WorkspaceLink>
+    <WorkspaceLink href="/benchmarks/routing" navigate={navigate} active={page==='/benchmarks/routing'}>Model routing</WorkspaceLink>
+   </nav>}
+   {page!=='/'&&page!=='/verify'&&<div className="workspace-content focused-workspace" id="workspace">
+   {execution&&progress&&<p className="job-progress" role="status">{progress}</p>}
+   {execution&&error&&<div className="error" role="alert">{error} <button onClick={()=>void connect()}>Retry connection</button></div>}
+   {execution&&loading&&<p role="status" className="empty">Connecting to workspace…</p>}
+   {page==='/execution'&&!loading&&<>
+    <p className="section-caption">[ <EncryptedText text="RUN METRICS AT A GLANCE"/> ]</p>
     <section className="metrics" aria-label="Run metrics">
      <article><span>LOCAL RUNS</span><strong>{runs.length.toString().padStart(2,'0')}</strong><small>Records in the ledger</small></article>
      <article><span>ACCEPTANCE</span><strong className={selected?.acceptance.status==='passed'?'mint':selected?.acceptance.status==='failed'?'status-failed':''}>{selected?.acceptance.status??'Unknown'}</strong><small>{selected?.reproducibility.simulated?'Offline exact-output check':'Recorded acceptance status'}</small></article>
@@ -300,45 +343,56 @@ function App(){
      <article><span>ELAPSED TIME</span><strong className="smaller">{selected?metric(selected.usage.duration):'Not reported'}</strong><small>From the selected run</small></article>
     </section>
     <EvidenceMap key={selected?.id??'empty'} run={selected} trace={trace} replayToken={replayRequest?.runId===selected?.id?replayRequest?.sequence:undefined}/>
-    <TrackDBench onVerify={text=>{setAnswer(text);openVerifier('verification-input');}}/>
-    <BenchmarkOverview {...benchmark}/>
-    <WorkspaceShowcase hasRun={Boolean(selected)} openVerifier={openVerifier}/>
+    {selected&&<div className="detail-grid"><section className="panel" id="execution-trace"><div className="panel-heading"><h2>Execution trace</h2><span className="small">{selected.id==='demo-run'?'DEMO PREVIEW':`${trace?.events.length??0} EVENTS`}</span></div>{trace?<ol className="timeline">{trace.events.map(e=><li key={e.sequence}><span>{String(e.sequence+1).padStart(2,'0')}</span><div><strong>{e.type}</strong><p>{e.message}</p><small>{e.at}</small></div></li>)}</ol>:<p className="empty">Trace unavailable or loading.</p>}</section><section className="panel"><div className="panel-heading"><h2>Acceptance &amp; provenance</h2></div><div className="provenance">{selected.acceptance.checks.map(c=><div key={c.name}><strong>{c.passed===null?'?':c.passed?'✓':'×'} {c.name}</strong><p>{c.evidence}</p></div>)}<dl><dt>Adapter revision</dt><dd>{selected.reproducibility.adapterRevision}</dd><dt>Fixture / seed</dt><dd>{selected.reproducibility.fixtureRevision} / {selected.reproducibility.seed}</dd><dt>Environment</dt><dd>{selected.reproducibility.environment}</dd><dt>Model</dt><dd>{selected.agent.model??'None · offline fixture'}</dd></dl>{report&&<><p>{report.summary}</p>{report.limitations.map(l=><p key={l}>{l}</p>)}</>}<button className="text-button" onClick={()=>verifyText(selected.output)}>Check output freshness →</button></div></section></div>}
+   </>}
+   {page==='/execution/runs'&&!loading&&
     <section className="panel ledger" id="run-ledger" aria-label="Run ledger">
           <div className="panel-heading ledger-heading">
-      <div><p className="eyebrow">ARCHIVE</p><h2>Run ledger <span>{runs.length}</span></h2></div>
+      <div><p className="eyebrow"><EncryptedText text="ARCHIVE"/></p><h2>Saved runs <span>{runs.length}</span></h2></div>
       <div className="ledger-actions">
        <div className="ledger-filters" role="group" aria-label="Filter runs">
         <button type="button" aria-pressed={runFilter==='all'} onClick={()=>setRunFilter('all')}>All</button>
         <button type="button" aria-pressed={runFilter==='recorded'} onClick={()=>setRunFilter('recorded')}>Recorded</button>
         <button type="button" aria-pressed={runFilter==='fixtures'} onClick={()=>setRunFilter('fixtures')}>Fixtures</button>
        </div>
-       <button className="secondary" onClick={()=>setCompare(!compare)} aria-pressed={compare}>{compare?'Close comparison':'Compare runs'}</button>
       </div>
      </div>
      <div className="table-scroll" tabIndex={0} aria-label="Scrollable run records"><table>
       <thead><tr><th>Task / agent</th><th>Result</th><th>Tokens in / out</th><th>Duration</th><th>Evidence</th></tr></thead>
       <tbody>{visibleRuns.map((r,i)=><tr key={`${r.id}-${i}`} className={selected?.id===r.id?'selected':''}>
-       <td><button className="task-link" aria-pressed={selected?.id===r.id} onClick={()=>void inspect(r)}>{r.task.title}</button><small>{r.agent.name}</small>{runBadge(r)}</td>
+       <td><button className="task-link" onClick={()=>{void inspect(r);navigate('/execution#run-inspector');}}>{r.task.title}</button><small>{r.agent.name}</small>{runBadge(r)}</td>
        <td><span className={`pill ${r.acceptance.status}`}>{r.acceptance.status}</span></td>
        <td>{metric(r.usage.inputTokens)}<small>{metric(r.usage.outputTokens)}</small></td>
        <td>{metric(r.usage.duration)}</td>
-       <td><button className="text-button" onClick={()=>{void inspect(r);document.getElementById('run-inspector')?.scrollIntoView({block:'nearest'});}}>Inspect <ArrowUpRight size={14} aria-hidden="true"/></button></td>
+       <td><button className="text-button" onClick={()=>{void inspect(r);navigate('/execution#run-inspector');}}>Inspect <ArrowUpRight size={14} aria-hidden="true"/></button></td>
       </tr>)}</tbody>
      </table></div>
      {!visibleRuns.length&&<p className="empty">{runs.length?'No runs match this filter.':caps?.capabilities.execute?'Run the selected task to add a record.':'Execution is unavailable in this mode.'}</p>}
-    </section>
-  {compare&&<BenchmarkDetails {...benchmark}/>}
-  {selected&&<div className="detail-grid"><section className="panel" id="execution-trace"><div className="panel-heading"><h2>Execution trace</h2><span className="small">{selected.id==='demo-run'?'DEMO PREVIEW':`${trace?.events.length??0} EVENTS`}</span></div>{trace?<ol className="timeline">{trace.events.map(e=><li key={e.sequence}><span>{String(e.sequence+1).padStart(2,'0')}</span><div><strong>{e.type}</strong><p>{e.message}</p><small>{e.at}</small></div></li>)}</ol>:<p className="empty">{selected.id==='demo-run'?'Run a fixture to inspect its recorded trace.':'Trace unavailable or loading.'}</p>}</section><section className="panel"><div className="panel-heading"><h2>Acceptance & provenance</h2><span className="mint">↗</span></div><div className="provenance">{selected.acceptance.checks.map(c=><div key={c.name}><strong>{c.passed===null?'?':c.passed?'✓':'×'} {c.name}</strong><p>{c.evidence}</p></div>)}<dl><dt>Adapter revision</dt><dd>{selected.reproducibility.adapterRevision}</dd><dt>Fixture / seed</dt><dd>{selected.reproducibility.fixtureRevision} / {selected.reproducibility.seed}</dd><dt>Environment</dt><dd>{selected.reproducibility.environment}</dd><dt>Model</dt><dd>{selected.agent.model??'None · offline fixture'}</dd></dl>{report&&<><p>{report.summary}</p>{report.limitations.map(l=><p key={l}>{l}</p>)}</>}<button className="text-button" onClick={()=>{setAnswer(selected.output);openVerifier('verification-input');}}>Check output freshness →</button></div></section></div>}
-  </>:<Verifier initialAnswer={answer} onBusyChange={setBusy}/>}
-   </div>
-  <section className="workspace-faq" aria-labelledby="workspace-faq-title">
-   <header className="showcase-heading"><p className="eyebrow">[ WORKSPACE GUIDE ]</p><h2 id="workspace-faq-title">How ProofBench works</h2></header>
-   <details><summary>What is a recorded run?</summary><p>A recorded run stores the task, its execution trace, and the acceptance checks. Offline fixtures exercise the same interface using simulated results.</p></details>
-   <details><summary>What does the controlled benchmark compare?</summary><p>It compares routing strategies on the same task with shared tooling. The gauges show governed escalation and direct frontier results from the recorded trials.</p></details>
-   <details><summary>What can the verifier check offline?</summary><p>The offline fixture demo can check recognized claims against bundled references. General claim analysis needs live evidence to reach a source-backed verdict.</p></details>
-  </section>
-  <footer><strong>ProofBench</strong><span>Execution evidence &amp; source verification</span><span className="footer-right">SHARED CONTRACTS / V1</span></footer>
+    </section>}
+   {page==='/benchmarks'&&<TrackDBench onVerify={verifyText}/>}
+   {page==='/benchmarks/routing'&&<><BenchmarkOverview {...benchmark}/><BenchmarkDetails {...benchmark}/></>}
+   {page==='/guide'&&<>
+    <WorkspaceShowcase navigate={navigate} openVerifier={openVerifier}/>
+    <div className="guide-reference">
+     <section className="guide-api" aria-labelledby="guide-api-title">
+      <header className="showcase-heading"><p className="eyebrow">[ <EncryptedText text="LOCAL ENDPOINTS"/> ]</p><h2 id="guide-api-title" tabIndex={-1}>Local API examples</h2><p>Choose an endpoint and copy its command.</p></header>
+      <ApiTerminal/>
+     </section>
+     <section className="workspace-faq" id="workspace-faq" aria-labelledby="workspace-faq-title">
+      <header className="showcase-heading"><p className="eyebrow">[ <EncryptedText text="COMMON QUESTIONS"/> ]</p><h2 id="workspace-faq-title">How ProofBench works</h2></header>
+      <details><summary>What is a recorded run?</summary><p>A recorded run stores the task, its execution trace, and the acceptance checks. Offline fixtures exercise the same interface using simulated results.</p></details>
+      <details><summary>What does the controlled benchmark compare?</summary><p>It compares routing strategies on the same task with shared tooling. The gauges show governed escalation and direct frontier results from the recorded trials.</p></details>
+      <details><summary>What can the verifier check offline?</summary><p>The offline fixture demo can check recognized claims against bundled references. General claim analysis needs live evidence to reach a source-backed verdict.</p></details>
+     </section>
+    </div>
+   </>}
+   </div>}
+   {(verifierVisited||page==='/verify')&&<div className="workspace-content focused-workspace" hidden={page!=='/verify'}>
+    <Verifier key={verifierRevision} initialAnswer={answer}/>
+   </div>}
+  {page!=='/'&&<footer className="workspace-footer"><strong>ProofBench</strong><span>Execution evidence &amp; source verification</span><span className="footer-right">SHARED CONTRACTS / V1</span></footer>}
   </main>
+  {page==='/'&&<OverviewFooter navigate={navigate}/>}
  </div>;
 }
 createRoot(document.getElementById('root')!).render(<App/>);

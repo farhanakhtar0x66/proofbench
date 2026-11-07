@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { ControlledPolicySummarySchema } from '../../../packages/contracts/src/index';
 import { api } from './client';
 import { useViewportEntry } from './PresentationArt';
+import { WorkspaceOpening } from './WorkspaceOpening';
 
 const policy = ControlledPolicySummarySchema.pick({
   totalTrials: true, passedTrials: true, successRatePercent: true,
@@ -95,11 +96,8 @@ export function BenchmarkOverview({ data, error, retry }: ReturnType<typeof useC
   const governed = data?.summary.controlled_escalation_only;
 
   return <section className="showcase-section benchmark-showcase" id="controlled-benchmark" aria-labelledby="benchmark-title">
-    <header className="showcase-heading">
-      <p className="eyebrow">[ CONTROLLED BENCHMARK ]</p>
-      <h2 id="benchmark-title">Two strategies, one task</h2>
-      <p>{data ? `${data.taskTitle}. ${governed?.totalTrials===1&&frontier?.totalTrials===1?'One recorded trial per strategy.':'Recorded trials under the controlled routing benchmark.'}` : 'Recorded results for governed escalation and direct frontier.'}</p>
-    </header>
+    <WorkspaceOpening scene="routing" label="CONTROLLED BENCHMARK" title="Model routing" titleId="benchmark-title"
+      description={data ? `${data.taskTitle}. ${governed?.totalTrials===1&&frontier?.totalTrials===1?'One recorded trial per strategy.':'Recorded trials under the controlled routing benchmark.'}` : 'Recorded results for governed escalation and direct frontier.'}/>
     {governed&&frontier ? <div className="benchmark-body">
       <div className="gauge-grid">
         <Gauge label="Total tokens" unit="" highlight={governed.avgTotalTokens} baseline={frontier.avgTotalTokens}/>

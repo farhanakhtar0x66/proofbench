@@ -2,6 +2,8 @@ import { useState } from 'react';
 import { Tabs } from '@base-ui/react/tabs';
 import { ArrowUpRight, Copy } from 'lucide-react';
 import { FeatureArt, useViewportEntry, type Diagram } from './PresentationArt';
+import { WorkspaceLink } from './WorkspaceNavigation';
+import { EncryptedText } from './EncryptedText';
 
 const endpoints = {
   runs: { label: 'Runs', path: '/api/runs', description: '// Read the stored run ledger' },
@@ -9,14 +11,14 @@ const endpoints = {
   verify: { label: 'Verifier', path: '/api/analysis/status', description: '// Read the verifier configuration' },
 } as const;
 
-export function ApiTerminal({ defaultTab }: { defaultTab: 'runs' | 'verify' }) {
+export function ApiTerminal() {
   const [copyFeedback, setCopyFeedback] = useState<{ endpoint: string; message: string }>();
-  return <Tabs.Root defaultValue={defaultTab} onValueChange={()=>setCopyFeedback(undefined)} className="terminal-preview" aria-label="Local API examples">
+  return <Tabs.Root defaultValue="runs" onValueChange={()=>setCopyFeedback(undefined)} className="terminal-preview" aria-label="Local API examples">
     <Tabs.List className="technical-tabs" aria-label="API examples">
       {Object.entries(endpoints).map(([id, endpoint]) => <Tabs.Tab key={id} value={id}>{endpoint.label}</Tabs.Tab>)}
     </Tabs.List>
     {Object.entries(endpoints).map(([id, endpoint]) => <Tabs.Panel key={id} value={id} className="terminal-panel">
-      <span>{endpoint.description}</span>
+      <span><EncryptedText text={endpoint.description}/></span>
       <code><b>$</b> curl {window.location.origin}{endpoint.path}</code>
       <button type="button" className="terminal-copy" aria-label="Copy command" onClick={async()=>{
         try {
@@ -44,11 +46,11 @@ const verificationFeatures: (Feature & { target: VerifierDestination })[] = [
   { title: 'Saved assessments', description: 'Reopen a previous review by its ID and inspect the sources it used.', art: 'review', target: 'saved-assessment', action: 'Open saved assessments' },
 ];
 
-export function WorkspaceShowcase({ hasRun, openVerifier }: { hasRun: boolean; openVerifier: (target: VerifierDestination) => void }) {
+export function WorkspaceShowcase({ navigate, openVerifier }: { navigate: (href: string) => void; openVerifier: (target: VerifierDestination) => void }) {
   const { ref, entered } = useViewportEntry<HTMLElement>();
   return <section className="showcase-section" id="workspace-features" ref={ref} data-entered={entered} aria-labelledby="showcase-title">
     <header className="showcase-heading">
-      <p className="eyebrow">[ EXPLORE PROOFBENCH ]</p>
+      <p className="eyebrow">[ <EncryptedText text="EXPLORE PROOFBENCH"/> ]</p>
       <h2 id="showcase-title">From execution to evidence</h2>
       <p>Open a run, inspect its trace, or verify a claim against the available sources.</p>
     </header>
@@ -59,14 +61,14 @@ export function WorkspaceShowcase({ hasRun, openVerifier }: { hasRun: boolean; o
       </Tabs.List>
       <Tabs.Panel value="execution">
         <div className="feature-grid">
-          {executionFeatures.filter(feature=>hasRun||feature.target!=='execution-trace').map((feature,index)=>
-            <a className="feature-card" key={feature.title} href={`#${feature.target}`}>
+          {executionFeatures.map((feature,index)=>
+            <WorkspaceLink className="feature-card" key={feature.title} href={feature.target === 'run-ledger' ? '/execution/runs' : `/execution#${feature.target}`} navigate={navigate}>
               <div className="feature-figure"><FeatureArt kind={feature.art}/></div>
               <div className="feature-copy">
                 <h3><span>0{index+1}</span> {feature.title}</h3><p>{feature.description}</p>
                 <span className="feature-action">{feature.action} <ArrowUpRight size={14} aria-hidden="true"/></span>
               </div>
-            </a>)}
+            </WorkspaceLink>)}
         </div>
       </Tabs.Panel>
       <Tabs.Panel value="verification">
