@@ -18,6 +18,7 @@ This is a second, independent live run on a different machine (Apple M5, 16 GB) 
 | `44e2330e…` | Infrastructure failure. The grader's temp directory was outside Colima's shared mounts. | 0/2 unavailable | 0/2 unavailable | no |
 | `38ea1c82…` | Calibration | **2/2** | **2/2** | yes |
 | `a7ef2092…` | Matrix: 2 tasks × 3 paired repeats | **5/6** | **5/6** | **no** (see below) |
+| `94313e39…` | Matrix rerun after the 502/504 retry fix, same settings | **6/6** | **6/6** | **yes** |
 
 Matrix usage, both entries on the same model, limits, seeds and alternating order:
 
@@ -32,11 +33,20 @@ Failures:
 - **ProofBench, `distance-width` repeat 3:** the first edit built but failed the public wide-sum check. The next model call got **HTTP 502** from the gateway. The llama.cpp log shows a connection read error; the root cause is not established. At the time the adapter stopped on any non-503 error, so it submitted the half-fixed source. This upstream error is why the session is `comparable: false`. The adapter now treats 502 and 504 like 503: the failed request spends one model-call turn and the loop continues, still bounded by the same call limit. The matrix has not been rerun with that change.
 - **OpenCode, `distance-width` repeat 1:** it submitted an edit that still returned `-1` for distances above 32 bits.
 
+Clean matrix `94313e39…` (same model, limits, suite and alternating order; no gateway errors occurred, so the new retry path was not exercised):
+
+| | ProofBench | OpenCode |
+| --- | --- | --- |
+| Passed | 6/6 | 6/6 |
+| Forwarded model calls | 7 | 29 |
+| Input / output tokens | 5,001 / 1,934 | 107,895 / 3,075 |
+| Median agent time | 13.2 s | 31.1 s |
+
 ### What this changes
 
 - The pilot's **OpenCode 0/6 did not reproduce** here (5/6). The pilot's numbers should not be presented as ProofBench outperforming OpenCode.
 - The context-truncation explanation is **not confirmed**. Here OpenCode's prompts peaked at 4,387 tokens. That is just over the pilot's 4,096-token runtime context, so truncation may have affected some pilot requests, but model, machine and runtime also differ. Treat the cause as unresolved.
-- What holds up on this run: with the same model and limits, ProofBench reached the same pass rate with about **32× fewer input tokens and 4× fewer model calls**, and a lower median agent time. It also had in-loop public feedback that OpenCode did not, so this is an efficiency observation on two short tasks, not a capability ranking.
+- What holds up across both matrices: with the same model and limits, ProofBench reached the same pass rate with about **20–32× fewer input tokens and 4× fewer model calls** (clean matrix: 22×), and a lower median agent time. It also had in-loop public feedback that OpenCode did not, so this is an efficiency observation on two short tasks, not a capability ranking.
 
 ## Tavily results
 
@@ -62,7 +72,9 @@ An offline replay of the saved `tavily-live-7` evidence (no Tavily traffic) foun
 - `interpretationDeadline()` only honoured timeouts up to 30 s and silently used 10 s for anything larger, so a 90 s local setting cut the comparison off after 10 s.
 - A comparison timeout was reported as "the model response failed validation". It is now reported as a timeout (`model_timeout`).
 
-After both fixes, the same replay completed in 15 s with every quote copied exactly. Qwen marked python3statement.github.io and Wikipedia as **contradicting** the 2015 date. The verdict stayed **inconclusive**, because only one eligible independent source group contradicted it and the policy requires two. **A live contradicted verdict is still not demonstrated.** The replay result is offline re-analysis of saved live evidence, not a new live run.
+After both fixes, the same replay completed in 15 s with every quote copied exactly. Qwen marked python3statement.github.io and Wikipedia as **contradicting** the 2015 date. The verdict stayed **inconclusive**, because only one eligible independent source group contradicted it and the policy requires two. The replay result is offline re-analysis of saved live evidence, not a new live run.
+
+**Live contradicted verdict.** After the fixes were merged, the user approved 4 more Tavily requests and 1 was used. `tavily-live-8.json`, "Steve Ballmer is the current CEO of Microsoft." with `scope: current`, completed with method `llm` and outcome **contradicted**. Two eligible, independent sources were assessed as contradicting it: Microsoft's own announcement page ("Ballmer retired from Microsoft in 2013") and a Detroit Regional Chamber bio ("Ballmer retired as CEO of Microsoft in 2014"). A Forbes profile also contradicted it but was excluded for an invalid source date. The model proposed no correction.
 
 Local timeouts: `BIFROST_LLM_TIMEOUT_MS` may now be up to 120,000 ms when the provider is `ollama` (local). Hosted providers keep the 30,000 ms ceiling.
 
