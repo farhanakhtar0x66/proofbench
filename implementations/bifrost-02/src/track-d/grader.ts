@@ -3,12 +3,13 @@ import { execFile } from 'node:child_process';
 import { mkdir, mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
-import { promisify } from 'node:util';
+import { promisify, stripVTControlCharacters } from 'node:util';
 import type { TrackDCheck, TrackDSession, TrackDTask } from '../../../../packages/contracts/src/track-d';
 
 const exec = promisify(execFile);
 const python = () => process.env.TRACK_D_PYTHON ?? (process.platform === 'win32' ? 'python' : 'python3');
 export const oracleRevision = 'hackathon-raptors/speed-demon-2026@3e4004f74de60ffd0670115ab653aa4d4cd3647d';
+export const publicSuiteRevision = 'graph-repair-public-v2';
 const oracleHash = '342f2f7ccab7c22e30c5dcb34a9958da41387e0171cf8c3283a79439e73fff27';
 export const graderImage = process.env.TRACK_D_GRADER_IMAGE ?? 'gcc:15';
 export const hash = (data: string | Buffer) => createHash('sha256').update(data).digest('hex');
@@ -81,6 +82,12 @@ const visibleCase = {
   queries: '0 2\n1 2\n3 3\n0 2\n',
 };
 
+const publicRegressionCase = {
+  name: 'Public directed paths and wide sums',
+  graph: '4 2\n0 1 3000000000\n1 2 3000000000\n',
+  queries: '0 2\n2 0\n3 0\n3 3\n',
+};
+
 const edgeCases = [
   { name: 'Wide path sums', graph: '5 4\n0 1 4294967295\n1 2 4294967295\n2 3 4\n0 4 4294967294\n', queries: '0 1\n0 2\n0 3\n0 4\n4 0\n' },
   { name: 'Directed and unreachable nodes', graph: '7 5\n0 1 10\n1 2 3\n2 3 0\n3 3 1\n6 1 4\n', queries: '0 3\n3 0\n5 5\n1 6\n6 3\n0 3\n' },
@@ -113,8 +120,13 @@ export async function verifyGrader(): Promise<Worker> {
   return { kind: 'docker', id: stdout.trim() };
 }
 
+const compilerOutputBytes = 4096;
+const diagnosticCharacters = 2000;
 const runCandidate = [
-  'g++ -std=c++20 -O2 /proof/main.cpp -o /tmp/solver || exit 10',
+  'if ! g++ -std=c++20 -O2 -fdiagnostics-color=never -fno-diagnostics-show-caret -fmax-errors=5 /proof/main.cpp -o /tmp/solver > /tmp/build.log 2>&1; then',
+  `  head -c ${compilerOutputBytes} /tmp/build.log >&2`,
+  '  exit 10',
+  'fi',
   'for case in /proof/cases/*; do',
   '  out=$(mktemp -d)',
   '  if SD_DATA="$case" SD_OUT="$out" timeout -k 1s 3s /tmp/solver </dev/null >/dev/null 2>&1 && test ! -L "$out/distances.txt" && test -f "$out/distances.txt" && test "$(wc -c < "$out/distances.txt")" -le 4096; then',
@@ -122,6 +134,17 @@ const runCandidate = [
   '  else printf "CASE\\nINVALID\\n"; fi',
   'done',
 ].join('\n');
+
+function buildFailureDetail(stderr: unknown) {
+  const summary = 'The submitted C++ source did not compile.';
+  if (typeof stderr !== 'string') return summary;
+  const diagnostic = stripVTControlCharacters(stderr).replaceAll('/proof/', '').replaceAll('\r\n', '\n')
+    .replace(/\p{Cc}/gu, character => character === '\n' || character === '\t' ? character : '').trim();
+  if (!diagnostic) return summary;
+  return `${summary}\n${diagnostic.slice(0, diagnosticCharacters)}${
+    diagnostic.length > diagnosticCharacters ? '\n[Compiler diagnostics truncated.]' : ''
+  }`;
+}
 
 function describeMismatch(actual: Buffer, expected: Buffer) {
   const got = actual.toString('utf8').split('\n');
@@ -134,7 +157,8 @@ function describeMismatch(actual: Buffer, expected: Buffer) {
 }
 
 export async function gradeTrackD(source: string, worker: Worker, seed?: number): Promise<TrackDCheck[]> {
-  const cases = seed === undefined ? [visibleCase] : [visibleCase, ...edgeCases, generatedCase(seed)];
+  const publicCases = [visibleCase, publicRegressionCase];
+  const cases = seed === undefined ? publicCases : [...publicCases, ...edgeCases, generatedCase(seed)];
   const root = await mkdtemp(join(tmpdir(), 'proofbench-grade-'));
   const inputs = join(root, 'input');
   const name = `proofbench-grade-${randomUUID()}`;
@@ -169,7 +193,7 @@ export async function gradeTrackD(source: string, worker: Worker, seed?: number)
       ], commandOptions));
     } catch (error) {
       const code = (error as { code?: unknown }).code;
-      if (code === 10) return [{ name: 'Build', outcome: 'failed', detail: 'The submitted C++ source did not compile.' }];
+      if (code === 10) return [{ name: 'Build', outcome: 'failed', detail: buildFailureDetail((error as { stderr?: unknown }).stderr) }];
       return [{ name: 'Grader worker', outcome: 'unavailable', detail: 'The restricted worker failed to start or exceeded its process limits.' }];
     }
     const output = stdout.split(/\r?\n/);

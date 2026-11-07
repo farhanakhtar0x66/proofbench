@@ -27,6 +27,8 @@
     "test:freshness": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-tavily-freshness.ts",
     "benchmark:strategies": "node --env-file-if-exists=.env --import tsx scripts/benchmark-strategies.ts",
     "benchmark:optimization": "node --env-file-if-exists=.env --import tsx scripts/benchmark-optimization.ts",
+    "benchmark:graph:calibrate": "node --env-file-if-exists=.env --import tsx scripts/run-graph-repair.ts calibrate",
+    "benchmark:graph:matrix": "node --env-file-if-exists=.env --import tsx scripts/run-graph-repair.ts matrix",
     "demonstrate:bifrost": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-bifrost-01.ts",
     "demonstrate:adaptive": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-adaptive-v1-1.ts",
     "demonstrate:adaptive:v1-2": "node --env-file-if-exists=.env --import tsx scripts/demonstrate-adaptive-v1-2.ts",

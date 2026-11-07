@@ -4,13 +4,13 @@ import { mkdtemp, rm, writeFile } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { TrackDCheck, TrackDRequest, TrackDRun, TrackDSession, TrackDTask } from '../../../../packages/contracts/src/track-d';
-import { liveAgents, taskPrompt } from './agents';
+import { trackDAdapterRevision, trackDAgentLabels, trackDAgentsByMode, type TrackDAgent, type TrackDCheck, type TrackDRequest,
+  type TrackDRun, type TrackDSession, type TrackDTask } from '../../../../packages/contracts/src/track-d';
+import { liveAgents, taskPrompt, TrackDPublicCheckUnavailableError } from './agents';
 import { createMeter, isPinnedReceipt, limits, type GatewayConfig } from './gateway';
-import { gradeTrackD, hash, oracleRevision, starter, trackTasks } from './grader';
+import { gradeTrackD, hash, oracleRevision, publicSuiteRevision, starter, trackTasks } from './grader';
 
 const exec = promisify(execFile);
-const fixtures = ['Reference repair fixture', 'Unpatched starter fixture'];
 
 async function sourceDiff(before: string, after: string) {
   if (before === after) return '';
@@ -32,10 +32,11 @@ async function sourceDiff(before: string, after: string) {
 
 export function createTrackDSession(request: TrackDRequest, worker: TrackDSession['worker'], config: GatewayConfig | null): TrackDSession {
   return { id: randomUUID(), createdAt: new Date().toISOString(), request, status: 'running',
-    model: config?.model ?? null, comparable: false, worker, oracle: oracleRevision, limits, runs: [] };
+    model: config?.model ?? null, comparable: false, worker, oracle: oracleRevision, publicSuiteRevision, adapterRevision: trackDAdapterRevision,
+    ...(config?.reasoningEffort ? { reasoningEffort: config.reasoningEffort } : {}), limits, runs: [] };
 }
 
-async function runTrial(session: TrackDSession, task: TrackDTask, repeat: number, agent: string,
+async function runTrial(session: TrackDSession, task: TrackDTask, repeat: number, agentId: TrackDAgent,
   seed: number, config: GatewayConfig | null, shutdown?: AbortSignal): Promise<TrackDRun> {
   const baseline = starter(task);
   const deadline = AbortSignal.timeout(limits.agentSeconds * 1000);
@@ -44,62 +45,74 @@ async function runTrial(session: TrackDSession, task: TrackDTask, repeat: number
   const trace: TrackDRun['trace'] = [];
   const log = (source: TrackDRun['trace'][number]['source'], message: string) => trace.push({ source, message, at: new Date().toISOString() });
   log('adapter', 'Fresh workspace initialized from the frozen Track D starter.');
-  if (session.request.fault === 'misleading-input') log('adapter', 'Added the same unverified issue comment to both agent prompts.');
+  if (session.request.fault === 'misleading-input') log('adapter', 'Added an unverified issue comment to the task prompt.');
   let source = baseline;
   let steps = null;
   let toolCalls = null;
   let agentNote: string | undefined;
   let adapterFailed = false;
+  let publicCheckUnavailable = false;
   const start = performance.now();
   try {
     if (config && meter) {
-      const adapter = liveAgents.find(item => item.name === agent);
-      if (!adapter) throw new Error('Unknown Track D adapter.');
-      const result = await adapter.run({ baseline, worker: session.worker, config, meter, signal, trace: log,
+      if (agentId !== 'proofbench' && agentId !== 'opencode') throw new Error('Unknown live Track D adapter.');
+      const result = await liveAgents[agentId]({ baseline, worker: session.worker, config, meter, signal, trace: log,
         prompt: taskPrompt(trackTasks[task], session.request.fault === 'misleading-input') });
       ({ source, steps, toolCalls, agentNote } = result);
     } else {
-      source = starter(task, agent === fixtures[0]);
+      source = starter(task, agentId === 'reference-repair');
       log('adapter', 'Loaded a predetermined source fixture. No coding agent or model ran.');
     }
-  } catch {
-    adapterFailed = true;
-    log('adapter', 'Adapter did not produce a usable source artifact.');
+  } catch (error) {
+    publicCheckUnavailable = error instanceof TrackDPublicCheckUnavailableError;
+    adapterFailed = !publicCheckUnavailable;
+    log(publicCheckUnavailable ? 'grader' : 'adapter', publicCheckUnavailable
+      ? 'Public checks were unavailable. The trial stopped without submitting an unvalidated edit.'
+      : 'Adapter did not produce a usable source artifact.');
   }
   const agentMs = performance.now() - start;
   const receipts = meter?.receipts ?? [];
   for (const receipt of receipts) {
-    log('gateway', receipt.injected ? 'Injected HTTP 503 before the Bifrost request.' :
+    log('gateway', receipt.relayRejection ? 'Relay rejected a request after the model-call cap. No Bifrost request was made.' :
+      receipt.injected ? 'Injected HTTP 503 before the Bifrost request.' :
       `HTTP ${receipt.status}${receipt.model ? ` · ${receipt.model}` : ''}${receipt.requestId ? ` · ${receipt.requestId}` : ''}`);
   }
-  let checks: TrackDCheck[];
-  try {
-    const grade = () => gradeTrackD(source, session.worker, seed);
-    let failOnce = session.request.fault === 'tool-error';
-    const invokeGrader = () => {
-      if (failOnce) {
-        failOnce = false;
-        return Promise.reject(new Error('Injected grader tool error.'));
+  let unavailableReason: TrackDRun['unavailableReason'];
+  if (shutdown?.aborted) unavailableReason = 'interrupted';
+  else if (deadline.aborted) unavailableReason = 'agent-timeout';
+  else if (publicCheckUnavailable) unavailableReason = 'grader-error';
+  else if (source === baseline && receipts.some(receipt => !receipt.injected && receipt.status >= 400) &&
+    !receipts.some(receipt => receipt.status === 200)) unavailableReason = 'gateway-error';
+  else if (adapterFailed) unavailableReason = 'agent-error';
+
+  let checks: TrackDCheck[] = [];
+  if (!unavailableReason) {
+    try {
+      const grade = () => gradeTrackD(source, session.worker, seed);
+      if (session.request.fault === 'tool-error') {
+        const failedAttempt = Promise.reject(new Error('Injected grader tool error.'));
+        checks = await failedAttempt.catch(() => {
+          log('grader', 'Injected grader tool error. The harness retried grading once.');
+          return grade();
+        });
+      } else {
+        checks = await grade();
       }
-      return grade();
-    };
-    checks = await invokeGrader().catch(error => {
-      if (session.request.fault !== 'tool-error') throw error;
-      log('grader', 'Injected grader tool error. The harness retried grading once.');
-      return invokeGrader();
-    });
-  } catch {
-    checks = [{ name: 'Grader infrastructure', outcome: 'unavailable', detail: 'The pinned oracle or worker could not complete this trial.' }];
+    } catch {
+      checks = [{ name: 'Grader infrastructure', outcome: 'unavailable', detail: 'The pinned oracle or worker could not complete this trial.' }];
+    }
+    if (checks.some(check => check.outcome === 'unavailable')) unavailableReason = 'grader-error';
   }
   for (const check of checks) log('grader', `${check.name}: ${check.outcome}.`);
-  const verdict = checks.some(check => check.outcome === 'unavailable') || adapterFailed ? 'unavailable'
+  const verdict = unavailableReason ? 'unavailable'
     : checks.every(check => check.outcome === 'passed') ? 'passed' : 'failed';
   const verdictMs = performance.now() - start;
   const total = (key: 'input' | 'output' | 'costUsd') =>
     config && receipts.length > 0 && receipts.every(receipt => receipt.injected || receipt[key] !== null)
       ? receipts.reduce((sum, receipt) => sum + (receipt[key] ?? 0), 0)
       : null;
-  return { id: randomUUID(), agent, task, repeat, seed, verdict, agentMs, verdictMs, steps, toolCalls, agentNote, receipts, trace, checks,
+  return { id: randomUUID(), agent: trackDAgentLabels[agentId], agentId, task, repeat, seed, verdict, unavailableReason,
+    agentMs, verdictMs, steps, toolCalls, agentNote, receipts, trace, checks,
     inputTokens: total('input'), outputTokens: total('output'), costUsd: total('costUsd'),
     sourceSha256: hash(source), diff: await sourceDiff(baseline, source) };
 }
@@ -107,7 +120,7 @@ async function runTrial(session: TrackDSession, task: TrackDTask, repeat: number
 export async function executeTrackD(session: TrackDSession, config: GatewayConfig | null,
   publish: (session: TrackDSession) => Promise<void>, shutdown?: AbortSignal) {
   try {
-    const agents = config ? liveAgents.map(agent => agent.name) : fixtures;
+    const agents = session.request.agents ?? trackDAgentsByMode[session.request.mode];
     for (const task of session.request.tasks) {
       for (let repeat = 1; repeat <= session.request.repeats; repeat++) {
         const seed = randomInt(1, 0xffffffff);
@@ -122,11 +135,14 @@ export async function executeTrackD(session: TrackDSession, config: GatewayConfi
     shutdown?.throwIfAborted();
     session.comparable = config !== null && session.runs.every(run => run.verdict !== 'unavailable' &&
       run.receipts.some(receipt => isPinnedReceipt(receipt, config.model)) &&
-      run.receipts.every(receipt => receipt.injected || isPinnedReceipt(receipt, config.model)));
+      run.receipts.every(receipt => receipt.injected ||
+        (receipt.relayRejection === 'model-call-limit' && receipt.status === 429) || isPinnedReceipt(receipt, config.model)));
     session.status = 'completed';
   } catch {
     session.status = 'failed';
-    session.message = 'The benchmark was interrupted before all runs could be recorded.';
+    session.message = shutdown?.aborted
+      ? 'The server stopped before the benchmark finished. Start a new run to finish the comparison.'
+      : 'The benchmark was interrupted before all runs could be recorded.';
   }
   await publish(session);
   return session;

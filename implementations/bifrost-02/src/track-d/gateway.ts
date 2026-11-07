@@ -6,18 +6,29 @@ import type { TrackDReceipt } from '../../../../packages/contracts/src/track-d';
 
 export const limits = { modelCalls: 6, outputTokensPerCall: 3500, agentSeconds: 150 };
 
+export class TrackDGatewayConfigError extends Error {}
+
 export function gatewayConfig() {
   const model = process.env.TRACK_D_BIFROST_MODEL;
   const key = process.env.BIFROST_VIRTUAL_KEY;
+  const reasoningEffort = process.env.TRACK_D_REASONING_EFFORT;
+  if (reasoningEffort && reasoningEffort !== 'none') throw new TrackDGatewayConfigError('TRACK_D_REASONING_EFFORT must be none or unset to use the provider default.');
   if (process.env.TRACK_D_LIVE !== 'true' || !model || !key || !/^[\w.-]+\/[\w.:/-]+$/.test(model) || !process.env.TRACK_D_OPENCODE) {
     return null;
   }
-  const origin = new URL(process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089');
+  let origin: URL;
+  const message = 'Set BIFROST_GATEWAY_URL to a local Bifrost origin such as http://127.0.0.1:8089.';
+  try {
+    origin = new URL(process.env.BIFROST_GATEWAY_URL ?? 'http://127.0.0.1:8089');
+  } catch {
+    throw new TrackDGatewayConfigError(message);
+  }
   if (!['localhost', '127.0.0.1', '[::1]'].includes(origin.hostname) || !['http:', 'https:'].includes(origin.protocol) ||
       origin.username || origin.password || origin.pathname !== '/' || origin.search || origin.hash) {
-    throw new Error('Track D requires a local Bifrost origin.');
+    throw new TrackDGatewayConfigError(message);
   }
-  return { model, key, origin: origin.origin, cli: process.env.TRACK_D_OPENCODE };
+  return { model, key, origin: origin.origin, cli: process.env.TRACK_D_OPENCODE,
+    ...(reasoningEffort === 'none' ? { reasoningEffort: 'none' as const } : {}) };
 }
 export type GatewayConfig = NonNullable<ReturnType<typeof gatewayConfig>>;
 type Completion = {
@@ -43,12 +54,15 @@ export function createMeter(config: GatewayConfig, injectOutage: boolean, signal
   const receipts: TrackDReceipt[] = [];
   const correlationId = randomUUID();
   let attempts = 0;
-  const reject = (status: number, message: string, injected = false) => {
-    receipts.push({ status, injected, model: null, provider: null, input: null, output: null, costUsd: null, requestId: null });
+  const reject = (status: number, message: string, injected = false, relayRejection?: 'model-call-limit') => {
+    receipts.push({ status, injected, model: null, provider: null,
+      input: relayRejection ? 0 : null, output: relayRejection ? 0 : null, costUsd: relayRejection ? 0 : null,
+      requestId: null, ...(relayRejection ? { relayRejection } : {}) });
     return new Response(JSON.stringify({ error: { message, type: 'benchmark_gateway_error' } }), { status });
   };
   async function complete(body: Record<string, unknown>) {
-    if (signal.aborted || attempts >= limits.modelCalls) return reject(429, 'Benchmark model call limit reached.');
+    if (signal.aborted) return reject(429, 'Benchmark agent deadline reached.');
+    if (attempts >= limits.modelCalls) return reject(429, 'Benchmark model call limit reached.', false, 'model-call-limit');
     if (body.model !== config.model || !Array.isArray(body.messages)) return reject(400, 'Request must use the pinned model.');
     attempts++;
     if (injectOutage && attempts === 1) return reject(503, 'Injected benchmark model outage.', true);
@@ -58,6 +72,7 @@ export function createMeter(config: GatewayConfig, injectOutage: boolean, signal
       ? Math.min(requestedMax, limits.outputTokensPerCall) : limits.outputTokensPerCall;
     const forwarded = {
       model: config.model, messages: body.messages, stream, max_tokens: maxTokens,
+      ...(config.reasoningEffort ? { reasoning_effort: config.reasoningEffort } : {}),
       ...(stream ? { stream_options: { include_usage: true } } : {}),
       ...(Array.isArray(body.tools) ? { tools: body.tools } : {}),
     };
