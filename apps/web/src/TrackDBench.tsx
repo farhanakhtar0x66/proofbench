@@ -241,6 +241,12 @@ export function TrackDBench({ onVerify }: { onVerify: (text: string) => void }) 
             : `${session.limits.modelCalls} model calls · ${session.limits.outputTokensPerCall.toLocaleString()} output tokens/call · ${session.limits.agentSeconds}s`}</dd></div>
         </dl>
         <TrackDComparison key={session.id} session={session} onVerify={onVerify}/>
+        {session.request.mode === 'live' && (session.request.agents?.length ?? 2) > 1 &&
+          <p className="track-comparison-note" role="note" aria-label="Comparison limits">
+            Not a controlled agent ranking. ProofBench receives public build and regression feedback while editing; OpenCode
+            receives host grading only after editing. Check that the model server's context window matches what each adapter
+            declares before comparing results.
+          </p>}
       </> : <div className="track-empty">
         <strong>{status ? 'No benchmark selected' : error ? 'Results unavailable' : 'Loading saved comparisons…'}</strong>
         <p>{status && 'Start a live comparison or run offline fixtures through the same isolated grader.'}</p>

@@ -50,6 +50,7 @@ test('compares matched trials, accounts for failed attempts, and keeps missing u
   await page.goto('/#track-d');
   const track = page.locator('#track-d');
   await expect(track.getByText(/3 of 4 matched trials per entry/)).toBeVisible();
+  await expect(track.getByRole('note', { name: 'Comparison limits' })).toBeVisible();
   const scorecard = track.getByRole('table', { name: 'Agent scorecard' });
   await expect(scorecard.getByText('Usage incomplete')).toBeVisible();
   await expect(scorecard.getByText('No passing repairs')).toBeVisible();
