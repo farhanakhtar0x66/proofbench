@@ -131,13 +131,13 @@ Controlled Routing Policy Comparison (All Arms have Tree-sitter & Mechanical Too
 | controlled_bidirectional_adaptive  | 100%     | 6,215      | 6,215       | 75,249    | 136      |
 ----------------------------------------------------------------------------------------------------
 Attribution Breakdown:
-  • Model Selection Savings: 3,305 tokens saved (42.5% reduction vs direct frontier)
+  • Model Selection Savings: 3,305 tokens saved (42.6% reduction vs direct frontier)
   • True Deterministic CPU Overhead: 118 ms - 136 ms across entire multi-turn workflow
 ```
 
 ### Empirical Takeaways:
 1. **Honest Capability Boundaries:** The small model alone cannot solve exponential backoff and fails (0% pass rate). ProofBench accurately reports 0% rather than suppressing failures.
-2. **Token Efficiency:** Governed escalation resolves the challenge with 4,461 tokens compared to 7,766 for the direct frontier arm, reducing total inference consumption by **42.5%**.
+2. **Token Efficiency:** Governed escalation resolves the challenge with 4,461 tokens compared to 7,766 for the direct frontier arm, reducing total inference consumption by **42.6%**.
 3. **Negligible Deterministic Overhead:** Tree-sitter concrete parsing, diagnostic filtering, and host approval consumed only 118 ms of CPU time.
 
 ---

@@ -71,16 +71,9 @@ node --env-file-if-exists=.env --import tsx scripts/verify-browser-live-acceptan
 
 ---
 
-## 3. Five-Minute Demo Checklist (For Aryan & Khushi)
+## 3. Five-Minute Demo Checklist
 
-| Time | Action | What to Point Out to Judges |
-|---|---|---|
-| **0:00 - 1:00** | Open `http://localhost:5173` | **Run Ledger Discovery:** Stored runs appear automatically from `.local/data/`. Highlight `MEASURED LIVE`, `M3A ESCALATION (1.5B ➔ 9B)`, and `ZERO-TOKEN AST FIX` badges. |
-| **1:00 - 1:45** | Click **Zero-Token Deterministic Mechanical Repair** | **Zero Tokens:** Show 0 input tokens, 0 output tokens, 85ms wall time. Tree-sitter mechanical transformer resolved compilation diagnostics deterministically without invoking any LLM. |
-| **1:45 - 2:45** | Click **Compare runs** | **Controlled Benchmark Card:** Task 2 controlled comparison table under identical AST tools: Direct Frontier (7,766 tokens) vs. Governed Escalation (4,461 tokens — **42.5% token savings**). Downward delegation was not exercised in this task (honest attribution). |
-| **2:45 - 3:45** | Select **Task 1** from dropdown, click **+ Run task** | **Live Inference Execution:** Observe real-time progress indicators (`AdaptiveExecutionEngine initialized; running turns...`). Watch it pass 2/2 acceptance tests. Point out the resulting multi-tier trace in the timeline and reload the page to demonstrate persistence. |
-| **3:45 - 4:15** | Click **Stop monitoring** / **Resume monitoring** | **Monitoring Resilience:** Show that browser polling can be safely paused and resumed without duplicating jobs or losing backend execution state. |
-| **4:15 - 5:00** | Switch to **Freshness verifier** tab | **Answer Verification:** Note `OFFLINE` badge. Click *"Try: Python 2 sunset (stale)"*, click **Verify answer →**. Observe `contradicted` verdict and authoritative Python reference URL. If live key configured, show `LIVE RESEARCH` badge. |
+Superseded. Use [DEMO-WALKTHROUGH.md](DEMO-WALKTHROUGH.md), which matches the current UI and uses saved live evidence.
 
 ---
 
@@ -144,5 +137,5 @@ In live mode:
 
 1. **Local GGUF Model Latency:** On CPU-only environments (standard developer laptops or GitHub runner VMs), Qwen 3.5 9B inference requires 20-35 seconds per turn. The async job polling mechanism and 300-iteration ceiling prevent HTTP timeouts.
 2. **Task 10 Characterization:** Task 10 was co-designed to test unfamiliar AST symbols across multiple Rust modules. While executed autonomously against live Bifrost without hardcoded heuristics, it is properly classified as a validation fixture rather than a blind held-out task.
-3. **Task 2 Benchmark Attribution:** In Task 2, model escalation (`SMALL_LLM ➔ STRONGER_LLM`) produced 42.5% token savings over direct frontier inference. Downward delegation was not exercised in this specific task because the frontier model completed the patch directly.
+3. **Task 2 Benchmark Attribution:** In Task 2, model escalation (`SMALL_LLM ➔ STRONGER_LLM`) produced 42.6% token savings over direct frontier inference. Downward delegation was not exercised in this specific task because the frontier model completed the patch directly.
 4. **Process Restart Honesty:** In-flight job records in persistent storage do not resume automatically if the Node.js server process is terminated; orphaned jobs are reconciled as `failed` with explicit notice on restart.
