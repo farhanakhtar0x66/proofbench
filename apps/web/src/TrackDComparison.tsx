@@ -3,6 +3,7 @@ import { ArrowDown, ArrowDownUp, ArrowUp, ArrowUpRight } from 'lucide-react';
 import { trackDAgentLabels, trackDAgentsByMode, trackDGatewayAttempts, type TrackDAgent, type TrackDRun, type TrackDSession, type TrackDTask } from '../../../packages/contracts/src/track-d';
 import { TrackDRunEvidence, verdictClass } from './TrackDRunEvidence';
 import { EncryptedText } from './EncryptedText';
+import { CostProjection, type AgentUsage } from './CostProjection';
 
 export const trackDTaskLabels: Record<TrackDTask, string> = {
   'distance-width': 'Long-distance overflow',
@@ -51,6 +52,16 @@ function measurements(id: TrackDAgent, runs: TrackDRun[]) {
     tokensPerPass: passed > 0 && tokens.length === runs.length ? tokens.reduce((sum, value) => sum + value, 0) / passed : null,
     modelAttempts: median(runs.map(run => trackDGatewayAttempts(run.receipts))),
   };
+}
+
+/** Summed token usage per agent over matched trials; agents with incomplete usage are left out. */
+function usageFor(agents: readonly TrackDAgent[], matched: TrialRow[]): AgentUsage[] {
+  return agents.flatMap(id => {
+    const runs = matched.map(row => row.entries.get(id)!);
+    if (!runs.length || runs.some(run => run.inputTokens === null || run.outputTokens === null)) return [];
+    return [{ id, label: trackDAgentLabels[id], total: runs.length, passed: runs.filter(run => run.verdict === 'passed').length,
+      input: runs.reduce((sum, run) => sum + run.inputTokens!, 0), output: runs.reduce((sum, run) => sum + run.outputTokens!, 0) }];
+  });
 }
 
 type AgentStats = ReturnType<typeof measurements>;
@@ -163,6 +174,7 @@ export function TrackDComparison({ session, onVerify }: { session: TrackDSession
       <p className="track-comparison-note">{fixture ? 'Fixtures exercise the grader without running an agent or model.'
         : 'Tool counts use each adapter’s own events. Tokens per passing repair include spend on failed attempts and require complete usage.'}</p>
       {!fixture && <EfficiencyPlot stats={stats}/>}
+      {!fixture && <CostProjection agents={usageFor(agents, matched)}/>}
     </> : <p className="track-empty">The scorecard appears when every selected entry has a result for the same trial.</p>}
     <section className="track-matrix" aria-labelledby="track-matrix-title">
       <header className="track-comparison-heading">

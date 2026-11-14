@@ -3,6 +3,7 @@ import { ArrowDown, ArrowRight, ArrowUp, ArrowUpRight, Check, FileCheck2, GitCom
 import { EncryptedText } from './EncryptedText';
 import { FeatureArt, PortalArt, useViewportEntry } from './PresentationArt';
 import { WorkspaceLink } from './WorkspaceNavigation';
+import { ProofStrip } from './ProofStrip';
 import './overview.css';
 
 type Navigation = { navigate: (href: string) => void };
@@ -44,13 +45,15 @@ export function OverviewPage({ navigate }: Navigation) {
       </WorkspaceLink>
       <p className="eyebrow hero-kicker">[ <EncryptedText text="EXECUTION & EVIDENCE"/> ]</p>
       <h1 id="page-title" tabIndex={-1}>Trust the<br/>evidence.</h1>
-      <p className="hero-description">Compare coding agents, inspect the checks behind a run, or verify an answer against its sources.</p>
+      <p className="hero-description">A coding agent that spends small-model tokens first, escalates only on evidence, and grades every patch in a sandbox. Then it shows you the receipts.</p>
       <div className="overview-actions">
         <WorkspaceLink href="/benchmarks" navigate={navigate} className="primary">Compare agents <ArrowUpRight size={14} aria-hidden="true"/></WorkspaceLink>
         <WorkspaceLink href="/execution" navigate={navigate} className="secondary">Open execution lab <ArrowRight size={14} aria-hidden="true"/></WorkspaceLink>
       </div>
       <span className="overview-hero-note">LESS GUESSWORK. MORE CONTEXT.</span>
     </section>
+
+    <ProofStrip navigate={navigate}/>
 
     <div className="overview-capabilities" aria-label="What you can inspect">
       <span><GitCompareArrows size={15} aria-hidden="true"/> Comparable tasks</span>
