@@ -16,7 +16,8 @@ function waitFor(selector: string, ms = 5000): Promise<HTMLElement | null> {
     const look = () => {
       const element = document.querySelector<HTMLElement>(selector);
       if (element || performance.now() - began > ms) resolve(element);
-      else requestAnimationFrame(look);
+      // A timer, not requestAnimationFrame: frames pause while the window is hidden or covered.
+      else setTimeout(look, 50);
     };
     look();
   });
@@ -30,8 +31,16 @@ async function arrive(stop: Stop, isCurrent: () => boolean) {
   else {
     const element = await waitFor(stop.target);
     if (!element || !isCurrent()) return;
-    const masthead = document.querySelector('.masthead')?.getBoundingClientRect().height ?? 0;
-    window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - masthead - 16, behavior: 'smooth' });
+    const offset = () => (document.querySelector('.masthead')?.getBoundingClientRect().height ?? 0) + 16;
+    window.scrollTo({ top: element.getBoundingClientRect().top + window.scrollY - offset(), behavior: 'smooth' });
+    // On a first visit, content above the target (charts, art) can still be arriving and
+    // push it down after the scroll. Re-align for a moment until the layout settles.
+    for (let check = 0; check < 6; check++) {
+      await new Promise(resolve => setTimeout(resolve, 300));
+      if (!isCurrent()) return;
+      const drift = element.getBoundingClientRect().top - offset();
+      if (Math.abs(drift) > 24) window.scrollTo({ top: window.scrollY + drift, behavior: 'smooth' });
+    }
   }
   if (stop.action === 'replay-ladder') {
     await new Promise(resolve => setTimeout(resolve, 650));
