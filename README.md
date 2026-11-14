@@ -1,300 +1,289 @@
-# ProofBench — Deterministically Governed Coding Agent
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/banner-dark.svg">
+    <img src="docs/assets/banner-light.svg" alt="ProofBench: the coding agent that spends small-model tokens first and proves every patch" width="100%">
+  </picture>
+</p>
 
-> **Global AI Hackathon — Bifrost #01 + Tavily Stale-Answer Detector**  
-> Repository: `farhanakhtar0x66/proofbench`  
-> Target: **Bifrost #01 (Minimal Token Usage Coding Agent)** + **Tavily Freshness Verification**
+<p align="center">
+  <a href="https://github.com/farhanakhtar0x66/proofbench/actions/workflows/ci.yml"><img alt="CI" src="https://github.com/farhanakhtar0x66/proofbench/actions/workflows/ci.yml/badge.svg"></a>
+  <img alt="984 unit tests and 38 browser tests" src="https://img.shields.io/badge/tests-984%20unit%20%C2%B7%2038%20browser-2CBEA0?style=flat-square">
+  <img alt="TypeScript" src="https://img.shields.io/badge/TypeScript-strict-3178C6?style=flat-square&logo=typescript&logoColor=white">
+  <img alt="Node.js 22.12 or newer" src="https://img.shields.io/badge/node-%E2%89%A5%2022.12-5A5A5A?style=flat-square&logo=nodedotjs&logoColor=white">
+  <img alt="Maxim AI Bifrost" src="https://img.shields.io/badge/gateway-Bifrost-126852?style=flat-square">
+  <img alt="Tavily" src="https://img.shields.io/badge/retrieval-Tavily-126852?style=flat-square">
+</p>
 
-ProofBench is a deterministically governed coding agent that combines:
-1. **Maxim AI Bifrost** as the enterprise model gateway (hierarchical virtual-key budgets, fail-closed confidential routing, and resilient multi-provider failover).
-2. **Governed Execution Loop** (clean-room TypeScript implementation of deterministic symbol context bounding, repeated-failure stagnation detection, and evidence-only diagnostic autopsy escalation).
-3. **Tavily Freshness Verification** (pre-execution claim extraction, documentation freshness checking, temporal source attribution, and confidential query blocking).
+<p align="center">
+  <a href="#-the-results">Results</a> ·
+  <a href="#-see-it">See it</a> ·
+  <a href="#-quick-start">Quick start</a> ·
+  <a href="#-present-it">Present it</a> ·
+  <a href="#-how-it-works">How it works</a> ·
+  <a href="#-reproduce-everything">Reproduce</a> ·
+  <a href="#-team">Team</a>
+</p>
 
 ---
 
-## Quick Start & Verification for Judges
+Coding agents burn expensive tokens on every step and then ask you to trust the result. **ProofBench does the opposite.** It starts on a small model, calls the big one only when a failure is diagnosed, grades every patch in a sandbox, and checks factual claims against sources you can open. Then it shows you the receipts.
 
-Every benchmark, failover scenario, and freshness test can be run reproducibly with single npm commands.
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/hero-dark.jpg">
+    <img src="docs/assets/screens/hero-light.jpg" alt="The ProofBench overview: Trust the evidence, with four measured numbers underneath" width="100%">
+  </picture>
+</p>
 
-### Prerequisites
+## ⚡ The results
 
-- **Node.js 22.12+**
-- **Rust / Cargo** (`cargo` on PATH for running independent acceptance test suites)
+Four numbers, each from a saved live run you can open in the app and download as JSON.
+
+| | | |
+|:--|:--|:--|
+| **~20×** | fewer tokens per repair trial | 860 vs 17,438 median tokens against OpenCode, on the same C++ bugs, model and gateway. **Both passed 6 of 6.** |
+| **42.6%** | fewer tokens than the big model alone | Start on Qwen 1.5B, escalate to 9B only after a diagnosed failure: 4,461 vs 7,766 tokens, and 2.6× faster. |
+| **12 / 12** | patches pass hidden tests | Built in a Docker sandbox with no network, graded against a pinned reference oracle. |
+| **2+** | independent sources before any verdict | The verifier fails closed: a timeout, a malformed answer or an undated page never counts as evidence. |
+
+<p align="center">
+  <picture>
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/chart-tokens-dark.svg">
+    <img src="docs/assets/chart-tokens-light.svg" alt="Tokens per run. Graph Repair: ProofBench 860, OpenCode 17,438, both 6 of 6. Model routing: small model alone 2,500 and failed, big model always 7,766, ProofBench governed 4,461." width="100%">
+  </picture>
+</p>
+
+> [!NOTE]
+> **What we don't claim.** ProofBench does not beat OpenCode on correctness: pass rates were equal, and ProofBench sees public test feedback while editing where OpenCode doesn't, so this compares *cost*, not skill. The routing result is one trial per strategy, an illustration rather than a statistic. A verifier verdict is a model-assisted evidence assessment, not proof. Our first Graph Repair pilot reported OpenCode at 0 of 6; it didn't reproduce, so we published the rerun instead.
+
+## 🔍 See it
+
+<table>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Graph Repair scorecard</b><br><sub>Two agents, the same bugs, test seeds and model. Every verdict opens its checks, patch and trace.</sub><br><br>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/scorecard-dark.jpg">
+        <img src="docs/assets/screens/scorecard-light.jpg" alt="Graph Repair scorecard comparing ProofBench and OpenCode">
+      </picture>
+    </td>
+    <td width="50%" valign="top">
+      <b>What it would cost on a paid API</b><br><sub>The recorded input and output tokens priced at list rates. At Claude Sonnet 5.5 and 10,000 repairs a month: about $49 vs $411.</sub><br><br>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/cost-dark.jpg">
+        <img src="docs/assets/screens/cost-light.jpg" alt="Cost projection bars for ProofBench and OpenCode">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td colspan="2" valign="top">
+      <b>The escalation ladder</b><br><sub>The small model alone gets stuck. The big model passes at full price. ProofBench tries small, stops repeat failures, and sends the 9B an autopsy of only the errors and diffs.</sub><br><br>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/ladder-dark.jpg">
+        <img src="docs/assets/screens/ladder-light.jpg" alt="Escalation ladder: small model alone, big model always, ProofBench governed">
+      </picture>
+    </td>
+  </tr>
+  <tr>
+    <td width="50%" valign="top">
+      <b>Freshness verifier</b><br><sub>"Steve Ballmer is the current CEO of Microsoft": contradicted by two independent sources. A third agreed, but its page date was invalid, so it wasn't counted.</sub><br><br>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/verifier-dark.jpg">
+        <img src="docs/assets/screens/verifier-light.jpg" alt="Verifier findings showing a contradicted claim with sources">
+      </picture>
+    </td>
+    <td width="50%" valign="top">
+      <b>Execution map</b><br><sub>Task, routing, execution, checks and verdict for any recorded run, with the trace and acceptance evidence beside it.</sub><br><br>
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/execution-dark.jpg">
+        <img src="docs/assets/screens/execution-light.jpg" alt="Isometric execution map of a recorded run">
+      </picture>
+    </td>
+  </tr>
+</table>
+
+## 🚀 Quick start
+
+The demo needs **no model, no API key and no Docker**: every screen is backed by saved live records.
 
 ```bash
+git clone https://github.com/farhanakhtar0x66/proofbench.git && cd proofbench
 npm ci
-cp .env.example .env
-npm run check             # Full verification: ESLint, TypeScript, Vitest (36 tests), Fixture regressions, Build
+
+# Load the saved live session and the saved verifier assessment
+mkdir -p .local/data
+cp docs/evidence/local-rerun-2026-11-07/graph-repair-94313e39-41f0-497e-b215-f2f43a7196a3.json .local/data/track-d-94313e39-41f0-497e-b215-f2f43a7196a3.json
+cp docs/evidence/local-rerun-2026-11-07/tavily-live-8.json .local/data/analysis-994ce642-e336-4273-9ce3-37e8d01c2a52.json
+
+BIFROST_IMPLEMENTATION=mock npm run dev   # API on :3001, web on http://localhost:5173
 ```
 
-### Reproducible Demonstration Commands
+Then open **http://localhost:5173** and press **P**.
 
-| Command | Target / Component Verified | Output Artifact |
-| --- | --- | --- |
-| `npm run test:real-failover` | **Real Bifrost Gateway Failover**: Real stock Maxim Bifrost gateway daemon (`v2.4.0`), injected HTTP 503 & 429 upstream outages, automatic gateway failover, trace provenance, end-to-end task completion | `.local/data/real-bifrost-failover-evidence.json` |
-| `npm run test:failover` | **Simulated Fault-Injection Tests**: Contract & policy regression tests using in-process simulator for offline CI verification | `.local/data/bifrost-failover-evidence.json` |
-| `npm run test:freshness` | **Tavily Freshness Comparative Verification**: Task 4 `#![deny(deprecated)]` without prompt solution leakage; Trial A (without Tavily: fails compiler check) vs. Trial B (with Tavily: passes on turn 1) | `.local/data/tavily-freshness-evidence.json` |
-| `npm run benchmark:strategies` | **3-Strategy Efficiency Benchmark**: Compares Direct Small (1.5B), Direct Frontier (9B), and Governed Escalation across frozen tasks with repeated trials (`--live` or `--simulation`) | `.local/data/strategy-benchmark-evidence.json` |
-| `npm run benchmark:optimization` | **Deterministic Optimization Suite**: Evaluates 5 configurations & component ablations across 5 tasks including held-out bloated codebase (Task 5) | `.local/data/optimization-benchmark-evidence.json` |
-| `npm run demonstrate:bifrost` | **Full Agent Demonstration**: Runs all frozen tasks on live Bifrost gateway (if online) and verified deterministic simulation suite | `.local/data/demonstration-evidence.json` |
-| `npm run test:contracts` | **Cross-Package Schema Verification**: Validates Zod v1 contracts across agent traces, run records, and verification reports | CLI assertion output |
+Requires **Node.js 22.12+**. Rust/Cargo is only needed for the native acceptance suites.
 
----
+## 🎤 Present it
 
-## Architectural Distinctions
+ProofBench has a built-in presentation mode. Press **P** (or the **Present** button, or open `/?present`). It starts on a title card and walks a five-minute pitch in nine stops. Each stop opens the right page, scrolls to the right part and runs the demo itself (it replays the routing ladder and loads the saved verifier assessment), so nothing is typed on stage.
 
-A key architectural contribution of ProofBench is the clean technical separation between transport-layer provider resilience and cognitive-layer model escalation:
+<table>
+  <tr>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/present-title-dark.jpg">
+        <img src="docs/assets/screens/present-title-light.jpg" alt="Presentation mode title card">
+      </picture>
+    </td>
+    <td width="50%">
+      <picture>
+        <source media="(prefers-color-scheme: dark)" srcset="docs/assets/screens/present-close-dark.jpg">
+        <img src="docs/assets/screens/present-close-light.jpg" alt="Presentation mode closing card: cheap tokens first, proof every time">
+      </picture>
+    </td>
+  </tr>
+</table>
 
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│                        ProofBench Architecture                         │
-└────────────────────────────────────────────────────────────────────────┘
+| Key | Does |
+|:--|:--|
+| <kbd>→</kbd> <kbd>Space</kbd> <kbd>PageDown</kbd> | Next stop (works with a presentation clicker) |
+| <kbd>←</kbd> <kbd>PageUp</kbd> | Previous stop |
+| <kbd>N</kbd> | Speaker cues on the stage screen |
+| <kbd>S</kbd> | Speaker window for your laptop: cues, next stop, a 5:00 pace clock. It drives the stage. |
+| <kbd>D</kbd> | Light or dark theme (works everywhere) |
+| <kbd>R</kbd> · <kbd>Home</kbd> · <kbd>End</kbd> · <kbd>Esc</kbd> | Restart the clock · first stop · last stop · exit |
 
-  Task Prompt & Workspace
-            │
-            ▼
-  ┌───────────────────┐     Confidential?
-  │ Tavily Verifier   │ ──► [YES] ──► Block external query (protect IP)
-  └───────────────────┘     [NO]  ──► Query docs, verify deprecations/freshness
-            │
-            ▼
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │ Agent Execution Controller                                           │
-  │  - M1: Symbol Context Bounding (max 1,200 tokens)                    │
-  │  - Approval Engine: Explicit Host Prior Grants / Strict Path Checks  │
-  └──────────────────────────────────────────────────────────────────────┘
-            │
-            ▼
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │ Maxim AI Bifrost Gateway                                             │
-  │  - Virtual Key Budget Tracking ($0.05 pre-reservation)               │
-  │  - Confidential Loopback Enforcer (127.0.0.1 only, no cloud routing) │
-  └──────────────────────────────────────────────────────────────────────┘
-            │
-            ├─► [Network/Provider Outage: 503 / 429]
-            │     └──► Transport Failover: Route exact turn to backup provider
-            │          (e.g., local -> opencode). Model remains unchanged.
-            │          Trace event: "Bifrost fallback routing triggered".
-            ▼
-  Primary Model Generates Edit (e.g., Qwen 1.5B)
-            │
-            ▼
-  Apply Patch & Run Independent `cargo test` in Isolated Workspace
-            │
-            ├─► [Tests Pass] ──► Task Completed Cleanly
-            │
-            └─► [Tests Fail Repeatedly / M2 Loop Breaker Triggers]
-                  └──► Cognitive Escalation (M3a Autopsy):
-                       1. Halt primary model loop (prevent infinite token burn).
-                       2. Synthesize Evidence-Only Autopsy (compiler errors + failed diffs).
-                       3. Enforce 2,000 token autopsy budget (progressive reduction).
-                       4. Dispatch autopsy to Frontier Recovery Model (Qwen 9B).
-                       5. Recovery model repairs code; final tests verify clean pass.
+The talking points and timings are in [`docs/DEMO-WALKTHROUGH.md`](docs/DEMO-WALKTHROUGH.md).
+
+## 🧠 How it works
+
+ProofBench separates two kinds of failure that most agents blur together: **the provider going down** (handled by the gateway, same model) and **the model being stuck** (handled by escalation, bigger model).
+
+```mermaid
+flowchart TD
+    A[Task and workspace] --> B{Tavily verifier}
+    B -- confidential --> B1[Block external queries]
+    B -- public --> B2[Check claims against live, dated sources]
+    B1 --> C
+    B2 --> C[Context compiler<br/>tree-sitter symbols, exact token budget]
+    C --> D[Small model · Qwen 1.5B]
+    D --> E[Patch applied in an isolated workspace]
+    E --> F{cargo test}
+    F -- pass --> G[✅ Verified, evidence recorded]
+    F -- fail --> H{M2 loop breaker<br/>repeat failure?}
+    H -- no --> D
+    H -- yes --> I[M3a autopsy<br/>errors and diffs only, ≤ 2,000 tokens]
+    I --> J[Big model · Qwen 9B]
+    J --> E
+    D -. provider 503 / 429 .-> K[Bifrost failover<br/>same model, backup provider]
+    K -.-> D
 ```
 
-### 1. Provider Outage Failover (Infrastructure Transport Layer)
-- **Trigger**: Network disruption, HTTP 503 Service Unavailable, or HTTP 429 Rate Limit from primary provider daemon.
-- **Mechanism**: Bifrost transparently re-routes the request turn to an authorized backup provider (`opencode`).
-- **Telemetry**: Header `x-bifrost-routing-info-is-fallback: true`, provider attributed in trace event, user notified of provider switch.
-- **Integrity**: Virtual-key spending and confidential routing constraints remain strictly enforced.
+<details>
+<summary><b>The three layers</b></summary>
+<br>
 
-### 2. M3a Failure Autopsy Escalation (Cognitive Agent Layer)
-- **Trigger**: Model generates logically invalid code, compiler rejects patch, or M2 Loop Breaker detects edit stagnation/oscillation.
-- **Mechanism**: Agent controller halts, synthesizes structured evidence-only autopsy (compiler diagnostics + failed patches), compacts to budget, and dispatches to high-capacity frontier recovery model.
-- **Telemetry**: Trace records M2 halt, autopsy generation, and tags each turn with the executing model name (`model: currentModel`, `isRecovery: true`).
+**1. Maxim AI Bifrost gateway (transport).** Hierarchical virtual-key budgets, fail-closed confidential routing (loopback only when `confidential = true`), and multi-provider failover. On an injected HTTP 503 or 429 the same turn is retried on a backup provider with the model unchanged, and the trace records it.
 
----
+**2. Governed execution loop (cognition).** A clean-room TypeScript controller:
+- **M1, context bounding.** Tree-sitter finds the symbols the task needs; exact BPE token counts; an omission ledger records what was left out and why.
+- **M2, loop breaker.** Detects stagnation and oscillation on repeated failure signatures and halts the small model.
+- **M3a, failure autopsy.** Builds an evidence-only packet (compiler diagnostics and failed diffs), compacts it to budget and hands it to the recovery model.
 
-## 3-Strategy Comparative Benchmarking
+**3. Tavily freshness verifier (facts).** Extracts claims, retrieves live sources, has a local model compare each excerpt, and lets the backend decide. One source is never enough, and stale pages can't confirm a "current" claim.
 
-To prove that governed escalation is token-efficient compared to frontier-only execution without sacrificing capability, ProofBench provides an automated multi-strategy benchmark suite:
+</details>
 
-| Strategy | Architecture | Primary Model | Recovery / Escalation | Intended Use Case |
-| --- | --- | --- | --- | --- |
-| **Strategy 1: Direct Small** | Single-model baseline | Qwen 2.5 Coder 1.5B | None (fails if 1.5B fails) | Lowest token cost; high failure rate on multi-file / complex logic |
-| **Strategy 2: Direct Frontier** | Frontier-only baseline | Qwen 3.5 9B | None (always uses frontier model) | High success rate; maximum token & compute consumption |
-| **Strategy 3: Governed Escalation** | ProofBench Governed Agent | Qwen 2.5 Coder 1.5B | Qwen 3.5 9B (escalates only via M3a autopsy on failure) | Near-frontier success rate with small-model token baseline |
+<details>
+<summary><b>Adaptive Execution Engine: non-LLM first</b></summary>
+<br>
 
-### Summary of Live Benchmark Results Across Frozen Tasks
+A deterministic host controller is the only thing that decides tier transitions. It starts with no model at all and climbs only when the evidence says it must.
 
-- **Task 1 (Fix off-by-one sliding window bug)**:
-  - Direct 1.5B: **100% success** (714 avg tokens, 2.8s duration).
-  - Direct 9B: **100% success** (1,086 avg tokens, 19.0s duration).
-  - Governed Escalation: **100% success** without needing escalation (719 avg tokens, 3.2s duration).
-  - **Efficiency Gain**: Governed agent achieved **33.8% token savings** and ran **83.0% faster** than the frontier model.
-- **Task 2 (Implement exponential backoff retry calculation)**:
-  - Direct 1.5B (no escalation): **0% success (0/2)** — small model failed acceptance checks.
-  - Direct 9B (frontier only): **100% success (2/2)** (3,700 avg tokens, 57.5s duration).
-  - Governed Escalation: **100% success (2/2)** (8,085 avg tokens, 83.3s duration, 2 model switches).
-  - **Resilience**: Governed tiering converted a **0% failure into 100% success** via M2 failure detection and M3a structured diagnostic handoff to Qwen 9B.
-- **Task 3 (Multi-file regression across parser & sink)**:
-  - Direct 1.5B: 100% success (2,899 avg tokens, 6.4s duration).
-  - Direct 9B: 100% success (2,179 avg tokens, 25.9s duration).
-  - Governed Escalation: Governed agent uses recursive context discovery across all workspace `.rs` files.
-- **Task 4 (Version freshness & deprecation avoidance under `#![deny(deprecated)]`)**:
-  - Prompt contains **no solution leakage** (`std::hint::spin_loop` removed; only outdated claim provided).
-  - **Trial A (Without Tavily)**: FAILED. Small model attempted private/stale functions and failed `cargo test` under `#![deny(deprecated)]`.
-  - **Trial B (With Tavily)**: COMPLETED cleanly on Attempt 1. Tavily extracted the claim, marked `spin_loop_hint` as `CONTRADICTED (STALE)`, provided the modern documentation excerpt, and the model used `std::hint::spin_loop`.
-
----
-
-## Deterministic Inference Optimization Layer
-
-To reduce total model token consumption while preserving or improving task correctness, ProofBench incorporates an independently implemented, **zero-LLM deterministic optimization layer**:
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│             Deterministic Inference Optimization Pipeline              │
-└────────────────────────────────────────────────────────────────────────┘
-
-  Workspace Source Files
-             │
-             ▼
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │ Phase A: Context Compiler                                            │
-  │  - Web-Tree-Sitter Rust AST Parser (resilient lexical fallback)      │
-  │  - Discovers symbols across src/, tests/, and submodules             │
-  │  - Relevance scoring: matches prompt keywords, types, & diagnostics  │
-  │  - Exact BPE token counting (gpt-tokenizer)                          │
-  │  - Structured Omission Ledger (reason, token cost, mandatory status) │
-  │  - Safe budget expansion up to maxExpandedBudget                     │
-  └──────────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │ Phase B: Deterministic Prompt Compiler                               │
-  │  - Zero LLM rewriting: 100% deterministic TypeScript template        │
-  │  - Semantic XML Trust Boundaries:                                    │
-  │      <trusted_task_specification>                                    │
-  │      <trusted_diagnostic_verification>                               │
-  │      <workspace_context>                                             │
-  │      <untrusted_external_evidence>                                   │
-  │      <output_directive>                                              │
-  │  - Diagnostics Deduplication: prunes superseded compiler errors      │
-  └──────────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │ Phase D: Evidence-Based Model Selection Policy                       │
-  │  - Evaluates observable engineering features (files, borrow checker  │
-  │    diagnostics, complexity, tokens, failure history)                 │
-  │  - Interpretable rules (zero task-id hardcoding / answer keys)       │
-  │  - Strategies: direct_small, bounded_escalation, direct_frontier     │
-  └──────────────────────────────────────────────────────────────────────┘
-             │
-             ▼
-  ┌──────────────────────────────────────────────────────────────────────┐
-  │ Phase C: Incremental Edits & Workspace Revisions                     │
-  │  - File & Composite Workspace SHA-256 revision hashing               │
-  │  - Supports full-file mode & search-and-replace patches              │
-  │  - Validates exact matches and rejects stale revision conflicts      │
-  │  - Default-deny Host Approval Engine enforcement                     │
-  └──────────────────────────────────────────────────────────────────────┘
+```mermaid
+stateDiagram-v2
+    direction LR
+    [*] --> NON_LLM
+    NON_LLM --> SMALL_LLM: routine single-file task
+    NON_LLM --> STRONGER_LLM: multi-file or borrow/lifetime hazard
+    SMALL_LLM --> STRONGER_LLM: M3a autopsy on stagnation
+    STRONGER_LLM --> SMALL_LLM: delegate a bounded local edit
+    SMALL_LLM --> NON_LLM: verify every patch
+    STRONGER_LLM --> NON_LLM: verify every patch
+    NON_LLM --> [*]: verified or halted
 ```
 
----
+- **Zero tokens when possible.** If repository analysis or a compiler-guided mechanical fix resolves the issue, no model is called.
+- **Project memory in `CONTEXT.MD`.** Eleven readable sections (identity, requirements, decisions, verified progress, known failures, next action…). It records state but never overrides host policy.
+- **Durable state in `.proofbench/`.** `state.json`, an append-only `events.jsonl`, atomic checkpoints, patches and evidence. A killed process resumes from its checkpoint.
+- **Oscillation detection.** Ping-pong between tiers on the same failure halts the run instead of burning budget.
 
-## Adaptive Execution Engine v1 (Non-LLM-First & Dynamic Model Tiers)
+Six acceptance scenarios (A–F) cover every transition, including restart recovery: `npx vitest run tests/adaptive-engine.test.ts`.
 
-Extending the optimization layer into an active runtime controller, **Adaptive Execution Engine v1** unifies deterministic tools and model tiers under a single host-governed state machine:
+</details>
 
-$$\text{NON\_LLM} \longleftrightarrow \text{SMALL\_LLM} \longleftrightarrow \text{STRONGER\_LLM}$$
+<details>
+<summary><b>Repository map</b></summary>
+<br>
 
-### Core Design Principles
-
-1. **Zero LLM Orchestrator**: The host deterministic TypeScript controller is the sole transition authority. No meta-LLMs or autonomous sub-agents make state decisions.
-2. **Non-LLM as the Default Tier**: The engine begins in `NON_LLM`. If repository analysis or compiler-guided mechanical fixes can resolve the issue, 0 LLM tokens are consumed.
-3. **Universal Project Memory via `CONTEXT.MD`**: Stored at the workspace root in human-readable Markdown across 11 standardized sections:
-   - `Project Identity`, `Original Requirements`, `Project Architecture`, `Active Task`, `Accepted Decisions`, `Verified Progress`, `Known Failures`, `Next Action`, `Evidence References`, and `Checkpoint`.
-   - `CONTEXT.MD` is a project-state snapshot, not an authority over host policies. Host policy engines, budgets, and confidentiality gates are strictly authoritative.
-4. **Durable State Storage (`.proofbench/`)**:
-   - `state.json`: current phase, tier, source revision, turn count, token accounting.
-   - `events.jsonl`: append-only structured audit ledger.
-   - `checkpoints/`: atomic snapshots enabling seamless process restart recovery.
-   - `patches/` and `evidence/`: archived diffs and raw compiler verification artifacts.
-   - Interrupted-write protection via atomic temporary file renaming and orphan `.tmp` cleanup.
-5. **Bidirectional Tier Routing Protocol**:
-   - `NON_LLM ➔ SMALL_LLM`: routine single-file coding tasks.
-   - `NON_LLM ➔ STRONGER_LLM`: direct routing on multi-file dependency or borrow/lifetime hazards.
-   - `SMALL_LLM ➔ STRONGER_LLM`: escalation via compact M3a failure autopsy packet on stagnation.
-   - `STRONGER_LLM ➔ SMALL_LLM`: delegation of localized implementation with bounded guidance.
-   - `ANY ➔ NON_LLM`: mandatory independent compiler verification after every patch.
-6. **Oscillation Detection**: Blocks unproductive ping-pong between tiers on stagnant failure signatures and triggers `HALT` to prevent budget waste.
-
-```
-┌────────────────────────────────────────────────────────────────────────┐
-│            Adaptive Execution Engine v1 — 12-Phase Lifecycle           │
-└────────────────────────────────────────────────────────────────────────┘
-
-  [ADMISSION] ──► [LOAD_CONTEXT] ──► [ANALYZE] ──► [PREPARE]
-                                                      │
-  ┌───────────────────────────────────────────────────┘
-  ▼
-  [SELECT_TIER] ──► [INFER_OR_EXECUTE] ──► [VALIDATE] ──► [APPROVAL]
-                                                             │
-  ┌──────────────────────────────────────────────────────────┘
-  ▼
-  [VERIFY] ──► [CHECKPOINT] ──► [DECIDE] ──► [COMPLETE / HALT]
+```text
+apps/
+  api/            Fastify API: runs, jobs, benchmarks, verifier, Graph Repair sessions
+  web/            React + Vite workspace (overview, execution, benchmarks, verifier, presentation mode)
+packages/
+  contracts/      Versioned Zod schemas shared by every boundary
+  agent-adapters/ Adapter interface between the API and an implementation
+  report-engine/  Turns execution records into evidence reports
+  tavily/         Freshness verifier: claim extraction, retrieval, assessment
+implementations/
+  bifrost-01/     Governed coding agent, embedded gateway, adaptive engine
+  bifrost-02/     Graph Repair (Track D) harness, grader and adapters
+fixtures/         Frozen coding tasks, freshness cases, Graph Repair oracle
+scripts/          Benchmarks, demonstrations and evidence checks
+docs/             Architecture, contracts, evidence, walkthrough, handoffs
 ```
 
-### Verified Acceptance Scenarios (A through F)
+</details>
 
-All 6 acceptance test scenarios are proven in reproducible unit and integration tests (`tests/adaptive-engine.test.ts`):
+## 🧪 Reproduce everything
 
-| Scenario | Path / Transition Sequence | Mechanism Proven | Verified Outcome |
-| --- | --- | --- | --- |
-| **Scenario A** | `NON_LLM ➔ VERIFIED` | Zero-LLM resolution: compiler-guided mechanical fix / baseline verification | **0 LLM Tokens**, 100% test pass, `CONTEXT.MD` generated |
-| **Scenario B** | `NON_LLM ➔ SMALL_LLM ➔ NON_LLM` | Routine single-file task routing and completion | Economical token baseline, verified pass |
-| **Scenario C** | `NON_LLM ➔ STRONGER_LLM ➔ NON_LLM` | Multi-module high complexity directly routed to frontier tier | Bypasses small-model failure on multi-file task |
-| **Scenario D** | `SMALL_LLM ➔ STRONGER_LLM ➔ NON_LLM` | M2 loop breaker triggers M3a structured diagnostic autopsy escalation | Failure converted to 100% verified pass |
-| **Scenario E** | `STRONGER_LLM ➔ SMALL_LLM ➔ NON_LLM` | Architectural reasoning delegates to small model with bounded instructions | Model transition proposal parsed & validated by host |
-| **Scenario F** | `MULTI-TIER WITH RESTART` | Engine process killed between turns; resumes from `.proofbench/` checkpoint | Resumption verified without relying on git commits |
+Every result can be rerun with one command. Offline commands need no paid API access.
 
-```bash
-npx vitest run tests/adaptive-engine.test.ts
-```
+| Command | What it verifies | Evidence written to |
+|:--|:--|:--|
+| `npm run check` | ESLint, TypeScript, 984 unit tests, fixture regressions, build | console |
+| `npm run test:ui` | 38 Playwright browser tests, desktop and mobile | `test-results/` |
+| `npm run test:contracts` | Zod v1 contracts across traces, runs and reports | console |
+| `npm run test:failover` | Bifrost failover policy with in-process fault injection | `.local/data/bifrost-failover-evidence.json` |
+| `npm run test:real-failover` | The stock Bifrost daemon under injected 503 / 429 outages | `.local/data/real-bifrost-failover-evidence.json` |
+| `npm run test:freshness` | Task 4 under `#![deny(deprecated)]`: fails without Tavily, passes with it | `.local/data/tavily-freshness-evidence.json` |
+| `npm run benchmark:strategies` | Direct small vs direct frontier vs governed escalation | `.local/data/strategy-benchmark-evidence.json` |
+| `npm run benchmark:optimization` | Six configurations and component ablations across five tasks | `.local/data/optimization-benchmark-evidence.json` |
+| `npm run benchmark:graph:matrix` | **Live:** Graph Repair, 2 agents × 2 tasks × 3 repeats, through the running API and Docker sandbox | `.local/data/track-d-<session>.json` |
 
-### 6-Configuration Optimization Benchmark Matrix
+Live runs need the local model, Bifrost, a Tavily key and a `.env`: see [`docs/LOCAL-LIVE-RERUN-2026-11-07.md`](docs/LOCAL-LIVE-RERUN-2026-11-07.md) and [`docs/REPRODUCTION_GUIDE.md`](docs/REPRODUCTION_GUIDE.md).
 
-ProofBench benchmarks each task across six distinct configurations to isolate component contributions:
-1. **Direct Small**: Raw prompt, unbounded context, small model only.
-2. **Direct Frontier**: Raw prompt, unbounded context, frontier model only.
-3. **Governed Baseline**: Regex M1 context selector, M2 stagnation detector, M3a autopsy escalation.
-4. **Governed Compiled**: Tree-sitter Context Compiler + Deterministic Prompt Compiler + Incremental Edits.
-5. **Governed Compiled + Model Selector**: Complete pipeline with dynamic evidence-based model routing.
-6. **Adaptive Execution Engine v1**: Unified non-LLM-first runtime with dynamic tier routing (`NON_LLM ↔ SMALL_LLM ↔ STRONGER_LLM`), persistent universal memory (`CONTEXT.MD`), and `.proofbench/` durable store.
+## 🛡️ Guardrails
 
-```bash
-npm run benchmark:optimization -- --simulation --trials=1
-```
+- **Default-deny writes.** Workspace mutations need explicit, task-scoped host grants. Model self-approvals and writes outside the workspace are rejected.
+- **Confidential mode stays local.** Bifrost routes only to verified loopback endpoints, and Tavily queries are blocked so source code and intent never leave the machine.
+- **No invented numbers.** Missing provider usage is recorded as missing, never as zero, and efficiency figures use only trials where both sides reported verified usage.
+- **Retrieved pages are data, not instructions.** Page text can't change tool policy, and similarity is never treated as verification.
 
-### Component Ablation Findings & Honest Disclosures
-- **100% Correctness**: All 5 tasks passed across all configurations without regressions.
-- **Task 5 (Context Filtering in Bloated Codebase)**: In a codebase with decoy utilities (`src/utils/metrics.rs`, `src/utils/crypto.rs`, `src/config.rs`), the Context Compiler successfully filtered out 18 irrelevant symbols into the structured omission ledger.
-- **Trade-off Analysis**: Structured XML trust boundaries and omission summaries introduce a baseline framing overhead (~300–400 tokens) on tiny 1-line single-file tasks. However, on complex multi-file or bloated codebases, AST-based symbol isolation prevents prompt blowout and protects the model context from hallucination.
+Known limits: workspaces are isolated temporary directories, not kernel-level sandboxes (use containers for untrusted multi-tenant code), and the M3a autopsy budget uses a character-ratio estimate rather than a native tokenizer. Full notes in [`SECURITY.md`](SECURITY.md) and [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md).
 
----
+## 👥 Team
 
-## Security & Governance Guardrails
+| | Member | Built |
+|:--|:--|:--|
+| <img src="https://github.com/Aryanxp1.png" width="40" alt=""> | **Aryan Vishwakarma** ([@Aryanxp1](https://github.com/Aryanxp1)) · team lead | Product direction, the web workspace, the Graph Repair benchmark |
+| <img src="https://github.com/farhanakhtar0x66.png" width="40" alt=""> | **Farhan Akhtar** ([@farhanakhtar0x66](https://github.com/farhanakhtar0x66)) | Governed agent, routing engine, Bifrost integration, benchmarks |
+| | **Mohit** | Tavily verifier, claim extraction and freshness contracts |
+| | **Khushi Yadav** | Evaluation criteria, acceptance validation, independent reproduction |
 
-1. **Explicit Prior Host Grants**: All workspace mutations require explicit task-scoped approval from the host (`allowedFiles`, quotas). Model-generated self-approvals or attempts to write outside the workspace are rejected with security errors.
-2. **Confidential Loopback Route Enforcement**: When `confidential = true`, BifrostClient and gateway verify that destinations point strictly to verified local loopback interfaces (`127.0.0.1`, `localhost`). Remote cloud endpoints, wildcards (`*`), and untrusted external providers are rejected before any network traffic is emitted.
-3. **External Retrieval IP Protection**: In confidential mode, external Tavily queries are blocked (`allowed: false`) to prevent internal source code, symbol names, or intent leakage.
-4. **Credential Rotation & Masking**: All virtual keys and API tokens are loaded via server-side environment variables (`.env`) and masked (`sk-bf-72b0...`) across all logs, reports, and Git commits.
+## 🙏 Credits
 
----
+- **Graph Repair reference oracle:** [Speed Demon 2026](https://github.com/hackathon-raptors/speed-demon-2026) Track D by Hackathon Raptors CIC (MIT), byte-identical and SHA-256 pinned.
+- **API price table** behind the cost projection: adapted from NeuroMesh. The dark theme's palette also comes from NeuroMesh.
+- Everything reused is listed with its revision and license in [`docs/REUSE-DISCLOSURE.md`](docs/REUSE-DISCLOSURE.md).
 
-## Honest Disclosures & Known Limitations
-
-- **M3a Token Budget Estimation**: Diagnostic packet token budgeting currently uses character-ratio heuristic estimates (`Math.round(text.length / 4)`). While safe compaction levels (Level 1–5) prevent prompt blowout, production deployment should bind a native tokenizer for exact BPE token limits.
-- **Missing Telemetry Accounting**: ProofBench never invents zero (`0`) for missing provider token usage. Missing telemetry is explicitly preserved as `null` / `missing`, and efficiency percentages are only calculated on trials where both arms succeeded and reported verified numbers.
-- **Workspace Isolation Scope**: Workspaces are created in isolated temporary directories (`/tmp/proofbench-workspace-*`). For multi-tenant production hosting of untrusted third-party code, full kernel-level container/cgroup sandboxing is recommended.
-- **Intellectual Property Protection**: All mechanisms in ProofBench are clean-room independent TypeScript implementations. The proprietary NeuroMesh research repository and its 69-test Rust core remain strictly private and offline.
-
----
-
-## Team Contributions
-
-- **Farhan Akhtar**: Bifrost #01 Governed Agent implementation, embedded gateway, M1/M2/M3a mechanisms, 3-strategy benchmarking suite, failover verification, live Qwen integration.
-- **Aryan**: Product direction, UI dashboard, and responsive frontend interaction states (`apps/web`).
-- **Mohit**: Tavily verification integration, claim extraction design, and freshness validation contracts (`packages/tavily`).
-- **Khushi**: Evaluation criteria, acceptance test validation, independent reproduction, and holdout test scenarios.
+<p align="center"><sub>Built for the Global AI Hackathon 2026 · Bifrost #01 + Tavily · <b>Cheap tokens first. Proof every time.</b></sub></p>
