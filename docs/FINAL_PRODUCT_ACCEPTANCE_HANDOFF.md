@@ -3,7 +3,7 @@
 **Target Audience:** Aryan, Mohit, Khushi (ProofBench Core Team)  
 **Repository:** `farhanakhtar0x66/proofbench`  
 **Branch:** `feat/bifrost-01-proofbench`  
-**PR:** [#27 (Adaptive Execution Engine v1.5 — review remediation & product acceptance)](https://github.com/farhanakhtar0x66/proofbench/pull/27) — **OPEN and UNMERGED**  
+**PR:** [#27 (Adaptive Execution Engine v1.5 — review remediation & product acceptance)](https://github.com/farhanakhtar0x66/proofbench/pull/27) — **MERGED**  
 **Verified Release Commit:** `HEAD` (Final Browser Acceptance Hotfix)  
 **CI Quality Gate:** **100% Green (Vitest 138/138, Playwright 10/10, Evaluator 7/7, Build clean)**
 
