@@ -71,6 +71,9 @@ function ClaimFinding({ result, mode }: { result: Analysis['results'][number]; m
   </article>;
 }
 
+const SAVED_ID = /^[a-zA-Z0-9_-]{1,100}$/u;
+export const LOAD_ASSESSMENT_EVENT = 'proofbench:load-assessment';
+
 export function Verifier({ initialAnswer }: { initialAnswer: string }) {
   const [answer, setAnswer] = useState(initialAnswer);
   const [flow, setFlow] = useState('general');
@@ -108,13 +111,30 @@ export function Verifier({ initialAnswer }: { initialAnswer: string }) {
     }
   }
 
-  const validSavedId = /^[a-zA-Z0-9_-]{1,100}$/u.test(savedId.trim());
+  const validSavedId = SAVED_ID.test(savedId.trim());
   async function loadSaved(event: FormEvent) {
     event.preventDefault();
-    if (!validSavedId) return;
+    if (validSavedId) await loadSavedId(savedId.trim());
+  }
+
+  // A saved assessment opens from `?assessment=<id>` (a link to send) or from
+  // presentation mode, so the demo never needs typing on stage.
+  useEffect(() => {
+    const open = (id: string | null) => {
+      if (!id || !SAVED_ID.test(id)) return;
+      setSavedId(id);
+      void loadSavedId(id);
+    };
+    open(new URLSearchParams(window.location.search).get('assessment'));
+    const listener = (event: Event) => open((event as CustomEvent<string>).detail);
+    window.addEventListener(LOAD_ASSESSMENT_EVENT, listener);
+    return () => window.removeEventListener(LOAD_ASSESSMENT_EVENT, listener);
+  }, []);
+
+  async function loadSavedId(id: string) {
     setBusy(true); setLoadingSaved(true); setError(''); setSaved(false); setAnalysis(undefined); setFixture(undefined);
     try {
-      const report = await api(`/analysis/${encodeURIComponent(savedId.trim())}`, schemas.AnalysisReport);
+      const report = await api(`/analysis/${encodeURIComponent(id)}`, schemas.AnalysisReport);
       setAnswer(report.text); setScope(report.scope); setFlow('general'); setAnalysis(report); setSaved(true);
     } catch (error) {
       setError(error instanceof Error ? error.message : 'Saved assessment could not be loaded.');

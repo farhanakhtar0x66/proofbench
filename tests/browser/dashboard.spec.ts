@@ -36,11 +36,13 @@ test('discovers stored runs, inspects truthful Task 9 escalation, and displays c
  await page.getByRole('navigation',{name:'Workspace',exact:true}).getByRole('link',{name:'Benchmarks'}).click();
  await page.getByRole('link',{name:'Model routing',exact:true}).click();
  await expect(page.getByRole('heading',{name:'Comparison',exact:true})).toBeVisible();
- await expect(page.getByText('7,766 tokens')).toBeVisible();
- await expect(page.getByText('4,461 tokens')).toBeVisible();
- await expect(page.getByText('6,215 tokens')).toBeVisible();
- await expect(page.getByText('2,500 tokens')).toBeVisible();
- await expect(page.getByText('-3,305 tokens, -42.6%')).toBeVisible();
+ // The escalation ladder above repeats these totals, so check the table itself.
+ const comparison=page.locator('#comparison');
+ await expect(comparison.getByText('7,766 tokens')).toBeVisible();
+ await expect(comparison.getByText('4,461 tokens')).toBeVisible();
+ await expect(comparison.getByText('6,215 tokens')).toBeVisible();
+ await expect(comparison.getByText('2,500 tokens')).toBeVisible();
+ await expect(comparison.getByText('-3,305 tokens, -42.6%')).toBeVisible();
 
  // Verify reload persistence
  await page.reload();

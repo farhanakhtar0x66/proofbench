@@ -4,7 +4,7 @@ import {type Capabilities,type RunRecord,type ExecutionTrace,type EvidenceReport
 import {api,schemas} from './client';
 import {demoRun,demoTrace,demoReport} from '../../../packages/contracts/src/examples';
 import {Verifier} from './Verifier';
-import { Activity, ArrowUpRight, CirclePlay, ScanLine } from 'lucide-react';
+import { Activity, ArrowUpRight, CirclePlay, Moon, Presentation, ScanLine, Sun } from 'lucide-react';
 import { EvidenceMap } from './EvidenceMap';
 import { BenchmarkDetails, BenchmarkOverview, useControlledBenchmark } from './ControlledBenchmark';
 import { OverviewPage, OverviewFooter } from './OverviewPage';
@@ -13,8 +13,13 @@ import { ApiTerminal, WorkspaceShowcase, type VerifierDestination } from './Work
 import { WorkspaceLink, useWorkspaceNavigation, type WorkspacePath } from './WorkspaceNavigation';
 import { WorkspaceOpening, type OpeningScene } from './WorkspaceOpening';
 import { EncryptedText } from './EncryptedText';
+import { EscalationLadder } from './EscalationLadder';
+import { PresentMode } from './PresentMode';
+import { SpeakerView } from './SpeakerView';
+import { toggleTheme, useTheme } from './theme';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
+import './theme.css';
 import './style.css';
 
 const ACTIVE_JOB_KEY='proofbench_active_job_id';
@@ -60,6 +65,19 @@ function App(){
  const [verifierRevision,setVerifierRevision]=useState(0);
  const benchmark=useControlledBenchmark(page==='/benchmarks/routing');
  const lastScroll=useRef<typeof route | undefined>(undefined);
+ const theme=useTheme();
+ const [presenting,setPresenting]=useState(()=>new URLSearchParams(window.location.search).has('present'));
+ useEffect(()=>{
+  // P presents, D switches light and dark (not while typing; presentation mode handles its own keys).
+  const keys=(event:KeyboardEvent)=>{
+   const target=event.target;
+   if(presenting||event.metaKey||event.ctrlKey||event.altKey||(target instanceof HTMLElement&&(target.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(target.tagName))))return;
+   if(event.key==='p'||event.key==='P'){event.preventDefault();setPresenting(true);}
+   else if(event.key==='d'||event.key==='D'){event.preventDefault();toggleTheme();}
+  };
+  window.addEventListener('keydown',keys);
+  return ()=>window.removeEventListener('keydown',keys);
+ },[presenting]);
 
  function openVerifier(destination:VerifierDestination) {
   setReplayRequest(undefined);
@@ -298,7 +316,11 @@ function App(){
      {destinations.map(item=><WorkspaceLink key={item.path} href={item.path} navigate={navigate}
       active={item.path==='/execution'?execution:item.path==='/benchmarks'?benchmarking:page===item.path}>{item.label}</WorkspaceLink>)}
     </nav>
-    <span className="badge"><span className="dot" aria-hidden="true"/>{execution?mode:'Local workspace'}</span>
+    <div className="masthead-tools">
+     <span className="badge"><span className="dot" aria-hidden="true"/>{execution?mode:'Local workspace'}</span>
+     <button type="button" className="icon-button" onClick={toggleTheme} aria-label={theme==='dark'?'Switch to light theme (D)':'Switch to dark theme (D)'} title={theme==='dark'?'Light theme (D)':'Dark theme (D)'}>{theme==='dark'?<Sun size={15} aria-hidden="true"/>:<Moon size={15} aria-hidden="true"/>}</button>
+     <button type="button" className="icon-button present-button" onClick={()=>setPresenting(true)} title="Present (P)"><Presentation size={15} aria-hidden="true"/><span>Present</span></button>
+    </div>
    </div>
   </header>
   <main className="content">
@@ -370,7 +392,7 @@ function App(){
      {!visibleRuns.length&&<p className="empty">{runs.length?'No runs match this filter.':caps?.capabilities.execute?'Run the selected task to add a record.':'Execution is unavailable in this mode.'}</p>}
     </section>}
    {page==='/benchmarks'&&<TrackDBench onVerify={verifyText}/>}
-   {page==='/benchmarks/routing'&&<><BenchmarkOverview {...benchmark}/><BenchmarkDetails {...benchmark}/></>}
+   {page==='/benchmarks/routing'&&<><BenchmarkOverview {...benchmark}/>{benchmark.data&&<EscalationLadder summary={benchmark.data.summary}/>}<BenchmarkDetails {...benchmark}/></>}
    {page==='/guide'&&<>
     <WorkspaceShowcase navigate={navigate} openVerifier={openVerifier}/>
     <div className="guide-reference">
@@ -393,6 +415,7 @@ function App(){
   {page!=='/'&&<footer className="workspace-footer"><strong>ProofBench</strong><span>Execution evidence &amp; source verification</span><span className="footer-right">SHARED CONTRACTS / V1</span></footer>}
   </main>
   {page==='/'&&<OverviewFooter navigate={navigate}/>}
+  <PresentMode active={presenting} onExit={()=>setPresenting(false)} navigate={navigate}/>
  </div>;
 }
-createRoot(document.getElementById('root')!).render(<App/>);
+createRoot(document.getElementById('root')!).render(new URLSearchParams(window.location.search).has('speaker')?<SpeakerView/>:<App/>);
