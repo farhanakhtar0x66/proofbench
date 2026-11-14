@@ -1,0 +1,128 @@
+/* Pitch additions: proof strip (overview), cost projection (Graph Repair), escalation ladder (Model routing). */
+
+/* ── Proof strip ─────────────────────────────────────────── */
+.proof-strip { margin: 0 var(--rail) 28px; border: 1px solid var(--grid-line); background: var(--surface); }
+.proof-strip > h2 { margin: 0; padding: 12px 16px; border-bottom: 1px solid var(--grid-line); font-size: 10.5px; font-weight: 560; }
+.proof-facts { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.proof-fact { position: relative; display: grid; align-content: start; gap: 6px; min-width: 0; padding: 22px 20px 18px; color: inherit; text-decoration: none; transition: background .2s; }
+.proof-fact + .proof-fact { border-left: 1px solid var(--grid-line); }
+.proof-fact:hover { background: var(--green-tint); }
+.proof-fact-index { position: absolute; top: 12px; right: 14px; color: var(--muted); font: 520 10px var(--mono); }
+.proof-fact > strong { display: flex; align-items: baseline; gap: 2px; color: var(--green); font: 640 clamp(40px, 4.4vw, 62px)/1 var(--sans); letter-spacing: -.055em; font-variant-numeric: tabular-nums; }
+.proof-fact > strong em { font-style: normal; font-size: .52em; letter-spacing: -.02em; color: var(--mint); }
+.proof-fact-label { font: 620 15px/1.25 var(--sans); letter-spacing: -.01em; }
+.proof-fact p { margin: 0; color: var(--muted); font-size: 12.5px; line-height: 1.5; }
+.proof-fact-link { display: inline-flex; align-items: center; gap: 4px; margin-top: 4px; color: var(--green); font: 550 10.5px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+.proof-fact:hover .proof-fact-link svg { transform: translate(2px, -2px); }
+.proof-fact-link svg { transition: transform .2s; }
+.proof-strip-note { margin: 0; padding: 10px 16px; border-top: 1px solid var(--grid-line); background: var(--sheet); color: var(--muted); font-size: 12px; }
+.proof-strip .proof-fact { opacity: 0; transform: translateY(10px); }
+.proof-strip[data-entered='true'] .proof-fact { animation: proof-rise .55s cubic-bezier(.2, .7, .2, 1) both; }
+.proof-strip[data-entered='true'] .proof-fact:nth-child(2) { animation-delay: .08s; }
+.proof-strip[data-entered='true'] .proof-fact:nth-child(3) { animation-delay: .16s; }
+.proof-strip[data-entered='true'] .proof-fact:nth-child(4) { animation-delay: .24s; }
+@keyframes proof-rise { to { opacity: 1; transform: none; } }
+
+@media (max-width: 950px) {
+  .proof-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .proof-fact:nth-child(3) { border-left: 0; }
+  .proof-fact:nth-child(n + 3) { border-top: 1px solid var(--grid-line); }
+}
+@media (max-width: 560px) {
+  .proof-strip { margin-inline: 0; }
+  .proof-facts { grid-template-columns: minmax(0, 1fr); }
+  .proof-fact + .proof-fact { border-left: 0; border-top: 1px solid var(--grid-line); }
+  .proof-fact { padding: 18px 16px 16px; }
+}
+
+/* ── Cost projection ─────────────────────────────────────── */
+.cost-projection { border-top: 1px solid var(--grid-line); background: var(--surface); }
+.cost-controls { display: flex; flex-wrap: wrap; gap: 10px; padding: 0 16px 14px; }
+.cost-models { flex-wrap: wrap; }
+.cost-bars { display: grid; gap: 14px; margin: 0; padding: 4px 16px 16px; list-style: none; }
+.cost-bars li { display: grid; grid-template-columns: minmax(150px, 220px) minmax(0, 1fr) minmax(96px, auto); align-items: center; gap: 14px; }
+.cost-bar-label { display: grid; gap: 2px; min-width: 0; }
+.cost-bar-label strong { font: 620 13px/1.3 var(--sans); }
+.cost-bar-label span { color: var(--muted); font: 520 11px var(--mono); }
+.cost-bar-track { height: 14px; background: var(--soft); overflow: hidden; }
+.cost-bar-track span { display: block; height: 100%; background: var(--frame); transition: width .5s cubic-bezier(.2, .7, .2, 1); }
+.cost-bars li[data-best='true'] .cost-bar-track span { background: var(--mint); }
+.cost-bar-value { justify-self: end; font: 640 18px/1 var(--mono); letter-spacing: -.03em; font-variant-numeric: tabular-nums; }
+.cost-bar-value small { margin-left: 2px; color: var(--muted); font-size: 11px; font-weight: 520; }
+.cost-bars li[data-best='true'] .cost-bar-value { color: var(--green); }
+.cost-callout { margin: 0 16px 14px; padding: 12px 14px; border-left: 3px solid var(--mint); background: var(--green-tint); font-size: 14px; }
+.cost-callout strong { color: var(--green); }
+
+@media (max-width: 760px) {
+  .cost-bars li { grid-template-columns: minmax(0, 1fr) auto; gap: 6px 12px; }
+  .cost-bar-track { grid-column: 1 / -1; grid-row: 2; }
+  .cost-bar-value { grid-row: 1; grid-column: 2; }
+}
+
+/* ── Escalation ladder ───────────────────────────────────── */
+.escalation-ladder { margin-block: 24px; border: 1px solid var(--grid-line); background: var(--surface); }
+.ladder-heading { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 14px; padding: 18px 18px 14px; border-bottom: 1px solid var(--grid-line); }
+.ladder-heading .eyebrow { margin: 0 0 6px; }
+.ladder-heading h2 { max-width: 32ch; margin: 0; font-size: clamp(20px, 2.2vw, 27px); line-height: 1.15; letter-spacing: -.035em; }
+.ladder-replay { display: inline-flex; align-items: center; gap: 6px; }
+.ladder-lanes { display: grid; margin: 0; padding: 0; list-style: none; }
+.ladder-lane { display: grid; grid-template-columns: 170px minmax(0, 1fr); gap: 10px 18px; padding: 16px 18px; }
+.ladder-lane + .ladder-lane { border-top: 1px solid var(--grid-line); }
+.ladder-lane[data-governed='true'] { background: linear-gradient(90deg, var(--green-tint), transparent 70%); }
+.ladder-lane-title { display: grid; align-content: center; gap: 2px; }
+.ladder-lane-title strong { font: 640 14px/1.25 var(--sans); }
+.ladder-lane-title span { color: var(--muted); font: 520 10.5px var(--mono); text-transform: uppercase; letter-spacing: .04em; }
+.ladder-lane[data-governed='true'] .ladder-lane-title strong { color: var(--green); }
+
+.ladder-steps { display: flex; align-items: stretch; margin: 0; padding: 0; list-style: none; min-width: 0; }
+.ladder-steps li { position: relative; display: grid; align-content: center; gap: 1px; flex: 1 1 0; min-width: 0; padding: 8px 10px; border: 1px solid var(--grid-line); background: var(--surface); }
+.ladder-steps li + li { margin-left: 26px; }
+/* the connector: a line with a light that travels along it */
+.ladder-steps li + li::before { position: absolute; content: ''; top: 50%; left: -27px; width: 26px; height: 1px; background: var(--frame); }
+.ladder-steps li + li::after { position: absolute; content: ''; top: calc(50% - 3px); left: -27px; width: 7px; height: 7px; border-radius: 50%; background: var(--mint); box-shadow: 0 0 8px var(--mint); opacity: 0; }
+.ladder-steps strong { overflow: hidden; font: 620 12.5px/1.25 var(--sans); white-space: nowrap; text-overflow: ellipsis; }
+.ladder-steps small { color: var(--muted); font-size: 11px; line-height: 1.3; }
+.ladder-steps li[data-kind='small'] strong::before, .ladder-steps li[data-kind='large'] strong::before { margin-right: 5px; padding: 0 4px; border-radius: 2px; font: 600 9px/1.6 var(--mono); vertical-align: 1px; }
+.ladder-steps li[data-kind='small'] strong::before { content: 'S'; color: var(--green); background: var(--green-tint); }
+.ladder-steps li[data-kind='large'] strong::before { content: 'L'; color: var(--c-7a4b0b); background: var(--c-fbf0dc); }
+.ladder-steps li[data-kind='control'] { border-style: dashed; }
+
+.ladder-result { grid-column: 2; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+.ladder-tokens { flex: 1 1 160px; height: 8px; background: var(--soft); }
+.ladder-tokens span { display: block; height: 100%; background: var(--frame); }
+.ladder-lane[data-governed='true'] .ladder-tokens span { background: var(--mint); }
+.ladder-figure { font: 560 12px var(--mono); font-variant-numeric: tabular-nums; }
+
+/* play: each step lights up in turn, the light runs into it along the connector */
+.escalation-ladder[data-entered='true'] .ladder-steps li { animation: ladder-reach .35s ease-out both; animation-delay: var(--step-delay); }
+.escalation-ladder[data-entered='true'] .ladder-steps li + li::after { animation: ladder-travel .42s ease-in both; animation-delay: calc(var(--step-delay) - .42s); }
+.escalation-ladder[data-entered='true'] .ladder-steps li[data-kind='pass'] { animation-name: ladder-reach, ladder-pass; animation-duration: .35s, .9s; animation-delay: var(--step-delay), var(--step-delay); }
+.escalation-ladder[data-entered='true'] .ladder-steps li[data-kind='fail'] { animation-name: ladder-reach, ladder-fail; animation-duration: .35s, .9s; animation-delay: var(--step-delay), var(--step-delay); }
+.escalation-ladder[data-entered='true'] .ladder-result { animation: ladder-reach .4s ease-out both; animation-delay: var(--step-delay); }
+.escalation-ladder[data-entered='true'] .ladder-tokens span { animation: ladder-fill .7s cubic-bezier(.2, .7, .2, 1) both; animation-delay: var(--step-delay); transform-origin: left; }
+.ladder-steps li, .ladder-result { opacity: .25; }
+.ladder-steps li[data-kind='pass'] { border-color: var(--mint); }
+.ladder-steps li[data-kind='pass'] small { color: var(--green); }
+.ladder-steps li[data-kind='fail'] { border-color: var(--c-e0b2b6); }
+.ladder-steps li[data-kind='fail'] small { color: var(--red); }
+
+@keyframes ladder-reach { from { opacity: .25; transform: translateY(3px); } to { opacity: 1; transform: none; } }
+@keyframes ladder-travel { 0% { opacity: 0; transform: translateX(0); } 15% { opacity: 1; } 85% { opacity: 1; } 100% { opacity: 0; transform: translateX(22px); } }
+@keyframes ladder-pass { 0%, 100% { background: var(--surface); } 40% { background: var(--green-tint); } }
+@keyframes ladder-fail { 0%, 100% { background: var(--surface); } 40% { background: var(--red-tint); } }
+@keyframes ladder-fill { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+
+@media (max-width: 900px) {
+  .ladder-lane { grid-template-columns: minmax(0, 1fr); }
+  .ladder-result { grid-column: 1; }
+  .ladder-steps { flex-wrap: wrap; gap: 6px; }
+  .ladder-steps li { flex: 1 1 130px; }
+  .ladder-steps li + li { margin-left: 0; }
+  .ladder-steps li + li::before, .ladder-steps li + li::after { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .proof-strip .proof-fact, .ladder-steps li, .ladder-result { opacity: 1; transform: none; animation: none !important; }
+  .escalation-ladder .ladder-steps li + li::after { display: none; }
+  .escalation-ladder .ladder-tokens span, .cost-bar-track span { animation: none !important; transition: none; }
+}

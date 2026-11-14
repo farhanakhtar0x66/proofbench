@@ -102,5 +102,5 @@
       "deterministic_tooling_requires_paired_ablation_when_not_zero_call"
     ]
   },
-  "evidenceSummary": "Controlled Routing Benchmark on 'Implement exponential backoff retry calculation': Equalizing AST tools across all arms showed direct small failed (0%), while escalation saved 3,305 tokens (42.5%) over direct frontier."
+  "evidenceSummary": "Controlled Routing Benchmark on 'Implement exponential backoff retry calculation': Equalizing AST tools across all arms showed direct small failed (0%), while escalation saved 3,305 tokens (42.6%) over direct frontier."
 }

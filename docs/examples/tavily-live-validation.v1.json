@@ -1,0 +1,100 @@
+{
+  "version": "1",
+  "owner": "Mohit",
+  "reviewedOn": "2026-11-05",
+  "reviewMethod": "Offline inspection and current contract validation of saved live reports; no new provider requests.",
+  "liveRetrieval": {
+    "localArtifact": ".local/tavily-live-check/report.json",
+    "sha256": "d02c4115974d2c629d0392e77958d333963d9503f1fcac1e68902d75c7499c9b",
+    "createdAt": "2026-11-03T12:46:13.823Z",
+    "passed": true,
+    "externalSearchAttempts": 1,
+    "modelRequests": 0,
+    "providerReportedCredits": null,
+    "sourceCount": 3,
+    "checks": [
+      {
+        "name": "live_retrieval",
+        "passed": true
+      },
+      {
+        "name": "identical_request_uses_cache",
+        "passed": true
+      },
+      {
+        "name": "different_query_blocked_by_budget",
+        "passed": true
+      }
+    ]
+  },
+  "freshCombinedApi": {
+    "localArtifact": ".local/showcase-continuation/fresh.json",
+    "sha256": "2b1d673e31c0ff9b39266ddb0401a65800dd2a2f118ab791aa66b69ed18e8af8",
+    "status": "completed",
+    "externalSearchAttempts": 1,
+    "modelRequests": 2,
+    "results": [
+      {
+        "createdAt": "2026-11-04T12:46:35.432Z",
+        "claim": "The EU GDPR became applicable on 25 May 2018.",
+        "retrievedAt": "2026-11-04T12:46:44.160Z",
+        "retrievalStatus": "retrieved",
+        "comparisonMethod": "llm",
+        "outcome": "supported",
+        "freshness": "unknown",
+        "freshnessScore": null,
+        "citations": [
+          {
+            "url": "https://www.privacyengine.io/blog/gdpr-10-year-anniversary-history-impact-future",
+            "relation": "supports",
+            "eligible": true
+          },
+          {
+            "url": "https://cdp.cooley.com/blog-post-gdpr-anniversary-10-key-developments-gdpr-at-eight-then-now-and-whats-coming-next",
+            "relation": "supports",
+            "eligible": true
+          },
+          {
+            "url": "https://gdpr-info.eu/",
+            "relation": "supports",
+            "eligible": false
+          }
+        ]
+      },
+      {
+        "createdAt": "2026-11-04T12:46:46.136Z",
+        "claim": "The EU GDPR became applicable on 25 May 2020.",
+        "retrievedAt": "2026-11-04T12:46:44.160Z",
+        "retrievalStatus": "retrieved",
+        "comparisonMethod": "llm",
+        "outcome": "contradicted",
+        "freshness": "unknown",
+        "freshnessScore": null,
+        "citations": [
+          {
+            "url": "https://www.privacyengine.io/blog/gdpr-10-year-anniversary-history-impact-future",
+            "relation": "contradicts",
+            "eligible": true
+          },
+          {
+            "url": "https://cdp.cooley.com/blog-post-gdpr-anniversary-10-key-developments-gdpr-at-eight-then-now-and-whats-coming-next",
+            "relation": "contradicts",
+            "eligible": true
+          },
+          {
+            "url": "https://gdpr-info.eu/",
+            "relation": "contradicts",
+            "eligible": false
+          }
+        ]
+      }
+    ]
+  },
+  "limitations": [
+    "Selected recorded runs only; request counts are not cumulative project usage or an account billing audit.",
+    "This summary records earlier live runs, not a live test of the current checkout or its updated prompt.",
+    "The original ignored reports are needed to inspect full excerpts and independently reproduce this summary. Hashes identify artifacts, not provider authenticity.",
+    "The historical pair passed fresh combined API submissions with shared search caching; fresh browser submission was not exercised in that run.",
+    "Exact quotes, source agreement and successful transport do not establish broad semantic accuracy, source authority or independence."
+  ]
+}
