@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="340" viewBox="0 0 1280 340" role="img" aria-label="Tokens per run. Graph Repair, median per trial, both agents passed 6 of 6: ProofBench 860, OpenCode 17,438. Model routing, one trial each: small model alone 2,500 and failed, big model always 7,766, ProofBench governed 4,461.">
+  <rect width="1280" height="340" rx="14" fill="#ffffff"/>
+  <text x="40" y="52" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" letter-spacing="1.8" fill="#126852">[ GRAPH REPAIR · MEDIAN TOKENS PER TRIAL ]</text>
+      <text x="40" y="76" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#505955">Same 2 C++ bugs × 3 repeats, same Qwen3.5-9B, same Bifrost gateway.</text><text x="40" y="118" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="650" fill="#126852">ProofBench</text>
+      <text x="40" y="138" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#505955">6/6 passed</text>
+      <rect x="240" y="102" width="250" height="22" rx="3" fill="#e4e8e6"/>
+      <rect x="240" y="102" width="12.3293955728868" height="22" rx="3" fill="#2cbea0"/>
+      <text x="504" y="118" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="650" fill="#126852">860</text><text x="40" y="180" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="500" fill="#121816">OpenCode CLI</text>
+      <text x="40" y="200" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#505955">6/6 passed</text>
+      <rect x="240" y="164" width="250" height="22" rx="3" fill="#e4e8e6"/>
+      <rect x="240" y="164" width="250" height="22" rx="3" fill="#c6ceca"/>
+      <text x="504" y="180" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="650" fill="#121816">17,438</text>
+  <path d="M640 40V270" stroke="#d9dfdc"/>
+  <text x="680" y="52" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" letter-spacing="1.8" fill="#126852">[ MODEL ROUTING · TOTAL TOKENS ]</text>
+      <text x="680" y="76" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="14" fill="#505955">One recorded trial per strategy on the same Rust task.</text><text x="680" y="118" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="500" fill="#121816">Small model alone</text>
+      <text x="680" y="138" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#972e35">0/1 passed · stuck</text>
+      <rect x="880" y="102" width="250" height="22" rx="3" fill="#e4e8e6"/>
+      <rect x="880" y="102" width="80.47901107391192" height="22" rx="3" fill="#c6ceca"/>
+      <text x="1144" y="118" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="650" fill="#121816">2,500</text><text x="680" y="180" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="500" fill="#121816">Big model always</text>
+      <text x="680" y="200" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#505955">1/1 passed · 168.3 s</text>
+      <rect x="880" y="164" width="250" height="22" rx="3" fill="#e4e8e6"/>
+      <rect x="880" y="164" width="250" height="22" rx="3" fill="#c6ceca"/>
+      <text x="1144" y="180" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="650" fill="#121816">7,766</text><text x="680" y="242" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="16" font-weight="650" fill="#126852">ProofBench governed</text>
+      <text x="680" y="262" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" fill="#505955">1/1 passed · 63.5 s</text>
+      <rect x="880" y="226" width="250" height="22" rx="3" fill="#e4e8e6"/>
+      <rect x="880" y="226" width="143.60674736028844" height="22" rx="3" fill="#2cbea0"/>
+      <text x="1144" y="242" font-family="'Geist Mono', ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="16" font-weight="650" fill="#126852">4,461</text>
+  <path d="M40 284H1240" stroke="#d9dfdc"/>
+  <text x="40" y="314" font-family="Geist, Inter, -apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="13" fill="#505955">Shorter is cheaper. ProofBench sees public test feedback while editing and OpenCode does not, so this compares cost, not skill. Routing is one trial each: an illustration, not a statistic.</text>
+  <rect x="0.5" y="0.5" width="1279" height="339" rx="14" fill="none" stroke="#d9dfdc"/>
+</svg>

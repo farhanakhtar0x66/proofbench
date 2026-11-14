@@ -1,9 +1,36 @@
-# Working together
+# Contributing to ProofBench
 
-Aryan Vishwakarma is team leader and product/frontend lead. Farhan is founding architect and AI systems/integration lead. Mohit owns verification semantics; Khushi owns evaluation, research and demo evidence. Aryan can decide frontend architecture and components within stable API boundaries without approval for each component.
+Thanks for helping. This guide covers who owns what, how changes land on `main`, and what to run first.
 
-Start from main, use short-lived branches: `feat/ui-dashboard`, `feat/tavily-verifier`, `feat/freshness-fixtures`, `feat/agent-adapter`, `feat/benchmark-engine`, `docs/judging-demo`. Open focused PRs with issue links, reproducible validation and limitations. No direct main pushes during normal collaboration, no force pushes, no history replacement. Bootstrap initial main is the only setup exception. At least one teammate should review when possible; relevant checks must pass before merge.
+## 👥 Who owns what
 
-Review ownership: contracts require Farhan + Aryan coordination; execution/safety requires Farhan; verification semantics requires Mohit's review + Khushi's evaluation evidence; frontend presentation belongs to Aryan; fixtures and accuracy rubric belong to Khushi. Missing GitHub handles are tracked in TEAM.md; use named owners in issues until assignees are available. Don't block frontend, evaluation or Tavily on Farhan's live experiments; use offline fixtures and the stable interface.
+| Area | Owner | Reviews needed |
+|:--|:--|:--|
+| Product, frontend, Graph Repair | **Aryan Vishwakarma** (team lead) | Aryan decides frontend architecture and components within stable API boundaries |
+| Architecture, AI systems, execution, integration | **Farhan Akhtar** | Execution and safety changes need Farhan |
+| Verification semantics (Tavily) | **Mohit** | Mohit's review plus Khushi's evaluation evidence |
+| Evaluation, fixtures, accuracy rubric | **Khushi Yadav** | Khushi |
+| Contracts (`packages/contracts`) | Farhan + Aryan | Both, together |
 
-Run `npm run check`, `npm run test:contracts`, `npm run test:ui`; run cargo checks for native changes. CI never needs paid API access. A GitHub plan may not enforce protections on a private personal repository. CODEOWNERS documents intent but unaccepted invitees cannot be effective code owners. Verify actual repository settings in docs/REPOSITORY-STATUS.md; if enforcement is unavailable, use this documented PR procedure, manual teammate sign-off and CI evidence. Repository ownership does not change hackathon team leadership.
+Repository ownership doesn't change team leadership. GitHub handles still missing are tracked in [`docs/TEAM.md`](docs/TEAM.md); until then, name owners in the issue body.
+
+## 🌿 Branches and pull requests
+
+- Start from `main` and use short-lived branches named for the work: `feat/ui-dashboard`, `feat/tavily-verifier`, `fix/present-scroll`, `docs/judging-demo`.
+- Open focused pull requests with linked issues, reproducible validation and stated limitations.
+- No direct pushes to `main`, no force pushes, no history rewrites.
+- Don't block frontend, evaluation or Tavily work on live experiments: use the offline fixtures and the stable interface.
+
+`main` is protected. A pull request merges only when it has **one approving review**, the **`validate`** and **`native-boundary`** checks pass, and all conversations are resolved. A new push dismisses earlier approvals, so re-request review after changes.
+
+## ✅ Before you open a pull request
+
+```bash
+npm run check            # lint, typecheck, unit tests, fixture regressions, build
+npm run test:contracts   # cross-package schema contracts
+npm run test:ui          # Playwright browser tests, desktop and mobile
+```
+
+Run the Cargo checks too if you touched native code. CI never needs paid API access.
+
+`CODEOWNERS` documents intent, but invitees who haven't accepted can't act as code owners. Actual repository settings are recorded in [`docs/REPOSITORY-STATUS.md`](docs/REPOSITORY-STATUS.md).
