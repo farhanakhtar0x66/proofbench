@@ -15,6 +15,7 @@ import {buildReport} from '../../../packages/report-engine/src/index';
 import {JsonStore} from './store';
 import {loadCanonicalTask,listCanonicalTasks} from './tasks';
 import {registerTrackD} from './track-d';
+import {registerCascade} from './cascade';
 try{process.loadEnvFile?.();}catch{/* ignore missing env file */}
 export async function createApp(options:{dataDir?:string;implementation?:string;tavilyMode?:string}={}){
  const adapter=selectAdapter(options.implementation??process.env.BIFROST_IMPLEMENTATION??'mock');
@@ -54,6 +55,7 @@ export async function createApp(options:{dataDir?:string;implementation?:string;
  });
  app.get('/api/health',async()=>({version:'1',status:'ok'}));
  await registerTrackD(app,store);
+ await registerCascade(app,{dataDir});
  app.get('/api/capabilities',async()=>Capabilities.parse({
   version:'1',
   implementation:adapter.descriptor.implementation,

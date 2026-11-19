@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState, type MouseEvent, type ReactNode } from 'react';
 
-export type WorkspacePath = '/' | '/execution' | '/execution/runs' | '/benchmarks' | '/benchmarks/routing' | '/verify' | '/guide';
-const paths: readonly WorkspacePath[] = ['/', '/execution', '/execution/runs', '/benchmarks', '/benchmarks/routing', '/verify', '/guide'];
+export type WorkspacePath = '/' | '/race' | '/execution' | '/execution/runs' | '/benchmarks' | '/benchmarks/routing' | '/verify' | '/guide';
+const paths: readonly WorkspacePath[] = ['/', '/race', '/execution', '/execution/runs', '/benchmarks', '/benchmarks/routing', '/verify', '/guide'];
 const legacy: Record<string, WorkspacePath | undefined> = {
   '#track-d': '/benchmarks', '#controlled-benchmark': '/benchmarks/routing', '#comparison': '/benchmarks/routing',
   '#workspace': '/execution', '#execution-map': '/execution', '#run-inspector': '/execution', '#execution-trace': '/execution',

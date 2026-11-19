@@ -16,6 +16,7 @@ import { EncryptedText } from './EncryptedText';
 import { EscalationLadder } from './EscalationLadder';
 import { PresentMode } from './PresentMode';
 import { SpeakerView } from './SpeakerView';
+import { RacePage } from './RacePage';
 import { toggleTheme, useTheme } from './theme';
 import '@fontsource-variable/geist';
 import '@fontsource-variable/geist-mono';
@@ -25,11 +26,12 @@ import './style.css';
 const ACTIVE_JOB_KEY='proofbench_active_job_id';
 
 const destinations = [
- {path:'/',label:'Overview'}, {path:'/execution',label:'Execution'}, {path:'/benchmarks',label:'Benchmarks'},
+ {path:'/',label:'Overview'}, {path:'/race',label:'Live race'}, {path:'/execution',label:'Execution'}, {path:'/benchmarks',label:'Benchmarks'},
  {path:'/verify',label:'Verifier'}, {path:'/guide',label:'Guide'},
 ] as const;
 
 const pageInfo: Record<Exclude<WorkspacePath, '/'>, { scene: OpeningScene; label: string; title: string; description: string }> = {
+ '/race': { scene:'routing', label:'LIVE RACE', title:'Live race', description:'' },
  '/execution': { scene:'execution', label:'EXECUTION', title:'Execution lab', description:'Run a coding task and follow the decisions, model calls, and checks behind it.' },
  '/execution/runs': { scene:'ledger', label:'EXECUTION ARCHIVE', title:'Run ledger', description:'Browse recorded runs and offline fixtures, then open the evidence for any result.' },
  '/benchmarks': { scene:'graph', label:'BENCHMARKS', title:'Graph Repair', description:'' },
@@ -324,7 +326,7 @@ function App(){
    </div>
   </header>
   <main className="content">
-   {page==='/'?<OverviewPage navigate={navigate}/>:!benchmarking&&<WorkspaceOpening key={page} {...pageInfo[page]}>
+   {page==='/'?<OverviewPage navigate={navigate}/>:page==='/race'?<RacePage/>:!benchmarking&&<WorkspaceOpening key={page} {...pageInfo[page]}>
     {page==='/execution'&&<div className="task-runner-controls">
      {featuredRun&&<button className="replay-cta" type="button" onClick={replayFeatured} disabled={busy||loading}>
       <CirclePlay size={18} aria-hidden="true"/> Replay recorded run
@@ -352,7 +354,7 @@ function App(){
     <WorkspaceLink href="/benchmarks" navigate={navigate} active={page==='/benchmarks'}>Graph Repair</WorkspaceLink>
     <WorkspaceLink href="/benchmarks/routing" navigate={navigate} active={page==='/benchmarks/routing'}>Model routing</WorkspaceLink>
    </nav>}
-   {page!=='/'&&page!=='/verify'&&<div className="workspace-content focused-workspace" id="workspace">
+   {page!=='/'&&page!=='/verify'&&page!=='/race'&&<div className="workspace-content focused-workspace" id="workspace">
    {execution&&progress&&<p className="job-progress" role="status">{progress}</p>}
    {execution&&error&&<div className="error" role="alert">{error} <button onClick={()=>void connect()}>Retry connection</button></div>}
    {execution&&loading&&<p role="status" className="empty">Connecting to workspace…</p>}
