@@ -26,7 +26,7 @@ Coding agents send every step to the most expensive model they have, even though
 - **Bifrost v2.6** (Maxim AI) as the gateway: a custom OpenAI-compatible NVIDIA provider, a governed virtual key that allows only the two tier models with a $5/day budget, and request logs.
 - **NVIDIA NIM:** Laguna XS 2.1 (small tier) and Nemotron 3 Ultra 550B with thinking off (large tier).
 - **TypeScript:** Fastify API, React and Vite UI, Vitest (996 unit tests) and Playwright (40 browser tests).
-- **Node permission model** as the sandbox: no network, no child processes, and no files outside the task folder.
+- **Node permission model** as the sandbox: no child processes and no files outside the task folder, plus no network on Node 25+ (the demo and CI run Node 26).
 - **OpenCode CLI** as the real third-party agent in the any-agent evaluation.
 - **Tavily** for the freshness verifier (ProofBench's PS06 component).
 

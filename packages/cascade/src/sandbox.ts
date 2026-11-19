@@ -11,9 +11,16 @@ export interface SandboxResult {
   durationMs: number;
 }
 
+const FLAGS = process.allowedNodeEnvironmentFlags;
+/** What this Node version's permission model can enforce. Network denial needs Node 25+ (`--allow-net`). */
+export const SANDBOX_CAPABILITIES = {
+  flag: FLAGS.has('--permission') ? '--permission' : '--experimental-permission',
+  blocksNetwork: FLAGS.has('--allow-net'),
+} as const;
+
 /**
  * Runs a node:test file under Node's permission model: it may read only its
- * own folder, and has no network, child processes, workers or file writes.
+ * own folder, and has no child processes, workers or file writes; on Node 25+ it also has no network.
  */
 export async function runSandboxedTests(requestedDir: string, files: Record<string, string>, testFile: string, timeoutMs = 15_000): Promise<SandboxResult> {
   await mkdir(requestedDir, { recursive: true });
@@ -23,7 +30,7 @@ export async function runSandboxedTests(requestedDir: string, files: Record<stri
   for (const [name, content] of Object.entries(files)) await writeFile(join(dir, name), content, 'utf8');
   const started = Date.now();
   return new Promise(resolve => {
-    const child = spawn(process.execPath, ['--permission', `--allow-fs-read=${dir}`, '--test-reporter=tap', join(dir, testFile)], {
+    const child = spawn(process.execPath, [SANDBOX_CAPABILITIES.flag, `--allow-fs-read=${dir}`, '--test-reporter=tap', join(dir, testFile)], {
       cwd: dir,
       env: { PATH: process.env.PATH ?? '', NODE_OPTIONS: '' },
       stdio: ['ignore', 'pipe', 'pipe'],

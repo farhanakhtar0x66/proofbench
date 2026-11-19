@@ -130,7 +130,7 @@ From the terminal: `npm run cascade:race` runs a live race and saves it; `npm ru
 
 ## 🛡️ The sandbox
 
-Model-written code runs under Node's permission model: it may read only its own task folder and has no network, child processes, workers or file writes. A runaway loop is killed after 15 s. Tests cover each of these (`tests/cascade.test.ts`). For OpenCode runs, its bash tool is limited to running the task's test file, with an isolated HOME.
+Model-written code runs under Node's permission model: it may read only its own task folder and has no child processes, workers or file writes, and on Node 25+ (the demo machine and CI run Node 26) no network either. On older Node versions the network is not blocked, so use Node 25+ for untrusted code. A runaway loop is killed after 15 s. Tests cover each of these (`tests/cascade.test.ts`). For OpenCode runs, its bash tool is limited to running the task's test file, with an isolated HOME.
 
 ---
 

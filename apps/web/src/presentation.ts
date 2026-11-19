@@ -27,7 +27,7 @@ export const stops: Stop[] = [
   { title: 'Live race', path: '/race', target: '.race-lanes', action: 'start-race', seconds: 75, cues: [
     'Three lanes, same 5 real bugs, same agent loop, all through a local Bifrost gateway (virtual key, $5/day budget).',
     'Left: small model only. Middle: big model only, what agents do today. Right: Cascade.',
-    'Every patch runs in a Node permission sandbox: no network, no files outside the task, no child processes.',
+    'Every patch runs in a Node permission sandbox: no files outside the task, no child processes, and on Node 26 no network.',
     'Watch the calculator task: the small model gets stuck on the same failing tests.',
     'Cascade sees it in the test output, escalates, and hands the big model an autopsy instead of the failed history.',
   ] },

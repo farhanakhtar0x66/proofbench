@@ -14,6 +14,7 @@ import {
   type RaceEvent,
   type Upstream,
   type UpstreamResult,
+  SANDBOX_CAPABILITIES,
 } from '../packages/cascade/src/index';
 import { applyRaceEvent, emptyRace } from '../apps/web/src/race-state';
 
@@ -158,15 +159,24 @@ describe('Cascade routing', () => {
 });
 
 describe('Cascade sandbox', () => {
-  it('runs tests, and denies file reads outside the task folder, child processes and the network', async () => {
+  it('runs tests, and denies file reads outside the task folder and child processes', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'pb-sbx-'));
     const tests = `const test=require('node:test');const assert=require('node:assert');
 test('works',()=>assert.equal(require('./m.js').add(2,3),5));
 test('no fs escape',()=>assert.throws(()=>require('fs').readFileSync('/etc/hosts'),/ERR_ACCESS_DENIED|restricted/));
-test('no child',()=>assert.throws(()=>require('child_process').execSync('echo hi')));
-test('no net',async()=>{await assert.rejects(fetch('http://127.0.0.1:9'))});`;
+test('no child',()=>assert.throws(()=>require('child_process').execSync('echo hi'),/ERR_ACCESS_DENIED|restricted/));`;
     const result = await runSandboxedTests(dir, { 'm.js': 'module.exports={add:(a,b)=>a+b}', 'm.test.js': tests }, 'm.test.js');
-    expect(result.passed).toBe(4);
+    expect(result.passed).toBe(3);
+    expect(result.ok).toBe(true);
+  });
+
+  // Network denial is a Node 25+ permission; a refused connection would pass either way, so check the denial itself.
+  it.runIf(SANDBOX_CAPABILITIES.blocksNetwork)('denies network access (Node 25+)', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'pb-sbx-'));
+    const tests = `const test=require('node:test');const assert=require('node:assert');
+test('no raw socket',()=>new Promise((ok,fail)=>{const s=require('net').connect(80,'127.0.0.1');s.on('connect',()=>{s.destroy();fail(new Error('connected'))});s.on('error',e=>e.code==='ERR_ACCESS_DENIED'?ok():fail(e))}));
+test('no dns',async()=>{await assert.rejects(require('dns').promises.lookup('example.com'),e=>e.code==='ERR_ACCESS_DENIED')});`;
+    const result = await runSandboxedTests(dir, { 'n.test.js': tests }, 'n.test.js');
     expect(result.ok).toBe(true);
   });
 
