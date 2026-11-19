@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { ChevronLeft, ChevronRight, MonitorSpeaker, NotebookText, X } from 'lucide-react';
 import { LOAD_ASSESSMENT_EVENT } from './Verifier';
+import { START_RACE_EVENT } from './RacePage';
 import { CHANNEL, PITCH_SECONDS, SAVED_ASSESSMENT_ID, clock, plannedStart, stops, type PresentMessage, type Stop } from './presentation';
 import { useCountUp } from './useCountUp';
 import { toggleTheme } from './theme';
@@ -27,6 +28,12 @@ async function arrive(stop: Stop, isCurrent: () => boolean) {
   // Let the route's own scroll-to-top run first.
   await new Promise(resolve => setTimeout(resolve, 60));
   if (!isCurrent()) return;
+  // The race lanes only exist once a race is running, so start it before scrolling to them.
+  if (stop.action === 'start-race') {
+    await waitFor('.race-page');
+    if (!isCurrent()) return;
+    window.dispatchEvent(new CustomEvent(START_RACE_EVENT));
+  }
   if (!stop.target) { window.scrollTo({ top: 0, behavior: 'smooth' }); }
   else {
     const element = await waitFor(stop.target);
@@ -62,16 +69,16 @@ const team = [['Farhan', 'Routing engine'], ['Aryan', 'Graph Repair & UI'], ['Mo
 function Card({ kind }: { kind: 'title' | 'close' }) {
   return <section className="present-card" data-kind={kind} aria-live="polite">
     <div className="present-card-inner">
-      <p className="eyebrow">[ GLOBAL AI HACKATHON · BIFROST #01 · TAVILY ]</p>
+      <p className="eyebrow">[ GLOBAL AI HACKATHON · BIFROST PS01 + PS04 · TAVILY ]</p>
       {kind === 'title' ? <>
-        <h1>ProofBench</h1>
-        <p className="present-card-lead">The coding agent that spends small-model tokens first, calls the big model only on evidence, and proves every patch.</p>
+        <h1>ProofBench Cascade</h1>
+        <p className="present-card-lead">Change one URL. Your coding agent starts on a small model and reaches for the big one only when its own tests prove it is stuck.</p>
       </> : <>
-        <h1>Cheap tokens first.<br/><span>Proof every time.</span></h1>
+        <h1>Small model first.<br/><span>Big model on proof.</span></h1>
         <div className="present-figures">
-          <Figure value={20} suffix="×" label="fewer tokens per repair trial"/>
-          <Figure value={42.6} decimals={1} suffix="%" label="fewer than the big model alone"/>
-          <Figure value={12} suffix="/12" label="patches pass hidden tests"/>
+          <Figure value={60} suffix="%" label="cheaper across every recorded live race, 15/15 fixed"/>
+          <Figure value={3.9} decimals={1} suffix="×" label="sooner than the big model alone"/>
+          <Figure value={67} suffix="%" label="cheaper for real, unmodified OpenCode"/>
         </div>
         <p className="present-card-lead">Every number downloads as JSON with model receipts.</p>
       </>}

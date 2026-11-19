@@ -1,0 +1,77 @@
+# Verification rules
+
+## Pricing scope
+
+Pricing comparisons preserve the explicit product/plan, currency, rate unit, region and billing commitment. `Acme’s Pro plan` and `Acme Pro plan` normalize to the same explicit plan as `Acme Pro`; Basic is a different entity and an omitted plan is not guessed. Supported region suffixes use `in REGION`, with US/USA/United States, UK/United Kingdom and India/IN aliases; other explicit region names require an exact normalized match. No region means unspecified, not global or US. Currency never implies region.
+
+Monthly versus yearly rates, million input versus output token units, and per-user versus whole-plan prices are separate scopes. Optional `billed monthly/annually/yearly` commitments are preserved; a monthly displayed rate billed annually is not assumed equivalent to a month-to-month price. Both `... in India billed annually` and `... billed annually in India` are supported. No currency conversion, annual-rate arithmetic or assumption of taxes/discounts/trials is performed. Unknown qualifiers abstain. The optional model adapter cannot erase region/plan/billing details to force a price match. This uses no additional requests and adds no API fields.
+
+## Version scope
+
+Versions are compared only when normalized product, component and release channel match. API, SDK, app/application, mobile app, web app and desktop app are distinct scopes. Stable, beta, alpha, preview and rc channels are preserved; no channel means unspecified, never automatically stable. Explicit API/SDK/app and unspecified components are not interchangeable. Current/latest version statements share the current-release interpretation only within the same component/channel.
+
+Supported examples include `Acme’s latest API version is v3.`, `The latest version of Acme's API is 3.`, `Acme SDK’s current stable release is 2.1.`, and `Acme’s beta app version is 5.` Known prerelease suffixes such as -beta.1 preserve the channel; contradictory stable/beta labels abstain. Unknown platforms, qualifiers or phrasing remain unsupported. The optional language adapter cannot erase explicit component/channel qualifiers to force a generic match. No extra searches or new response fields are needed.
+
+## Source dates
+
+Publication date, actual retrieval time, explicit update date and effective date have separate meanings. Live evidence adds optional updatedAt, effectiveAt and dateReason fields. Update/effective dates are extracted only from explicit ISO YYYY-MM-DD markers in the original snippet, not inferred from retrieval time, URL or model output. The upstream publication date must be an ISO calendar date or timestamp; invalid calendar dates and ambiguous locale formats abstain.
+
+A recent update does not replace a missing/old publication date. Future effective dates, conflicting updates, multiple date scopes and historical as-of statements block current comparison. Unparseable effective/as-of markers also abstain. An old effective date alone does not prove a still-valid term is stale. Date checks are deliberately source-wide because this prototype cannot reliably assign multiple dates to individual facts. Optional model normalization retains original-source date checks. No extra retrieval is performed. This does not implement general natural-language date reasoning or historical verification; missing dates remain unknown.
+
+## Offline practice
+
+Run `npm run practice` from the repository root, then type one claim and two sample source statements. Try claim `Acme Pro costs USD 20/month.` with evidence `Acme Pro costs USD 25/month.` and `The monthly price of Acme Pro is USD 25.` The simulated result should be contradicted/stale with score 0. `npm run practice -- --example` runs this example without prompts.
+
+The practice tool runs the real comparison pipeline with an injected fake search response. It does not load .env, use your key, make network requests or persist reports. Publication dates and source hostnames are fabricated for the simulation; results are labeled practice only and do not establish real-world truth. Type your own English claims and evidence; unsupported wording remains inconclusive. Blank source statements provide no evidence.
+
+Run `npm run evaluate:verifier` for a fixed 14-case synthetic demo regression, covering pricing, leadership, versions, compound evidence, conflicts and known language/domain gaps. It writes an ignored `.local/verifier-evaluation/report.json` with expected and actual verdicts, explanations and verdict coverage. Matching every expectation can include many correct abstentions; it is not a real-world accuracy claim. This evaluation uses the offline practice pipeline, simulated dates and simulated sources, without keys or network calls. It complements rather than replaces the existing fixture evaluation and unit tests.
+
+Mock mode uses the existing offline fixtures. Tests inject fake search responses and require no API credits.
+
+Answer extraction can split complete supported factual clauses joined by and, but or semicolons. Each clause must identify its own entity and match an existing comparison format. Conditions, quotes and incomplete shared-subject clauses remain intact; the extractor never invents missing subjects. Company names containing conjunctions remain intact when splitting would produce invalid clauses. The total limit stays 50 claims, and explicit caller-provided claims are preserved. More extracted claims can require more searches, but the shared request cap still bounds all attempts.
+
+Source comparison uses the same conservative clause splitter within evidence sentences. Each source fact retains the source URL and publication date; several facts from one source never count as several corroborating sources. Mixed values within a compound sentence trigger internal-conflict handling. Conditional facts, quoted text and unresolved pronouns are not separated or resolved by guessing. This parsing improvement makes no additional requests.
+
+Live comparison currently recognizes only these English statement shapes:
+
+- `The current CEO of Acme is Alice.`
+- `Acme latest API version is 2.3.` (API is optional)
+- `Acme Pro currently costs USD 5 per month.`
+
+Equivalent common wording is also supported: `Alice is the CEO of Acme.`, `Acme's latest API version is v2.3.`, `Acme Pro costs USD 5/month.`, and `The monthly price of Acme Pro is USD 5.` Curly apostrophes and version prefixes normalize consistently. Currency symbols ₹, €, and £ normalize to INR, EUR, and GBP. A bare $ remains ambiguous between dollar currencies and is not assumed to mean USD; use an explicit currency code. Product/plan names and billing units must still match; approximate, future and negated statements abstain.
+
+Pricing requires an explicit currency (USD, INR, EUR or GBP) and unit (month, year, million input tokens or million output tokens). Entity, category and unit must match exactly after case and whitespace normalization. Negated, historical and speculative statements abstain.
+
+A source must contain a matching statement and a publication date within the previous 30 days. Missing dates never imply freshness from retrieval time. A verdict requires agreement from two distinct hostnames and no opposite relation. Hostnames do not establish independence or authority; these remain prototype limitations. Unsupported statements, mixed evidence and historical asOf requests remain inconclusive.
+
+Internal conflicts also block a verdict: if one recent source both supports and contradicts the same entity and scope, the whole claim stays inconclusive even when two other sources agree. The explanation identifies that conflict and the score remains null.
+
+Inconclusive explanations distinguish unsupported claim wording or ambiguous currency, missing usable sources, missing recent dates, conflicting sources, mismatched scope and insufficient corroboration. These messages do not trigger extra searches or change the scoring rules.
+
+## Source ranking
+
+`src/sources.ts` contains a reviewed `sourcePolicy`, initially empty. The team must review entity/domain/page mappings before adding entries. Tests use synthetic domains; there is no automatic domain guessing. For example, a rule can list an exact product/plan name, official hostname, allowed page prefixes and whether subdomains are included. Code callers can inject a separate policy through verifyAnswer options for testing. Public API callers cannot supply trusted domains.
+
+Evidence is ordered as `official_direct`, `reviewed_secondary`, then `unreviewed`. Official-direct requires HTTPS, a reviewed entity and page match, and a recent directly comparable statement. Secondary status is a reviewed mapping, not proof of the statement. Relevance scores do not establish authority. Unknown entities, missing dates, HTTP pages, misleading hostname suffixes and unrelated pages cannot earn official-direct status.
+
+Evidence includes optional sourceTier, sourceReason, duplicateOf and corroborationGroup fields. Repeated URLs ignoring fragments and common tracking parameters count once; meaningful query parameters remain distinct. Identical excerpts of at least 120 characters and 20 words count once. Short matching facts are not automatically considered plagiarism. Subdomains are grouped when a reviewed rule explicitly allows them. All conflicting evidence remains visible and can block a verdict regardless of rank.
+
+Ranking prioritizes evidence but does not make official status a new prerequisite for the existing coarse verdicts. Agreement from unreviewed sources is explicitly labeled; it does not establish authority or independence. Paraphrased copies and unknown organizational relationships remain limitations. No extra searches are made, and the credit cap is unchanged.
+
+## Automatic official candidates
+
+Without a reviewed mapping, `likely_official` can be assigned using only the existing result URL, title and dated snippet: an exact compact entity/brand-domain match, HTTPS, an entity-specific title, a relevant pricing/leadership/documentation path, and recent direct comparable content are all required. Plan suffixes Pro/Basic/Enterprise/API can be removed for brand matching. Reviewed official and reviewed secondary sources both outrank automatic candidates.
+
+This is an identity heuristic, not ownership verification. A lookalike operator can mimic title and content. Unsupported domain suffixes, deeper/custom subdomains, multi-part public suffixes and internationalized hostnames abstain rather than guessing. The result explains its signals and limitations; candidates are never counted as manually reviewed. Missing dates or unsupported claim wording also prevent automatic candidacy. No discovery requests, crawls or additional credits are used, and likely status alone cannot produce a verdict.
+
+TAVILY_MAX_REQUESTS caps total search attempts for the lifetime of one Fastify application instance. Requests reserve budget synchronously, so concurrent calls cannot overspend. A failed attempt still consumes budget and is never retried automatically. Changing credentials or increasing configuration does not refill an existing budget.
+
+Identical queries and credentials reuse search results for five minutes, retaining their original retrieval timestamp. Simultaneous identical searches share one in-flight request. Up to 100 completed searches are cached in memory; the cache does not store raw credentials. Expiry and eviction do not refund budget. Network requests time out after ten seconds.
+
+Restarting the server resets its in-memory budget and cache. Multiple server instances each have their own cap. This is not an account-wide billing limit; keep Tavily account billing controls and live-mode consent configured accordingly.
+
+Live mode requires TAVILY_MODE=live, ALLOW_LIVE_REQUESTS=true, a server-side key and a positive cap. Default development remains mock mode.
+
+Every new verification result includes freshnessScore. This coarse validity indicator is 100 for supported/current claims with recent corroboration, 0 for contradicted/stale claims with recent corroboration, and null for inconclusive results, missing qualifying evidence or mock fixtures. It is not confidence, a calibrated probability, or an evidence-quality rating. No intermediate values are emitted until evaluation supports a calibrated scale. Evidence recency and agreement are eligibility requirements, rather than arbitrary weighted bonuses.
+
+The shared v1 schema accepts an optional nullable integer from 0 to 100 so older stored reports and frontend fixtures still parse. Missing scores mean unavailable. This additive contract change requires Farhan/Aryan review before merge; the frontend can display this field in a later UI change.

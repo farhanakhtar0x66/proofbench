@@ -1,0 +1,26 @@
+{
+ "agent": "opencode",
+ "recordedAt": "2026-11-19T17:59:30.397Z",
+ "task": "semver",
+ "route": "cascade",
+ "passed": true,
+ "tests": "6/6",
+ "steps": 6,
+ "toolCalls": 5,
+ "seconds": 16,
+ "escalations": 0,
+ "usage": {
+  "small": {
+   "input": 24503,
+   "output": 1216
+  },
+  "large": {
+   "input": 0,
+   "output": 0
+  }
+ },
+ "opencodeReportedTokens": {
+  "input": 5198,
+  "output": 1211
+ }
+}

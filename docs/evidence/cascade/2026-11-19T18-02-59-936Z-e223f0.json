@@ -1,0 +1,1046 @@
+{
+ "id": "2026-11-19T18-02-59-936Z-e223f0",
+ "startedAt": "2026-11-19T18:02:59.936Z",
+ "events": [
+  {
+   "type": "race-start",
+   "t": 0,
+   "raceId": "2026-11-19T18-02-59-936Z-e223f0",
+   "tasks": [
+    {
+     "id": "slugify",
+     "title": "Slugs keep double dashes",
+     "difficulty": "routine"
+    },
+    {
+     "id": "semver",
+     "title": "Release ordering puts rc after final",
+     "difficulty": "tricky"
+    },
+    {
+     "id": "lru",
+     "title": "LRU cache evicts the wrong entry",
+     "difficulty": "tricky"
+    },
+    {
+     "id": "calc",
+     "title": "Calculator ignores precedence",
+     "difficulty": "tricky"
+    },
+    {
+     "id": "duration",
+     "title": "Duration parser drops units",
+     "difficulty": "routine"
+    }
+   ],
+   "lanes": [
+    {
+     "id": "small",
+     "label": "Small model only",
+     "blurb": "Cheapest tier on every call"
+    },
+    {
+     "id": "large",
+     "label": "Big model only",
+     "blurb": "What most coding agents do"
+    },
+    {
+     "id": "cascade",
+     "label": "ProofBench Cascade",
+     "blurb": "Cheap first, escalate on proof of failure"
+    }
+   ],
+   "models": {
+    "small": {
+     "model": "nvidia/poolside/laguna-xs-2.1",
+     "label": "Laguna XS 2.1"
+    },
+    "large": {
+     "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+     "label": "Nemotron 3 Ultra 550B"
+    }
+   }
+  },
+  {
+   "type": "attempt-start",
+   "t": 99,
+   "lane": "small",
+   "taskId": "slugify",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt-start",
+   "t": 99,
+   "lane": "cascade",
+   "taskId": "slugify",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "attempt-start",
+   "t": 100,
+   "lane": "large",
+   "taskId": "slugify",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+  },
+  {
+   "type": "attempt",
+   "t": 1152,
+   "lane": "small",
+   "taskId": "slugify",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 476,
+    "output": 56
+   },
+   "latencyMs": 953,
+   "passed": 4,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 4\n# pass 4\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 1152,
+   "lane": "small",
+   "taskId": "slugify",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt",
+   "t": 1152,
+   "lane": "cascade",
+   "taskId": "slugify",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 476,
+    "output": 56
+   },
+   "latencyMs": 952,
+   "passed": 4,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 4\n# pass 4\n# fail 0",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "task-done",
+   "t": 1152,
+   "lane": "cascade",
+   "taskId": "slugify",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 1235,
+   "lane": "cascade",
+   "taskId": "semver",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "attempt-start",
+   "t": 1236,
+   "lane": "small",
+   "taskId": "semver",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 3356,
+   "lane": "large",
+   "taskId": "slugify",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 464,
+    "output": 160
+   },
+   "latencyMs": 3158,
+   "passed": 4,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 4\n# pass 4\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 3356,
+   "lane": "large",
+   "taskId": "slugify",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 3452,
+   "lane": "large",
+   "taskId": "semver",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+  },
+  {
+   "type": "attempt",
+   "t": 5837,
+   "lane": "small",
+   "taskId": "semver",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 979,
+    "output": 485
+   },
+   "latencyMs": 4490,
+   "passed": 6,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 6\n# pass 6\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 5837,
+   "lane": "small",
+   "taskId": "semver",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 5912,
+   "lane": "small",
+   "taskId": "lru",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 6115,
+   "lane": "cascade",
+   "taskId": "semver",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 979,
+    "output": 489
+   },
+   "latencyMs": 4723,
+   "passed": 6,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 6\n# pass 6\n# fail 0",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "task-done",
+   "t": 6115,
+   "lane": "cascade",
+   "taskId": "semver",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 6204,
+   "lane": "cascade",
+   "taskId": "lru",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 7879,
+   "lane": "small",
+   "taskId": "lru",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 720,
+    "output": 188
+   },
+   "latencyMs": 1857,
+   "passed": 5,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 5\n# pass 5\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 7879,
+   "lane": "small",
+   "taskId": "lru",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt",
+   "t": 7947,
+   "lane": "cascade",
+   "taskId": "lru",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 720,
+    "output": 189
+   },
+   "latencyMs": 1665,
+   "passed": 5,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 5\n# pass 5\n# fail 0",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "task-done",
+   "t": 7947,
+   "lane": "cascade",
+   "taskId": "lru",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 7964,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt-start",
+   "t": 8050,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 15571,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 908,
+    "output": 759
+   },
+   "latencyMs": 7404,
+   "passed": 2,
+   "failed": 6,
+   "ok": false,
+   "testOutput": "not ok 1 - precedence\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 2 - parentheses\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 3 - right assoc power\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 4 - unary minus\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 5 - decimals\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 6 - nested\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\n# tests 8\n# pass 2\n# fail 6",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "attempt-start",
+   "t": 15571,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 2,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "decision": {
+    "kind": "stay",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "Check failed (1/2); small tier gets another try."
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 19393,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 908,
+    "output": 1172
+   },
+   "latencyMs": 11319,
+   "passed": 5,
+   "failed": 3,
+   "ok": false,
+   "testOutput": "not ok 2 - parentheses\n  error: 'Malformed input'\nnot ok 4 - unary minus\n  error: 'Malformed input'\nnot ok 6 - nested\n  error: 'Malformed input'\n# tests 8\n# pass 5\n# fail 3"
+  },
+  {
+   "type": "attempt-start",
+   "t": 19393,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 2,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 23650,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 2,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 1863,
+    "output": 759
+   },
+   "latencyMs": 7963,
+   "passed": 2,
+   "failed": 6,
+   "ok": false,
+   "testOutput": "not ok 1 - precedence\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 2 - parentheses\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 3 - right assoc power\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 4 - unary minus\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 5 - decimals\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\nnot ok 6 - nested\n  error: 'Maximum call stack size exceeded'\n  name: 'RangeError'\n# tests 8\n# pass 2\n# fail 6",
+   "decision": {
+    "kind": "stay",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "Check failed (1/2); small tier gets another try."
+   }
+  },
+  {
+   "type": "attempt-start",
+   "t": 23651,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 3,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "decision": {
+    "kind": "escalate",
+    "tier": "large",
+    "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "reason": "M2 stagnated: Attempt 2 produced identical patch to attempt 1. Controller halted to prevent looping.",
+    "compression": {
+     "before": 2470,
+     "after": 2470,
+     "skipped": "history is already smaller than the autopsy"
+    }
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 23780,
+   "lane": "large",
+   "taskId": "semver",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 946,
+    "output": 1091
+   },
+   "latencyMs": 20244,
+   "passed": 6,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 6\n# pass 6\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 23780,
+   "lane": "large",
+   "taskId": "semver",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 23856,
+   "lane": "large",
+   "taskId": "lru",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+  },
+  {
+   "type": "attempt",
+   "t": 30407,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 2,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 2163,
+    "output": 983
+   },
+   "latencyMs": 10904,
+   "passed": 7,
+   "failed": 1,
+   "ok": false,
+   "testOutput": "not ok 4 - unary minus\n  error: |-\n    Expected values to be strictly equal:\n    4 !== -4\n  name: 'AssertionError'\n  expected: -4\n  actual: 4\n  operator: 'strictEqual'\n# tests 8\n# pass 7\n# fail 1"
+  },
+  {
+   "type": "attempt-start",
+   "t": 30407,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 3,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 43785,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 3,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 3240,
+    "output": 983
+   },
+   "latencyMs": 13267,
+   "passed": 7,
+   "failed": 1,
+   "ok": false,
+   "testOutput": "not ok 4 - unary minus\n  error: |-\n    Expected values to be strictly equal:\n    4 !== -4\n  name: 'AssertionError'\n  expected: -4\n  actual: 4\n  operator: 'strictEqual'\n# tests 8\n# pass 7\n# fail 1"
+  },
+  {
+   "type": "attempt-start",
+   "t": 43786,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 4,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 47339,
+   "lane": "large",
+   "taskId": "lru",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 717,
+    "output": 1302
+   },
+   "latencyMs": 23376,
+   "passed": 5,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 5\n# pass 5\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 47339,
+   "lane": "large",
+   "taskId": "lru",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 47416,
+   "lane": "large",
+   "taskId": "calc",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+  },
+  {
+   "type": "attempt",
+   "t": 53983,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 4,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 4317,
+    "output": 983
+   },
+   "latencyMs": 10090,
+   "passed": 7,
+   "failed": 1,
+   "ok": false,
+   "testOutput": "not ok 4 - unary minus\n  error: |-\n    Expected values to be strictly equal:\n    4 !== -4\n  name: 'AssertionError'\n  expected: -4\n  actual: 4\n  operator: 'strictEqual'\n# tests 8\n# pass 7\n# fail 1"
+  },
+  {
+   "type": "attempt-start",
+   "t": 53983,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 5,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 64297,
+   "lane": "small",
+   "taskId": "calc",
+   "attempt": 5,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 5394,
+    "output": 983
+   },
+   "latencyMs": 10206,
+   "passed": 7,
+   "failed": 1,
+   "ok": false,
+   "testOutput": "not ok 4 - unary minus\n  error: |-\n    Expected values to be strictly equal:\n    4 !== -4\n  name: 'AssertionError'\n  expected: -4\n  actual: 4\n  operator: 'strictEqual'\n# tests 8\n# pass 7\n# fail 1"
+  },
+  {
+   "type": "task-done",
+   "t": 64297,
+   "lane": "small",
+   "taskId": "calc",
+   "ok": false,
+   "attempts": 5
+  },
+  {
+   "type": "attempt-start",
+   "t": 64373,
+   "lane": "small",
+   "taskId": "duration",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 69042,
+   "lane": "small",
+   "taskId": "duration",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 711,
+    "output": 157
+   },
+   "latencyMs": 4554,
+   "passed": 5,
+   "failed": 1,
+   "ok": false,
+   "testOutput": "not ok 1 - hms\n  error: 'Invalid duration format'\n# tests 6\n# pass 5\n# fail 1"
+  },
+  {
+   "type": "attempt-start",
+   "t": 69042,
+   "lane": "small",
+   "taskId": "duration",
+   "attempt": 2,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1"
+  },
+  {
+   "type": "attempt",
+   "t": 70753,
+   "lane": "small",
+   "taskId": "duration",
+   "attempt": 2,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 922,
+    "output": 141
+   },
+   "latencyMs": 1600,
+   "passed": 6,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 6\n# pass 6\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 70753,
+   "lane": "small",
+   "taskId": "duration",
+   "ok": true,
+   "attempts": 2
+  },
+  {
+   "type": "lane-done",
+   "t": 70753,
+   "lane": "small",
+   "totals": {
+    "solved": 4,
+    "tasks": 5,
+    "calls": 10,
+    "usage": {
+     "small": {
+      "input": 19830,
+      "output": 6131
+     },
+     "large": {
+      "input": 0,
+      "output": 0
+     }
+    },
+    "wallMs": 70753,
+    "escalations": 0
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 113186,
+   "lane": "large",
+   "taskId": "calc",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 897,
+    "output": 3467
+   },
+   "latencyMs": 65656,
+   "passed": 8,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 8\n# pass 8\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 113186,
+   "lane": "large",
+   "taskId": "calc",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "attempt-start",
+   "t": 113266,
+   "lane": "large",
+   "taskId": "duration",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b"
+  },
+  {
+   "type": "attempt",
+   "t": 125555,
+   "lane": "large",
+   "taskId": "duration",
+   "attempt": 1,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 685,
+    "output": 389
+   },
+   "latencyMs": 12167,
+   "passed": 6,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 6\n# pass 6\n# fail 0"
+  },
+  {
+   "type": "task-done",
+   "t": 125555,
+   "lane": "large",
+   "taskId": "duration",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "lane-done",
+   "t": 125555,
+   "lane": "large",
+   "totals": {
+    "solved": 5,
+    "tasks": 5,
+    "calls": 5,
+    "usage": {
+     "small": {
+      "input": 0,
+      "output": 0
+     },
+     "large": {
+      "input": 3709,
+      "output": 6409
+     }
+    },
+    "wallMs": 125554,
+    "escalations": 0
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 126449,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 3,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 2665,
+    "output": 6000
+   },
+   "latencyMs": 102797,
+   "passed": 0,
+   "failed": 1,
+   "ok": false,
+   "testOutput": "No ```js code block in the reply.",
+   "decision": {
+    "kind": "escalate",
+    "tier": "large",
+    "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "reason": "M2 stagnated: Attempt 2 produced identical patch to attempt 1. Controller halted to prevent looping.",
+    "compression": {
+     "before": 2470,
+     "after": 2470,
+     "skipped": "history is already smaller than the autopsy"
+    }
+   }
+  },
+  {
+   "type": "attempt-start",
+   "t": 126449,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 4,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "decision": {
+    "kind": "stay",
+    "tier": "large",
+    "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "reason": "No check result; the large tier keeps the task.",
+    "compression": {
+     "before": 2507,
+     "after": 2507,
+     "skipped": "history is already smaller than the autopsy"
+    }
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 159136,
+   "lane": "cascade",
+   "taskId": "calc",
+   "attempt": 4,
+   "tier": "large",
+   "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+   "usage": {
+    "input": 2702,
+    "output": 1726
+   },
+   "latencyMs": 32564,
+   "passed": 8,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 8\n# pass 8\n# fail 0",
+   "decision": {
+    "kind": "stay",
+    "tier": "large",
+    "model": "nvidia/nvidia/nemotron-3-ultra-550b-a55b",
+    "reason": "No check result; the large tier keeps the task.",
+    "compression": {
+     "before": 2507,
+     "after": 2507,
+     "skipped": "history is already smaller than the autopsy"
+    }
+   }
+  },
+  {
+   "type": "task-done",
+   "t": 159136,
+   "lane": "cascade",
+   "taskId": "calc",
+   "ok": true,
+   "attempts": 4
+  },
+  {
+   "type": "attempt-start",
+   "t": 159213,
+   "lane": "cascade",
+   "taskId": "duration",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "attempt",
+   "t": 161375,
+   "lane": "cascade",
+   "taskId": "duration",
+   "attempt": 1,
+   "tier": "small",
+   "model": "nvidia/poolside/laguna-xs-2.1",
+   "usage": {
+    "input": 711,
+    "output": 148
+   },
+   "latencyMs": 2054,
+   "passed": 6,
+   "failed": 0,
+   "ok": true,
+   "testOutput": "# tests 6\n# pass 6\n# fail 0",
+   "decision": {
+    "kind": "start",
+    "tier": "small",
+    "model": "nvidia/poolside/laguna-xs-2.1",
+    "reason": "New session: start on the cheap tier."
+   }
+  },
+  {
+   "type": "task-done",
+   "t": 161375,
+   "lane": "cascade",
+   "taskId": "duration",
+   "ok": true,
+   "attempts": 1
+  },
+  {
+   "type": "lane-done",
+   "t": 161376,
+   "lane": "cascade",
+   "totals": {
+    "solved": 5,
+    "tasks": 5,
+    "calls": 8,
+    "usage": {
+     "small": {
+      "input": 5657,
+      "output": 2400
+     },
+     "large": {
+      "input": 5367,
+      "output": 7726
+     }
+    },
+    "wallMs": 161374,
+    "escalations": 1
+   }
+  },
+  {
+   "type": "race-done",
+   "t": 161378,
+   "totals": {
+    "small": {
+     "solved": 4,
+     "tasks": 5,
+     "calls": 10,
+     "usage": {
+      "small": {
+       "input": 19830,
+       "output": 6131
+      },
+      "large": {
+       "input": 0,
+       "output": 0
+      }
+     },
+     "wallMs": 70753,
+     "escalations": 0
+    },
+    "large": {
+     "solved": 5,
+     "tasks": 5,
+     "calls": 5,
+     "usage": {
+      "small": {
+       "input": 0,
+       "output": 0
+      },
+      "large": {
+       "input": 3709,
+       "output": 6409
+      }
+     },
+     "wallMs": 125554,
+     "escalations": 0
+    },
+    "cascade": {
+     "solved": 5,
+     "tasks": 5,
+     "calls": 8,
+     "usage": {
+      "small": {
+       "input": 5657,
+       "output": 2400
+      },
+      "large": {
+       "input": 5367,
+       "output": 7726
+      }
+     },
+     "wallMs": 161374,
+     "escalations": 1
+    }
+   },
+   "savedPath": ".local/data/cascade-races/2026-11-19T18-02-59-936Z-e223f0.json"
+  }
+ ]
+}

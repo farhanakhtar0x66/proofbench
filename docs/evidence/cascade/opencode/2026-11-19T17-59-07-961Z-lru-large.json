@@ -1,0 +1,26 @@
+{
+ "agent": "opencode",
+ "recordedAt": "2026-11-19T17:59:07.961Z",
+ "task": "lru",
+ "route": "cascade:large",
+ "passed": true,
+ "tests": "5/5",
+ "steps": 6,
+ "toolCalls": 5,
+ "seconds": 22,
+ "escalations": 0,
+ "usage": {
+  "small": {
+   "input": 0,
+   "output": 0
+  },
+  "large": {
+   "input": 26685,
+   "output": 1411
+  }
+ },
+ "opencodeReportedTokens": {
+  "input": 17384,
+  "output": 801
+ }
+}

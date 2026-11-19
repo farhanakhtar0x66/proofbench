@@ -3,7 +3,7 @@ import { expect, test } from '@playwright/test';
 test('keeps workspaces separate and preserves a verifier draft across navigation', async ({ page }) => {
   await page.goto('/');
   const nav = page.getByRole('navigation', { name: 'Workspace', exact: true });
-  await expect(nav.getByRole('link')).toHaveCount(5);
+  await expect(nav.getByRole('link')).toHaveCount(6);
   await expect(nav.getByRole('link', { name: 'Overview' })).toHaveAttribute('aria-current', 'page');
   await expect(page.locator('#track-d, #run-ledger, #verification-input')).toHaveCount(0);
 

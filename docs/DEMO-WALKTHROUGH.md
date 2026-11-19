@@ -1,5 +1,20 @@
 # Five-minute demo walkthrough
 
+## Cascade pitch (current, 19 Nov 2026)
+
+The pitch opens on the **live race** (`/race`). Presentation mode (**P**) starts it on its own: **live** if Bifrost is up and `.env` holds `BIFROST_VIRTUAL_KEY`, otherwise a **replay** of the recorded live run in `docs/evidence/cascade/`. The replay is labelled as one on screen.
+
+1. **Before you go on stage:** start Bifrost (`npx -y @maximhq/bifrost -app-dir .local/bifrost -port 8089` with the same `BIFROST_SETUP_TOKEN`), run `npm run dev`, and check that `/race` shows **Bifrost gateway live**. Run one live race to warm the NVIDIA endpoints, because the first calls are the slowest.
+2. **If the venue network is bad,** stop Bifrost. The race then replays the recorded live run (choose 4× or 8× speed). Say "this is a recorded live run" out loud.
+3. **The beats:** the small model gets stuck on the calculator task, and Cascade escalates with an autopsy. A single live run can go either way, so close on the **every recorded race** panel: 15/15 for 60% less, about half the time, with the losing run listed. Use the replay picker to choose which recorded run to show, and say which it is. Then show *any agent*: the real OpenCode numbers in the README, and the live gateway feed.
+4. **Don't overclaim.** These are single runs; dollars are projected at list prices; on tasks that need the big model, the saving is smaller. The page and the README both say so.
+
+Stop timings and speaker cues are in `apps/web/src/presentation.ts` (8 stops, 5:00).
+
+---
+
+## ProofBench workspace walkthrough (earlier version)
+
 This replaces the older checklist in `FINAL_PRODUCT_ACCEPTANCE_HANDOFF.md`. It uses Aryan's current UI and Mohit's verifier, and every number comes from a saved live record. **No live model, Tavily request or Docker run is needed during the demo.**
 
 ## Before the demo (10 minutes, once)
@@ -17,7 +32,7 @@ Rehearsal check: Benchmarks → Graph Repair → **Saved sessions** lists severa
 
 ## Presentation mode (recommended)
 
-Press **P** anywhere (or the **Present** button, or open `/?present`). It starts on a title card and walks the script below as nine stops; each opens the right page, scrolls to the right part, replays the routing ladder and loads the saved verifier assessment by itself. Nothing is typed on stage.
+Press **P** anywhere (or the **Present** button, or open `/?present`). It starts on a title card and walks the script as eight stops (see the Cascade pitch above); each opens the right page, scrolls to the right part, replays the routing ladder and loads the saved verifier assessment by itself. Nothing is typed on stage.
 
 | Key | Does |
 | --- | --- |

@@ -13,7 +13,7 @@ export type Stop = {
   /** CSS selector to bring under the masthead; none means the top of the page. */
   target?: string;
   card?: 'title' | 'close';
-  action?: 'replay-ladder' | 'load-assessment';
+  action?: 'replay-ladder' | 'load-assessment' | 'start-race';
   /** Planned seconds on this stop; their sum is the pitch length. */
   seconds: number;
   cues: string[];
@@ -21,53 +21,46 @@ export type Stop = {
 
 export const stops: Stop[] = [
   { title: 'Title', path: '/', card: 'title', seconds: 15, cues: [
-    'Coding agents burn expensive tokens and ask you to trust the result.',
-    'ProofBench spends small-model tokens first and proves every patch.',
+    'Every coding agent sends every step to the most expensive model it has.',
+    'Cascade: change one URL, and your agent spends big-model tokens only when its own tests prove it needs them.',
   ] },
-  { title: 'The claim', path: '/', seconds: 15, cues: [
-    'Agents and AI answers make claims. ProofBench makes them show evidence.',
-    'Patches are graded in a sandbox; facts are checked against sources you can open.',
+  { title: 'Live race', path: '/race', target: '.race-lanes', action: 'start-race', seconds: 75, cues: [
+    'Three lanes, same 5 real bugs, same agent loop, all through a local Bifrost gateway (virtual key, $5/day budget).',
+    'Left: small model only. Middle: big model only, what agents do today. Right: Cascade.',
+    'Every patch runs in a Node permission sandbox: no files outside the task, no child processes, and on Node 26 no network.',
+    'Watch the calculator task: the small model gets stuck on the same failing tests.',
+    'Cascade sees it in the test output, escalates, and hands the big model an autopsy instead of the failed history.',
   ] },
-  { title: 'Four numbers', path: '/', target: '.proof-strip', seconds: 30, cues: [
-    '~20× fewer tokens per repair trial than OpenCode, same bugs, same model.',
-    '42.6% fewer tokens than going straight to the big model.',
-    '12 of 12 patches pass hidden tests in a no-network sandbox.',
-    'Two independent sources before any verdict. Every number is a link.',
+  { title: 'Result', path: '/race', target: '.scoreboard', seconds: 35, cues: [
+    'Every recorded live race (3): Cascade 15/15 for 60% less than big-only (15/15), about half the time. Small-only 13/15.',
+    'Not every run is a win: one cost 26% more (a runaway 6,000-token reply). The page keeps it.',
+    'Best run: 82% less, 3.9× sooner; with the autopsy the big model fixed calc first try where big-only needed four.',
+    'Dollars are projected at list prices: the NVIDIA endpoints in the demo are free. Tokens are real.',
   ] },
-  { title: 'Graph Repair scorecard', path: '/benchmarks', target: '.track-comparison', seconds: 60, cues: [
-    'ProofBench vs OpenCode, same local Qwen3.5-9B, same Bifrost gateway, alternating order.',
-    '2 C++ graph bugs × 3 repeats. Docker, no network, pinned reference oracle (Speed Demon 2026, MIT).',
-    'Both 6/6. "Pinned Bifrost model verified": every model receipt matched.',
-    '860 vs 17,438 tokens per trial; 13 s vs 31 s median.',
+  { title: 'Any agent', path: '/race', target: '.any-agent', seconds: 45, cues: [
+    'Cascade is OpenAI-compatible: we ran the real OpenCode CLI, unmodified, with only its base URL changed.',
+    'It reads the test output the agent already sends back. No plugin, no SDK.',
+    '12 recorded OpenCode runs: every task fixed both ways; Cascade $0.26 vs $0.79 for big-only (67% less), faster on every task.',
+    'Routine bugs about 95% cheaper; the hard one about 54% at the median, with one escalation per run.',
+    'Our first version lost on the hard task: the big model re-read every failed step. We added safe compaction, and the README shows both.',
+  ] },
+  { title: 'Under the hood', path: '/benchmarks/routing', target: '.escalation-ladder', action: 'replay-ladder', seconds: 35, cues: [
+    'The brain is ProofBench: M2 loop breaker (repeated patch, same failure signature, no test progress).',
+    'M3a autopsy: errors and diffs only, compacted to a 2,000-token budget, used only when it is actually smaller.',
+    'Outcome-based, not a guess: Bifrost 2.6 has a complexity analyzer that predicts from the prompt; Cascade routes on what the tests prove.',
+  ] },
+  { title: 'Graph Repair', path: '/benchmarks', target: '.track-comparison', seconds: 35, cues: [
+    'Same engine against OpenCode on C++ bugs in Docker: both 6/6, 860 vs 17,438 tokens per trial.',
     'Not a ranking: ProofBench sees public test feedback while editing. The screen says so.',
   ] },
-  { title: 'Cost on a paid API', path: '/benchmarks', target: '.cost-projection', seconds: 30, cues: [
-    'Same recorded tokens at list prices. Sonnet 5.5, 10k repairs/month: ~$49 vs ~$411, 8.4× cheaper.',
-    'Less than 20× because our tokens are output-heavy, and the screen shows why.',
-    'An estimate: the runs used a local model.',
+  { title: 'Verifier', path: '/verify', target: '#freshness-findings', action: 'load-assessment', seconds: 30, cues: [
+    'Tavily track: claims checked against live, dated sources. "Steve Ballmer is CEO" is contradicted by two independent sources.',
+    'Fails closed: one source is never enough; an undated page never counts.',
   ] },
-  { title: 'Model routing', path: '/benchmarks/routing', target: '.escalation-ladder', action: 'replay-ladder', seconds: 45, cues: [
-    'Small model alone gets stuck: 0 of 1. Big model passes, at full price.',
-    'ProofBench starts on 1.5B; the loop breaker sees repeat failures,',
-    'the 9B gets a compact autopsy of only the errors and diffs.',
-    '4,461 vs 7,766 tokens, 42.6% fewer, 2.6× faster. One trial each: an illustration.',
-  ] },
-  { title: 'Verifier', path: '/verify', target: '#freshness-findings', action: 'load-assessment', seconds: 60, cues: [
-    'Claim: "Steve Ballmer is the current CEO of Microsoft."',
-    'Tavily retrieved live sources; the local model compared each, quoting the full excerpt; the backend decided.',
-    'Microsoft and a Detroit Regional Chamber bio say he retired: contradicted by two independent sources.',
-    'Forbes agreed, but its page date was invalid, so it was not counted.',
-    'Fails closed: one source is never enough; a timeout is never a verdict.',
-  ] },
-  { title: 'Receipts', path: '/benchmarks', seconds: 20, cues: [
-    'Every number downloads as JSON with model receipts (Evidence JSON, top right).',
-    'Our first pilot said OpenCode 0 of 6. It did not reproduce, so we published the rerun.',
-    'That is the point of ProofBench.',
-  ] },
-  { title: 'Close', path: '/', card: 'close', seconds: 25, cues: [
-    'Cheap tokens first. The expensive model only on evidence. Proof every time.',
-    'Credits: Graph Repair & UI Aryan · Verifier Mohit · Routing engine & integration Farhan · Evaluation Khushi.',
-    'Thank you. Questions?',
+  { title: 'Close', path: '/', card: 'close', seconds: 30, cues: [
+    'One URL. Small model first. The big model only on proof. Every patch tested.',
+    'Built for Bifrost PS01 (token-efficient coding agent) and PS04 (a gateway feature operators would miss).',
+    'Credits: Routing engine & Cascade Farhan · Graph Repair & UI Aryan · Verifier Mohit · Evaluation Khushi. Questions?',
   ] },
 ];
 

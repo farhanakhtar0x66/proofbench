@@ -1,0 +1,26 @@
+{
+ "agent": "opencode",
+ "recordedAt": "2026-11-19T17:58:08.264Z",
+ "task": "slugify",
+ "route": "cascade:large",
+ "passed": true,
+ "tests": "4/4",
+ "steps": 5,
+ "toolCalls": 4,
+ "seconds": 20,
+ "escalations": 0,
+ "usage": {
+  "small": {
+   "input": 0,
+   "output": 0
+  },
+  "large": {
+   "input": 18034,
+   "output": 1592
+  }
+ },
+ "opencodeReportedTokens": {
+  "input": 17515,
+  "output": 501
+ }
+}

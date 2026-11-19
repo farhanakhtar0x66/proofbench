@@ -1,0 +1,26 @@
+{
+ "agent": "opencode",
+ "recordedAt": "2026-11-19T17:56:16.525Z",
+ "task": "calc",
+ "route": "cascade:large",
+ "passed": true,
+ "tests": "8/8",
+ "steps": 14,
+ "toolCalls": 13,
+ "seconds": 98,
+ "escalations": 0,
+ "usage": {
+  "small": {
+   "input": 0,
+   "output": 0
+  },
+  "large": {
+   "input": 129526,
+   "output": 5143
+  }
+ },
+ "opencodeReportedTokens": {
+  "input": 46230,
+  "output": 3474
+ }
+}
